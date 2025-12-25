@@ -1,0 +1,418 @@
+import { Router, Request, Response } from 'express';
+import { adminService } from '../services/admin';
+import { SchedulerService } from '../services/scheduler';
+
+const router = Router();
+const scheduler = new SchedulerService();
+
+// ============ DASHBOARD ============
+
+// GET /api/admin/dashboard - Get dashboard statistics
+router.get('/dashboard', (req: Request, res: Response) => {
+  try {
+    const stats = adminService.getDashboardStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).json({ error: 'Failed to get dashboard stats' });
+  }
+});
+
+// GET /api/admin/appointments - Get all appointments with pagination
+router.get('/appointments', (req: Request, res: Response) => {
+  try {
+    const { status, limit, offset, startDate, endDate } = req.query;
+
+    if (startDate && endDate) {
+      const appointments = adminService.getAppointmentsForDateRange(
+        startDate as string,
+        endDate as string
+      );
+      return res.json(appointments);
+    }
+
+    const appointments = adminService.getAllAppointments({
+      status: status as string,
+      limit: limit ? parseInt(limit as string) : undefined,
+      offset: offset ? parseInt(offset as string) : undefined
+    });
+    res.json(appointments);
+  } catch (error) {
+    console.error('Get appointments error:', error);
+    res.status(500).json({ error: 'Failed to get appointments' });
+  }
+});
+
+// ============ STAFF MANAGEMENT ============
+
+// GET /api/admin/staff - Get all staff
+router.get('/staff', (req: Request, res: Response) => {
+  try {
+    const activeOnly = req.query.active === 'true';
+    const staff = adminService.getAllStaff(activeOnly);
+    res.json(staff);
+  } catch (error) {
+    console.error('Get staff error:', error);
+    res.status(500).json({ error: 'Failed to get staff' });
+  }
+});
+
+// POST /api/admin/staff - Create new staff member
+router.post('/staff', (req: Request, res: Response) => {
+  try {
+    const { name, email, phone, role, services, color, isActive } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const staff = adminService.createStaff({
+      name,
+      email,
+      phone,
+      role: role || 'staff',
+      services: services || [],
+      color,
+      isActive: isActive !== false
+    });
+
+    res.status(201).json(staff);
+  } catch (error) {
+    console.error('Create staff error:', error);
+    res.status(500).json({ error: 'Failed to create staff' });
+  }
+});
+
+// PUT /api/admin/staff/:id - Update staff member
+router.put('/staff/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const staff = adminService.updateStaff(id, req.body);
+
+    if (!staff) {
+      return res.status(404).json({ error: 'Staff not found' });
+    }
+
+    res.json(staff);
+  } catch (error) {
+    console.error('Update staff error:', error);
+    res.status(500).json({ error: 'Failed to update staff' });
+  }
+});
+
+// DELETE /api/admin/staff/:id - Delete staff member
+router.delete('/staff/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const success = adminService.deleteStaff(id);
+
+    if (!success) {
+      return res.status(404).json({ error: 'Staff not found' });
+    }
+
+    res.json({ message: 'Staff deleted successfully' });
+  } catch (error) {
+    console.error('Delete staff error:', error);
+    res.status(500).json({ error: 'Failed to delete staff' });
+  }
+});
+
+// ============ LOCATION MANAGEMENT ============
+
+// GET /api/admin/locations - Get all locations
+router.get('/locations', (req: Request, res: Response) => {
+  try {
+    const activeOnly = req.query.active === 'true';
+    const locations = adminService.getAllLocations(activeOnly);
+    res.json(locations);
+  } catch (error) {
+    console.error('Get locations error:', error);
+    res.status(500).json({ error: 'Failed to get locations' });
+  }
+});
+
+// POST /api/admin/locations - Create new location
+router.post('/locations', (req: Request, res: Response) => {
+  try {
+    const { name, address, phone, isActive } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const location = adminService.createLocation({
+      name,
+      address,
+      phone,
+      isActive: isActive !== false
+    });
+
+    res.status(201).json(location);
+  } catch (error) {
+    console.error('Create location error:', error);
+    res.status(500).json({ error: 'Failed to create location' });
+  }
+});
+
+// PUT /api/admin/locations/:id - Update location
+router.put('/locations/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const location = adminService.updateLocation(id, req.body);
+
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+
+    res.json(location);
+  } catch (error) {
+    console.error('Update location error:', error);
+    res.status(500).json({ error: 'Failed to update location' });
+  }
+});
+
+// DELETE /api/admin/locations/:id - Delete location
+router.delete('/locations/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const success = adminService.deleteLocation(id);
+
+    if (!success) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+
+    res.json({ message: 'Location deleted successfully' });
+  } catch (error) {
+    console.error('Delete location error:', error);
+    res.status(500).json({ error: 'Failed to delete location' });
+  }
+});
+
+// ============ HOLIDAY MANAGEMENT ============
+
+// GET /api/admin/holidays - Get all holidays
+router.get('/holidays', (req: Request, res: Response) => {
+  try {
+    const futureOnly = req.query.future === 'true';
+    const holidays = adminService.getAllHolidays(futureOnly);
+    res.json(holidays);
+  } catch (error) {
+    console.error('Get holidays error:', error);
+    res.status(500).json({ error: 'Failed to get holidays' });
+  }
+});
+
+// POST /api/admin/holidays - Create new holiday
+router.post('/holidays', (req: Request, res: Response) => {
+  try {
+    const { date, name, isClosed, customHoursOpen, customHoursClose } = req.body;
+
+    if (!date || !name) {
+      return res.status(400).json({ error: 'Date and name are required' });
+    }
+
+    // Check if holiday already exists for this date
+    const existing = adminService.getHolidayByDate(date);
+    if (existing) {
+      return res.status(400).json({ error: 'A holiday already exists for this date' });
+    }
+
+    const holiday = adminService.createHoliday({
+      date,
+      name,
+      isClosed: isClosed !== false,
+      customHoursOpen,
+      customHoursClose
+    });
+
+    res.status(201).json(holiday);
+  } catch (error) {
+    console.error('Create holiday error:', error);
+    res.status(500).json({ error: 'Failed to create holiday' });
+  }
+});
+
+// PUT /api/admin/holidays/:id - Update holiday
+router.put('/holidays/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const holiday = adminService.updateHoliday(id, req.body);
+
+    if (!holiday) {
+      return res.status(404).json({ error: 'Holiday not found' });
+    }
+
+    res.json(holiday);
+  } catch (error) {
+    console.error('Update holiday error:', error);
+    res.status(500).json({ error: 'Failed to update holiday' });
+  }
+});
+
+// DELETE /api/admin/holidays/:id - Delete holiday
+router.delete('/holidays/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const success = adminService.deleteHoliday(id);
+
+    if (!success) {
+      return res.status(404).json({ error: 'Holiday not found' });
+    }
+
+    res.json({ message: 'Holiday deleted successfully' });
+  } catch (error) {
+    console.error('Delete holiday error:', error);
+    res.status(500).json({ error: 'Failed to delete holiday' });
+  }
+});
+
+// ============ WAITLIST MANAGEMENT ============
+
+// GET /api/admin/waitlist - Get all waitlist entries
+router.get('/waitlist', (req: Request, res: Response) => {
+  try {
+    const { status, date, email } = req.query;
+
+    if (email) {
+      const entries = adminService.getWaitlistByEmail(email as string);
+      return res.json(entries);
+    }
+
+    if (date) {
+      const entries = adminService.getWaitlistByDate(date as string);
+      return res.json(entries);
+    }
+
+    const entries = adminService.getAllWaitlist(status as string);
+    res.json(entries);
+  } catch (error) {
+    console.error('Get waitlist error:', error);
+    res.status(500).json({ error: 'Failed to get waitlist' });
+  }
+});
+
+// POST /api/admin/waitlist - Add to waitlist
+router.post('/waitlist', (req: Request, res: Response) => {
+  try {
+    const { customerName, customerEmail, customerPhone, serviceId, preferredDate, preferredTime, staffId } = req.body;
+
+    if (!customerName || !customerEmail || !customerPhone || !serviceId || !preferredDate) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const entry = adminService.addToWaitlist({
+      customerName,
+      customerEmail: customerEmail.toLowerCase(),
+      customerPhone,
+      serviceId,
+      preferredDate,
+      preferredTime,
+      staffId
+    });
+
+    res.status(201).json(entry);
+  } catch (error) {
+    console.error('Add to waitlist error:', error);
+    res.status(500).json({ error: 'Failed to add to waitlist' });
+  }
+});
+
+// PUT /api/admin/waitlist/:id/status - Update waitlist status
+router.put('/waitlist/:id/status', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['waiting', 'notified', 'booked', 'expired'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const entry = adminService.updateWaitlistStatus(id, status);
+
+    if (!entry) {
+      return res.status(404).json({ error: 'Waitlist entry not found' });
+    }
+
+    res.json(entry);
+  } catch (error) {
+    console.error('Update waitlist status error:', error);
+    res.status(500).json({ error: 'Failed to update waitlist status' });
+  }
+});
+
+// DELETE /api/admin/waitlist/:id - Remove from waitlist
+router.delete('/waitlist/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const success = adminService.removeFromWaitlist(id);
+
+    if (!success) {
+      return res.status(404).json({ error: 'Waitlist entry not found' });
+    }
+
+    res.json({ message: 'Removed from waitlist successfully' });
+  } catch (error) {
+    console.error('Remove from waitlist error:', error);
+    res.status(500).json({ error: 'Failed to remove from waitlist' });
+  }
+});
+
+// ============ APPOINTMENT MANAGEMENT ============
+
+// PUT /api/admin/appointments/:id/reschedule - Reschedule appointment
+router.put('/appointments/:id/reschedule', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { date, time } = req.body;
+
+    if (!date || !time) {
+      return res.status(400).json({ error: 'Date and time are required' });
+    }
+
+    // Get existing appointment
+    const existing = scheduler.getAppointment(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    // Check if new slot is available
+    const slots = scheduler.getAvailableSlots(date, existing.serviceId);
+    const slot = slots.find(s => s.time === time);
+
+    if (!slot || !slot.available) {
+      return res.status(400).json({ error: 'Selected time slot is not available' });
+    }
+
+    // Update the appointment
+    const { runQuery } = await import('../db/database');
+    runQuery(
+      `UPDATE appointments SET appointment_date = ?, appointment_time = ?, updated_at = ? WHERE id = ?`,
+      [date, time, new Date().toISOString(), id]
+    );
+
+    const updated = scheduler.getAppointment(id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Reschedule error:', error);
+    res.status(500).json({ error: 'Failed to reschedule appointment' });
+  }
+});
+
+// PUT /api/admin/appointments/:id/cancel - Cancel appointment
+router.put('/appointments/:id/cancel', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const success = scheduler.cancelAppointment(id);
+
+    if (!success) {
+      return res.status(404).json({ error: 'Appointment not found or already past' });
+    }
+
+    res.json({ message: 'Appointment cancelled successfully' });
+  } catch (error) {
+    console.error('Cancel error:', error);
+    res.status(500).json({ error: 'Failed to cancel appointment' });
+  }
+});
+
+export default router;

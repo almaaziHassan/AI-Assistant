@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Serenity Wellness Spa - AI Receptionist</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667eea' stroke-width='2'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'%3E%3C/path%3E%3C/svg%3E" />
+    <meta name="description" content="24/7 AI-powered virtual receptionist for booking appointments and answering questions" />
+    <meta name="theme-color" content="#667eea" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        background: #fafafa;
+        min-height: 100vh;
+      }
+
+      /* Loading Screen */
+      .loading-screen {
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+      }
+
+      .loading-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .loading-logo {
+        width: 80px;
+        height: 80px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 24px;
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      .loading-logo svg {
+        width: 44px;
+        height: 44px;
+        color: white;
+      }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+      }
+
+      .loading-text {
+        color: white;
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      .loading-subtext {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 14px;
+      }
+
+      .loading-dots {
+        display: flex;
+        gap: 6px;
+        margin-top: 32px;
+      }
+
+      .loading-dots span {
+        width: 10px;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.4);
+        border-radius: 50%;
+        animation: bounce 1.4s ease-in-out infinite;
+      }
+
+      .loading-dots span:nth-child(1) { animation-delay: 0s; }
+      .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+      .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+      @keyframes bounce {
+        0%, 60%, 100% { transform: translateY(0); background: rgba(255, 255, 255, 0.4); }
+        30% { transform: translateY(-12px); background: white; }
+      }
+
+      /* Hide loading screen once app is ready */
+      #ai-receptionist-root:not(:empty) + .loading-screen,
+      .app-loaded .loading-screen {
+        opacity: 0;
+        visibility: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ai-receptionist-root"></div>
+
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+      <div class="loading-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </div>
+      <div class="loading-text">Serenity Wellness</div>
+      <div class="loading-subtext">AI Virtual Receptionist</div>
+      <div class="loading-dots">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Hide loading screen when React app mounts
+      const observer = new MutationObserver((mutations) => {
+        const root = document.getElementById('ai-receptionist-root');
+        if (root && root.children.length > 0) {
+          document.getElementById('loadingScreen').classList.add('hidden');
+          observer.disconnect();
+        }
+      });
+
+      observer.observe(document.getElementById('ai-receptionist-root'), {
+        childList: true,
+        subtree: true
+      });
+
+      // Fallback: hide after 3 seconds
+      setTimeout(() => {
+        const loader = document.getElementById('loadingScreen');
+        if (loader) loader.classList.add('hidden');
+      }, 3000);
+    </script>
+  </body>
+</html>

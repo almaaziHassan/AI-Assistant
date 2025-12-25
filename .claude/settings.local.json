@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(cat:*)",
+      "Bash(npx tsc:*)",
+      "Bash(netstat:*)",
+      "Bash(curl:*)",
+      "Bash(cmd.exe /c \"netstat -ano | findstr :5173 | findstr LISTENING\")",
+      "Bash(cmd.exe /c \"netstat -ano | findstr :5174 | findstr LISTENING\")",
+      "Bash(cmd.exe /c \"netstat -ano | findstr :3000 | findstr LISTENING\")",
+      "Bash(powershell.exe -Command \"Invoke-RestMethod -Uri ''http://localhost:3000/api/appointments'' -Method Post -ContentType ''application/json'' -Body ''{\"\"customerName\"\": \"\"Test User\"\", \"\"customerEmail\"\": \"\"test@example.com\"\", \"\"customerPhone\"\": \"\"1234567890\"\", \"\"serviceId\"\": \"\"consultation\"\", \"\"staffId\"\": \"\"628cd6db-fcb0-4d73-a266-abdabb76c209\"\", \"\"date\"\": \"\"2025-12-26\"\", \"\"time\"\": \"\"10:00\"\"}'' | ConvertTo-Json\")",
+      "Bash(powershell.exe -Command \"Invoke-RestMethod -Uri ''http://localhost:3000/api/appointments'' -Method Post -ContentType ''application/json'' -Body ''{\"\"customerName\"\": \"\"Test User\"\", \"\"customerEmail\"\": \"\"test@example.com\"\", \"\"customerPhone\"\": \"\"+1 1234567890\"\", \"\"serviceId\"\": \"\"consultation\"\", \"\"staffId\"\": \"\"628cd6db-fcb0-4d73-a266-abdabb76c209\"\", \"\"date\"\": \"\"2025-12-26\"\", \"\"time\"\": \"\"10:00\"\"}'' | ConvertTo-Json\")",
+      "Bash(powershell.exe -Command \"\\(Invoke-RestMethod -Uri ''http://localhost:3000/api/appointments/slots?date=2025-12-26&serviceId=consultation&staffId=628cd6db-fcb0-4d73-a266-abdabb76c209''\\).slots | Where-Object {$_time -eq ''10:00''} | ConvertTo-Json\")",
+      "Bash(powershell.exe -Command \"\\(Invoke-RestMethod -Uri ''http://localhost:3000/api/appointments/slots?date=2025-12-26&serviceId=consultation&staffId=ddaaff6d-9b26-4931-ab28-1148bf02556c''\\).slots | Where-Object {$_time -eq ''10:00''} | ConvertTo-Json\")",
+      "Bash(cd:*)",
+      "Bash(powershell.exe -Command \"node test-slots.js\")",
+      "Bash(powershell.exe -Command \"node test-persistence.js\")",
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(lsof:*)"
+    ]
+  }
+}

@@ -1,0 +1,189 @@
+{
+  "industryKnowledge": {
+    "commonProblems": [
+      {
+        "problem": "Chronic back pain or muscle tension",
+        "causes": ["Poor posture", "Desk work", "Stress", "Physical labor"],
+        "recommendedServices": ["deep-tissue", "hot-stone"],
+        "advice": "Regular massage therapy can significantly reduce chronic tension. Deep tissue work targets the underlying muscle layers where tension builds up."
+      },
+      {
+        "problem": "Stress and anxiety",
+        "causes": ["Work pressure", "Life changes", "Sleep issues", "Burnout"],
+        "recommendedServices": ["swedish-massage", "hot-stone", "consultation"],
+        "advice": "Massage therapy activates the parasympathetic nervous system, reducing cortisol levels and promoting relaxation. Many clients notice improved sleep within the first few sessions."
+      },
+      {
+        "problem": "Skin concerns",
+        "causes": ["Aging", "Environmental damage", "Dehydration", "Acne"],
+        "recommendedServices": ["facial", "consultation"],
+        "advice": "Professional facials provide deep cleansing and treatments that aren't possible at home. Regular facials every 4-6 weeks can dramatically improve skin health."
+      },
+      {
+        "problem": "Sports recovery or athletic performance",
+        "causes": ["Training intensity", "Competition", "Injury prevention"],
+        "recommendedServices": ["deep-tissue", "swedish-massage"],
+        "advice": "Athletes benefit from massage for faster recovery, improved flexibility, and injury prevention. We can customize pressure and focus areas based on your sport."
+      },
+      {
+        "problem": "Relationship wellness",
+        "causes": ["Reconnection", "Anniversary", "Quality time"],
+        "recommendedServices": ["couples"],
+        "advice": "Couples massage is a wonderful way to share a relaxing experience together. Many couples make it a monthly ritual."
+      },
+      {
+        "problem": "Not sure what I need",
+        "causes": ["First time spa visitor", "General wellness interest"],
+        "recommendedServices": ["consultation"],
+        "advice": "Our complimentary consultation helps us understand your needs and recommend the perfect treatment. There's no pressure - just expert guidance."
+      }
+    ],
+    "benefits": {
+      "massage": [
+        "Reduces muscle tension and pain",
+        "Improves circulation and flexibility",
+        "Lowers stress hormones (cortisol)",
+        "Boosts immune function",
+        "Improves sleep quality",
+        "Releases endorphins (natural painkillers)"
+      ],
+      "facial": [
+        "Deep cleanses pores",
+        "Removes dead skin cells",
+        "Improves skin texture and tone",
+        "Boosts collagen production",
+        "Reduces signs of aging",
+        "Professional-grade products and techniques"
+      ]
+    },
+    "frequencyRecommendations": {
+      "massage": "Every 2-4 weeks for maintenance, weekly for chronic issues",
+      "facial": "Every 4-6 weeks for optimal skin health"
+    }
+  },
+  "faqs": [
+    {
+      "id": "parking",
+      "question": "Is there parking available?",
+      "answer": "Yes, we have free parking available in our private lot behind the building. Street parking is also available on Oak Street.",
+      "keywords": ["parking", "park", "car", "lot", "street parking", "where to park"]
+    },
+    {
+      "id": "payment",
+      "question": "What payment methods do you accept?",
+      "answer": "We accept all major credit cards (Visa, MasterCard, American Express), debit cards, cash, and digital payments like Apple Pay and Google Pay. Payment is due at the time of service.",
+      "keywords": ["payment", "pay", "credit card", "debit", "cash", "apple pay", "google pay", "visa", "mastercard", "cost", "price"]
+    },
+    {
+      "id": "cancellation",
+      "question": "What is your cancellation policy?",
+      "answer": "We require at least 24 hours notice for cancellations. Late cancellations or no-shows may be subject to a fee of 50% of the service price. We understand emergencies happen - just give us a call!",
+      "keywords": ["cancel", "cancellation", "reschedule", "policy", "refund", "change appointment"]
+    },
+    {
+      "id": "late",
+      "question": "What happens if I'm running late?",
+      "answer": "Please call us if you're running more than 10 minutes late. We'll do our best to accommodate you, but significant delays may require rescheduling to respect other clients' time.",
+      "keywords": ["late", "running late", "delay", "delayed", "behind", "traffic"]
+    },
+    {
+      "id": "first-visit",
+      "question": "What should I expect on my first visit?",
+      "answer": "Please arrive 10 minutes early to complete intake paperwork. Bring a valid ID and wear comfortable clothing. Your therapist will discuss your goals and create a personalized treatment plan.",
+      "keywords": ["first visit", "first time", "bring", "prepare", "expect", "new patient", "new client"]
+    },
+    {
+      "id": "insurance",
+      "question": "Do you accept insurance?",
+      "answer": "We're an out-of-network provider, but we can provide superbills for insurance reimbursement. Many clients get 50-80% reimbursed. We also offer package discounts for self-pay clients.",
+      "keywords": ["insurance", "coverage", "covered", "reimbursement", "claim", "superbill"]
+    },
+    {
+      "id": "gift",
+      "question": "Do you offer gift cards?",
+      "answer": "Yes! Gift cards are available in any amount and make a wonderful present. You can purchase them online or in-person. They never expire.",
+      "keywords": ["gift", "gift card", "present", "voucher", "certificate"]
+    },
+    {
+      "id": "covid",
+      "question": "What safety measures do you have in place?",
+      "answer": "We maintain high cleanliness standards with sanitization between each appointment. Air purifiers run continuously, and our staff follows strict hygiene protocols.",
+      "keywords": ["covid", "safety", "clean", "sanitize", "mask", "health", "hygiene", "safe"]
+    }
+  ],
+  "business": {
+    "name": "Serenity Wellness Spa",
+    "description": "A premium wellness center offering therapeutic massage, skincare treatments, and holistic healing services in a tranquil environment.",
+    "phone": "+1 (555) 234-5678",
+    "email": "hello@serenitywellness.com",
+    "address": "456 Tranquil Lane, Suite 100, Wellness City, CA 90210",
+    "website": "https://serenitywellness.com"
+  },
+  "hours": {
+    "monday": { "open": "09:00", "close": "19:00" },
+    "tuesday": { "open": "09:00", "close": "19:00" },
+    "wednesday": { "open": "09:00", "close": "19:00" },
+    "thursday": { "open": "09:00", "close": "20:00" },
+    "friday": { "open": "09:00", "close": "20:00" },
+    "saturday": { "open": "10:00", "close": "18:00" },
+    "sunday": { "open": "11:00", "close": "16:00" }
+  },
+  "services": [
+    {
+      "id": "consultation",
+      "name": "Wellness Consultation",
+      "description": "A complimentary 15-minute consultation to discuss your wellness goals and recommend the perfect treatment.",
+      "duration": 15,
+      "price": 0
+    },
+    {
+      "id": "swedish-massage",
+      "name": "Swedish Relaxation Massage",
+      "description": "Classic full-body massage using long, flowing strokes to promote relaxation and ease muscle tension.",
+      "duration": 60,
+      "price": 95
+    },
+    {
+      "id": "deep-tissue",
+      "name": "Deep Tissue Massage",
+      "description": "Targeted massage focusing on deeper muscle layers to relieve chronic tension and pain.",
+      "duration": 60,
+      "price": 115
+    },
+    {
+      "id": "hot-stone",
+      "name": "Hot Stone Therapy",
+      "description": "Heated basalt stones combined with massage techniques for ultimate relaxation and muscle relief.",
+      "duration": 75,
+      "price": 135
+    },
+    {
+      "id": "facial",
+      "name": "Signature Facial",
+      "description": "Customized facial treatment including cleansing, exfoliation, extraction, and hydrating mask.",
+      "duration": 60,
+      "price": 85
+    },
+    {
+      "id": "couples",
+      "name": "Couples Massage",
+      "description": "Side-by-side massage experience for two in our special couples suite.",
+      "duration": 60,
+      "price": 180
+    }
+  ],
+  "receptionist": {
+    "name": "Sarah",
+    "persona": "warm, professional, and knowledgeable about wellness",
+    "greeting": "Hello! Welcome to {business_name}. I'm {receptionist_name}, your virtual wellness concierge. How can I help you today?",
+    "fallbackMessage": "I want to make sure I help you correctly. Could you tell me more about what you're looking for? Or I can connect you with our team directly.",
+    "escalationMessage": "I'll connect you with one of our wellness specialists who can better assist you. One moment please."
+  },
+  "appointmentSettings": {
+    "slotDuration": 15,
+    "bufferBetweenAppointments": 15,
+    "maxAdvanceBookingDays": 30,
+    "requireEmail": true,
+    "requirePhone": true
+  }
+}
