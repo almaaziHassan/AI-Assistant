@@ -235,6 +235,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     }
   }, [activeTab, isAuthenticated]);
 
+  // Auto-refresh overview stats every 30 seconds
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'overview') return;
+
+    const interval = setInterval(() => {
+      refreshOverviewStats();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, activeTab]);
+
+  // Refresh only overview stats (without loading state)
+  const refreshOverviewStats = async () => {
+    const headers = getAuthHeaders();
+    try {
+      const [statsRes, actionRes, aptStatsRes] = await Promise.all([
+        fetch(`${serverUrl}/api/admin/dashboard`, { headers }),
+        fetch(`${serverUrl}/api/appointments/needing-action`, { headers }),
+        fetch(`${serverUrl}/api/appointments/stats`, { headers })
+      ]);
+      if (statsRes.status === 401) { handleLogout(); return; }
+      if (statsRes.ok) setStats(await statsRes.json());
+      if (actionRes.ok) setActionRequired(await actionRes.json());
+      if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
+    } catch {
+      // Silently fail on background refresh
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
@@ -386,9 +415,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         if (status === 'completed' || status === 'no-show') {
           setActionRequired(prev => prev.filter(a => a.id !== id));
         }
-        // Refresh stats in background
-        const aptStatsRes = await fetch(`${serverUrl}/api/appointments/stats`, { headers: getAuthHeaders() });
-        if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
+        // Refresh all stats in background
+        refreshOverviewStats();
       } else {
         const err = await res.json();
         alert(err.error || 'Failed to update appointment status');
@@ -607,6 +635,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         {/* Overview Tab */}
         {activeTab === 'overview' && stats && !loading && (
           <>
+            <div className="section-header">
+              <h2>Overview</h2>
+              <button className="btn-refresh" onClick={refreshOverviewStats} title="Refresh stats">
+                ↻ Refresh
+              </button>
+            </div>
             {/* Action Required Section */}
             {actionRequired.length > 0 && (
               <div className="action-required-section">

@@ -284,6 +284,26 @@
   color: #1f2937;
 }
 
+.btn-refresh {
+  padding: 8px 16px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-refresh:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.btn-refresh:active {
+  transform: scale(0.98);
+}
+
 /* Forms */
 .admin-form {
   display: flex;
