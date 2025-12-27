@@ -15,7 +15,7 @@ export interface Appointment {
   appointmentDate: string;
   appointmentTime: string;
   duration: number;
-  status: 'confirmed' | 'cancelled' | 'completed';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no-show';
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -180,7 +180,7 @@ export class SchedulerService {
   private hasDuplicateBooking(email: string, date: string, serviceId: string, time: string): boolean {
     const existing = getAll(
       `SELECT id FROM appointments
-       WHERE customer_email = ? AND appointment_date = ? AND service_id = ? AND appointment_time = ? AND status = 'confirmed'`,
+       WHERE customer_email = ? AND appointment_date = ? AND service_id = ? AND appointment_time = ? AND status IN ('pending', 'confirmed')`,
       [email.toLowerCase(), date, serviceId, time]
     );
     return existing.length > 0;
@@ -237,7 +237,7 @@ export class SchedulerService {
       // Staff-specific: only check this staff's appointments
       existingAppointments = getAll(
         `SELECT appointment_time, duration FROM appointments
-         WHERE appointment_date = ? AND staff_id = ? AND status = 'confirmed'`,
+         WHERE appointment_date = ? AND staff_id = ? AND status IN ('pending', 'confirmed')`,
         [date, staffId]
       ) as { appointment_time: string; duration: number }[];
     } else {
@@ -245,7 +245,7 @@ export class SchedulerService {
       // This is for when user hasn't selected a specific staff yet
       existingAppointments = getAll(
         `SELECT appointment_time, duration FROM appointments
-         WHERE appointment_date = ? AND status = 'confirmed'`,
+         WHERE appointment_date = ? AND status IN ('pending', 'confirmed')`,
         [date]
       ) as { appointment_time: string; duration: number }[];
     }
@@ -308,13 +308,13 @@ export class SchedulerService {
     if (staffId) {
       existingAppointments = getAll(
         `SELECT appointment_time, duration FROM appointments
-         WHERE appointment_date = ? AND staff_id = ? AND status = 'confirmed'`,
+         WHERE appointment_date = ? AND staff_id = ? AND status IN ('pending', 'confirmed')`,
         [date, staffId]
       ) as { appointment_time: string; duration: number }[];
     } else {
       existingAppointments = getAll(
         `SELECT appointment_time, duration FROM appointments
-         WHERE appointment_date = ? AND status = 'confirmed'`,
+         WHERE appointment_date = ? AND status IN ('pending', 'confirmed')`,
         [date]
       ) as { appointment_time: string; duration: number }[];
     }
@@ -464,7 +464,7 @@ export class SchedulerService {
         appointmentDate: normalizedRequest.date,
         appointmentTime: normalizedRequest.time,
         duration: service.duration,
-        status: 'confirmed',
+        status: 'pending',
         notes: normalizedRequest.notes?.trim(),
         createdAt: now,
         updatedAt: now
@@ -545,6 +545,104 @@ export class SchedulerService {
     );
 
     return true;
+  }
+
+  // Update appointment status
+  updateAppointmentStatus(id: string, status: 'pending' | 'confirmed' | 'completed' | 'no-show' | 'cancelled'): { success: boolean; error?: string } {
+    const existing = this.getAppointment(id);
+    if (!existing) {
+      return { success: false, error: 'Appointment not found' };
+    }
+
+    // Define valid status transitions
+    const validTransitions: Record<string, string[]> = {
+      'pending': ['confirmed', 'cancelled', 'no-show'],
+      'confirmed': ['cancelled', 'completed', 'no-show'],
+      'completed': [],  // Final state
+      'no-show': [],    // Final state
+      'cancelled': []   // Final state
+    };
+
+    const allowedNextStatuses = validTransitions[existing.status] || [];
+    if (!allowedNextStatuses.includes(status)) {
+      return { success: false, error: `Cannot change status from ${existing.status} to ${status}` };
+    }
+
+    // For confirmed/completed/no-show, appointment time must have started
+    if (status === 'confirmed' || status === 'completed' || status === 'no-show') {
+      const appointmentStartTime = new Date(`${existing.appointmentDate}T${existing.appointmentTime}:00`);
+
+      if (appointmentStartTime > new Date()) {
+        return { success: false, error: 'Cannot mark future appointments as confirmed, completed, or no-show' };
+      }
+    }
+
+    runQuery(
+      "UPDATE appointments SET status = ?, updated_at = ? WHERE id = ?",
+      [status, new Date().toISOString(), id]
+    );
+
+    return { success: true };
+  }
+
+  // Get past appointments that need action (still marked as confirmed but time has passed)
+  getAppointmentsNeedingAction(): Appointment[] {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    // Get appointments where:
+    // 1. Status is 'confirmed' AND
+    // 2. (Date is before today) OR (Date is today AND appointment end time has passed)
+    const rows = getAll(
+      `SELECT * FROM appointments
+       WHERE status = 'confirmed'
+       AND (
+         appointment_date < ?
+         OR (appointment_date = ? AND time(appointment_time, '+' || duration || ' minutes') <= time(?))
+       )
+       ORDER BY appointment_date DESC, appointment_time DESC`,
+      [today, today, currentTime]
+    );
+
+    return rows.map(row => this.rowToAppointment(row));
+  }
+
+  // Get appointment statistics including no-shows
+  getAppointmentStats(): {
+    total: number;
+    pending: number;
+    confirmed: number;
+    completed: number;
+    cancelled: number;
+    noShow: number;
+    noShowRate: number;
+  } {
+    const stats = getOne(
+      `SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
+        SUM(CASE WHEN status = 'no-show' THEN 1 ELSE 0 END) as no_show
+       FROM appointments`
+    ) as { total: number; pending: number; confirmed: number; completed: number; cancelled: number; no_show: number };
+
+    const finishedAppointments = stats.completed + stats.no_show;
+    const noShowRate = finishedAppointments > 0
+      ? Math.round((stats.no_show / finishedAppointments) * 100)
+      : 0;
+
+    return {
+      total: stats.total,
+      pending: stats.pending,
+      confirmed: stats.confirmed,
+      completed: stats.completed,
+      cancelled: stats.cancelled,
+      noShow: stats.no_show,
+      noShowRate
+    };
   }
 
   private rowToAppointment(row: Record<string, unknown>): Appointment {

@@ -18,7 +18,25 @@
       "Bash(powershell.exe -Command \"node test-persistence.js\")",
       "Bash(wc:*)",
       "Bash(find:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(powershell.exe -Command \"npm install --save-dev jest @types/jest ts-jest supertest @types/supertest\")",
+      "Bash(npm install)",
+      "Bash(npm test)",
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "Bash(fuser:*)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 7400\")",
+      "Bash(powershell.exe -Command \"node test-contact.js\")",
+      "Bash(powershell.exe -Command \"Invoke-RestMethod -Uri ''http://localhost:3000/api/health''\")",
+      "Bash(pkill:*)",
+      "Bash(ss:*)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 2756\")",
+      "Bash(powershell.exe -Command \"Invoke-RestMethod -Uri ''http://localhost:3000/api/admin/appointments?startDate=2025-12-01&endDate=2025-12-31'' | ConvertTo-Json\")",
+      "Bash(cmd.exe /c \"taskkill /F /PID 2484\")",
+      "Bash(npx vitest run)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 11060\")",
+      "Bash(powershell.exe -Command \"node ''E:\\\\ML\\\\New AI Assistant\\\\test-confirm-future.js''\")",
+      "Bash(git add:*)"
     ]
   }
 }

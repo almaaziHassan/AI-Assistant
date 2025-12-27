@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { validatePhoneNumber, validateEmail } from '../utils/validation';
+import PhoneInput from './PhoneInput';
 
 interface CallbackData {
   customerName: string;
@@ -75,6 +76,21 @@ const CallbackForm: React.FC<CallbackFormProps> = ({ onSubmit, onCancel }) => {
     }
   };
 
+  const handlePhoneChange = useCallback((phone: string) => {
+    setFormData(prev => ({ ...prev, customerPhone: phone }));
+    // Clear phone error on change
+    if (errors.customerPhone) {
+      setErrors(prev => ({ ...prev, customerPhone: '' }));
+    }
+  }, [errors.customerPhone]);
+
+  const handlePhoneBlur = useCallback(() => {
+    const error = validateField('customerPhone', formData.customerPhone);
+    if (error) {
+      setErrors(prev => ({ ...prev, customerPhone: error }));
+    }
+  }, [formData.customerPhone]);
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -133,16 +149,13 @@ const CallbackForm: React.FC<CallbackFormProps> = ({ onSubmit, onCancel }) => {
         </div>
 
         <div className={`form-group ${errors.customerPhone ? 'has-error' : ''}`}>
-          <label>Phone Number * <span className="label-hint">(with country code)</span></label>
-          <input
-            type="tel"
+          <label>Phone Number *</label>
+          <PhoneInput
             value={formData.customerPhone}
-            onChange={(e) => handleChange('customerPhone', e.target.value)}
-            onBlur={(e) => handleBlur('customerPhone', e.target.value)}
-            placeholder="+92 300 1234567 or +1 555 1234567"
+            onChange={handlePhoneChange}
+            onBlur={handlePhoneBlur}
+            error={errors.customerPhone}
           />
-          <div className="field-hint">Include country code: +92 (Pakistan), +1 (USA), +44 (UK), etc.</div>
-          {errors.customerPhone && <div className="field-error">{errors.customerPhone}</div>}
         </div>
 
         <div className={`form-group ${errors.customerEmail ? 'has-error' : ''}`}>

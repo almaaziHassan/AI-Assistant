@@ -199,8 +199,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
     !showBookingForm && !showCallbackForm;
 
   // Check if we should show a "Request Callback" quick action
+  // Show when AI offers callback (offer_callback) or explicitly requests callback form (request_callback)
   const shouldShowCallbackButton =
-    recentMessages.some(m => m.role === 'assistant' && m.action?.type === 'request_callback') &&
+    recentMessages.some(m => m.role === 'assistant' &&
+      (m.action?.type === 'request_callback' || m.action?.type === 'offer_callback')) &&
     !showCallbackForm && !showBookingForm;
 
   return (

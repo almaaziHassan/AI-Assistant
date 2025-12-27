@@ -12,6 +12,29 @@ interface DashboardStats {
   topServices: { serviceId: string; serviceName: string; count: number }[];
 }
 
+interface AppointmentStats {
+  total: number;
+  pending: number;
+  confirmed: number;
+  completed: number;
+  cancelled: number;
+  noShow: number;
+  noShowRate: number;
+}
+
+interface ActionRequiredAppointment {
+  id: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  serviceName: string;
+  staffName?: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  duration: number;
+  status: string;
+}
+
 interface Appointment {
   id: string;
   customer_name: string;
@@ -67,9 +90,19 @@ interface AdminDashboardProps {
   serverUrl: string;
 }
 
+const AUTH_TOKEN_KEY = 'admin_auth_token';
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'holidays' | 'waitlist'>('overview');
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [appointmentStats, setAppointmentStats] = useState<AppointmentStats | null>(null);
+  const [actionRequired, setActionRequired] = useState<ActionRequiredAppointment[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [callbacks, setCallbacks] = useState<CallbackRequest[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -84,42 +117,172 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [staffForm, setStaffForm] = useState({ name: '', email: '', role: 'staff' });
   const [holidayForm, setHolidayForm] = useState({ date: '', name: '', isClosed: true });
   const [callbackFilter, setCallbackFilter] = useState<string>('pending');
+  const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
+
+  // Get stored auth token
+  const getAuthToken = (): string | null => {
+    try {
+      return localStorage.getItem(AUTH_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  };
+
+  // Store auth token
+  const setAuthToken = (token: string): void => {
+    try {
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  // Remove auth token
+  const removeAuthToken = (): void => {
+    try {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  // Create fetch headers with auth token
+  const getAuthHeaders = (): HeadersInit => {
+    const token = getAuthToken();
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  };
+
+  // Verify existing session on mount
+  useEffect(() => {
+    const verifySession = async () => {
+      const token = getAuthToken();
+      if (!token) {
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${serverUrl}/api/auth/verify`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        setIsAuthenticated(data.valid);
+        if (!data.valid) {
+          removeAuthToken();
+        }
+      } catch {
+        setIsAuthenticated(false);
+        removeAuthToken();
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    verifySession();
+  }, [serverUrl]);
+
+  // Handle login
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+
+    try {
+      const res = await fetch(`${serverUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.token) {
+        setAuthToken(data.token);
+        setIsAuthenticated(true);
+        setPassword('');
+      } else {
+        setLoginError(data.error || 'Login failed');
+      }
+    } catch {
+      setLoginError('Connection error. Please try again.');
+    }
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    const token = getAuthToken();
+    if (token) {
+      try {
+        await fetch(`${serverUrl}/api/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch {
+        // Ignore logout errors
+      }
+    }
+    removeAuthToken();
+    setIsAuthenticated(false);
+  };
 
   useEffect(() => {
-    fetchData();
-  }, [activeTab]);
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [activeTab, isAuthenticated]);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
+    const headers = getAuthHeaders();
 
     try {
       switch (activeTab) {
         case 'overview':
-          const statsRes = await fetch(`${serverUrl}/api/admin/dashboard`);
+          const [statsRes, actionRes, aptStatsRes] = await Promise.all([
+            fetch(`${serverUrl}/api/admin/dashboard`, { headers }),
+            fetch(`${serverUrl}/api/appointments/needing-action`, { headers }),
+            fetch(`${serverUrl}/api/appointments/stats`, { headers })
+          ]);
+          if (statsRes.status === 401) { handleLogout(); return; }
           if (statsRes.ok) setStats(await statsRes.json());
+          if (actionRes.ok) setActionRequired(await actionRes.json());
+          if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
           break;
         case 'appointments':
-          const aptsRes = await fetch(`${serverUrl}/api/admin/appointments?limit=50`);
+          const dateRange = getDateRange(appointmentFilter);
+          let aptsUrl = `${serverUrl}/api/admin/appointments`;
+          if (dateRange) {
+            aptsUrl += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+          }
+          const aptsRes = await fetch(aptsUrl, { headers });
+          if (aptsRes.status === 401) { handleLogout(); return; }
           if (aptsRes.ok) setAppointments(await aptsRes.json());
           break;
         case 'staff':
-          const staffRes = await fetch(`${serverUrl}/api/admin/staff`);
+          const staffRes = await fetch(`${serverUrl}/api/admin/staff`, { headers });
+          if (staffRes.status === 401) { handleLogout(); return; }
           if (staffRes.ok) setStaff(await staffRes.json());
           break;
         case 'holidays':
-          const holidaysRes = await fetch(`${serverUrl}/api/admin/holidays`);
+          const holidaysRes = await fetch(`${serverUrl}/api/admin/holidays`, { headers });
+          if (holidaysRes.status === 401) { handleLogout(); return; }
           if (holidaysRes.ok) setHolidays(await holidaysRes.json());
           break;
         case 'waitlist':
-          const waitlistRes = await fetch(`${serverUrl}/api/admin/waitlist?status=waiting`);
+          const waitlistRes = await fetch(`${serverUrl}/api/admin/waitlist?status=waiting`, { headers });
+          if (waitlistRes.status === 401) { handleLogout(); return; }
           if (waitlistRes.ok) setWaitlist(await waitlistRes.json());
           break;
         case 'callbacks':
           const callbacksUrl = callbackFilter === 'all'
             ? `${serverUrl}/api/callbacks`
             : `${serverUrl}/api/callbacks?status=${callbackFilter}`;
-          const callbacksRes = await fetch(callbacksUrl);
+          const callbacksRes = await fetch(callbacksUrl, { headers });
+          if (callbacksRes.status === 401) { handleLogout(); return; }
           if (callbacksRes.ok) setCallbacks(await callbacksRes.json());
           break;
       }
@@ -136,6 +299,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       fetchData();
     }
   }, [callbackFilter]);
+
+  // Refetch appointments when filter changes
+  useEffect(() => {
+    if (activeTab === 'appointments') {
+      fetchData();
+    }
+  }, [appointmentFilter]);
+
+  // Helper to get date range based on filter
+  const getDateRange = (filter: 'today' | 'week' | 'month' | 'all'): { startDate: string; endDate: string } | null => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const formatDateStr = (d: Date) => d.toISOString().split('T')[0];
+
+    switch (filter) {
+      case 'today':
+        return { startDate: formatDateStr(today), endDate: formatDateStr(today) };
+      case 'week': {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(today.getDate() - 7);
+        const weekAhead = new Date(today);
+        weekAhead.setDate(today.getDate() + 7);
+        return { startDate: formatDateStr(weekAgo), endDate: formatDateStr(weekAhead) };
+      }
+      case 'month': {
+        const monthAgo = new Date(today);
+        monthAgo.setDate(today.getDate() - 30);
+        const monthAhead = new Date(today);
+        monthAhead.setDate(today.getDate() + 30);
+        return { startDate: formatDateStr(monthAgo), endDate: formatDateStr(monthAhead) };
+      }
+      case 'all':
+        return null; // No date filtering
+    }
+  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
@@ -155,7 +353,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     if (!confirm('Are you sure you want to cancel this appointment?')) return;
 
     try {
-      const res = await fetch(`${serverUrl}/api/admin/appointments/${id}/cancel`, { method: 'PUT' });
+      const res = await fetch(`${serverUrl}/api/admin/appointments/${id}/cancel`, {
+        method: 'PUT',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
         fetchData();
       } else {
@@ -166,14 +368,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     }
   };
 
+  const handleUpdateAppointmentStatus = async (id: string, status: 'pending' | 'confirmed' | 'completed' | 'no-show' | 'cancelled') => {
+    try {
+      const res = await fetch(`${serverUrl}/api/appointments/${id}/status`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status })
+      });
+      if (res.status === 401) { handleLogout(); return; }
+      if (res.ok) {
+        // Remove from action required list if marking as completed/no-show
+        if (status === 'completed' || status === 'no-show') {
+          setActionRequired(prev => prev.filter(a => a.id !== id));
+        }
+        // Refresh appointments list
+        fetchData();
+        // Refresh stats
+        const aptStatsRes = await fetch(`${serverUrl}/api/appointments/stats`, { headers: getAuthHeaders() });
+        if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update appointment status');
+      }
+    } catch {
+      alert('Failed to update appointment status');
+    }
+  };
+
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const res = await fetch(`${serverUrl}/api/admin/staff`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(staffForm)
       });
+      if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
         setShowStaffForm(false);
         setStaffForm({ name: '', email: '', role: 'staff' });
@@ -188,7 +418,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     if (!confirm('Are you sure you want to delete this staff member?')) return;
 
     try {
-      const res = await fetch(`${serverUrl}/api/admin/staff/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${serverUrl}/api/admin/staff/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) { handleLogout(); return; }
       if (res.ok) fetchData();
     } catch {
       alert('Failed to delete staff');
@@ -200,9 +434,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     try {
       const res = await fetch(`${serverUrl}/api/admin/holidays`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(holidayForm)
       });
+      if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
         setShowHolidayForm(false);
         setHolidayForm({ date: '', name: '', isClosed: true });
@@ -220,7 +455,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     if (!confirm('Are you sure you want to delete this holiday?')) return;
 
     try {
-      const res = await fetch(`${serverUrl}/api/admin/holidays/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${serverUrl}/api/admin/holidays/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) { handleLogout(); return; }
       if (res.ok) fetchData();
     } catch {
       alert('Failed to delete holiday');
@@ -229,7 +468,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   const handleRemoveFromWaitlist = async (id: string) => {
     try {
-      const res = await fetch(`${serverUrl}/api/admin/waitlist/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${serverUrl}/api/admin/waitlist/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) { handleLogout(); return; }
       if (res.ok) fetchData();
     } catch {
       alert('Failed to remove from waitlist');
@@ -240,9 +483,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     try {
       const res = await fetch(`${serverUrl}/api/callbacks/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ status, notes })
       });
+      if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
         fetchData();
       } else {
@@ -257,7 +501,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     if (!confirm('Are you sure you want to delete this callback request?')) return;
 
     try {
-      const res = await fetch(`${serverUrl}/api/callbacks/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${serverUrl}/api/callbacks/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) { handleLogout(); return; }
       if (res.ok) fetchData();
     } catch {
       alert('Failed to delete callback');
@@ -285,11 +533,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     return time ? labels[time] || time : 'Not specified';
   };
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="admin-dashboard">
+        <div className="admin-loading">Checking authentication...</div>
+      </div>
+    );
+  }
+
+  // Show login form if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="admin-dashboard">
+        <div className="admin-login">
+          <div className="login-card">
+            <h1>Admin Login</h1>
+            <p>Enter your password to access the admin dashboard</p>
+            <form onSubmit={handleLogin}>
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoFocus
+                required
+              />
+              {loginError && <div className="login-error">{loginError}</div>}
+              <button type="submit" className="btn-primary">Login</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-dashboard">
       <header className="admin-header">
-        <h1>Admin Dashboard</h1>
-        <p>Manage appointments, staff, and settings</p>
+        <div className="header-content">
+          <div>
+            <h1>Admin Dashboard</h1>
+            <p>Manage appointments, staff, and settings</p>
+          </div>
+          <button className="btn-logout" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
       </header>
 
       <nav className="admin-tabs">
@@ -313,57 +603,136 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
         {/* Overview Tab */}
         {activeTab === 'overview' && stats && !loading && (
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-value">{stats.todayAppointments}</div>
-              <div className="stat-label">Today's Appointments</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{stats.weekAppointments}</div>
-              <div className="stat-label">This Week</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{stats.monthAppointments}</div>
-              <div className="stat-label">This Month</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{stats.upcomingCount}</div>
-              <div className="stat-label">Upcoming</div>
-            </div>
-            <div className="stat-card warning">
-              <div className="stat-value">{stats.cancelledCount}</div>
-              <div className="stat-label">Cancelled (30d)</div>
-            </div>
-            <div className="stat-card info">
-              <div className="stat-value">{stats.waitlistCount}</div>
-              <div className="stat-label">On Waitlist</div>
-            </div>
-            <div className="stat-card highlight">
-              <div className="stat-value">{stats.pendingCallbacksCount}</div>
-              <div className="stat-label">Pending Callbacks</div>
-            </div>
-
-            {stats.topServices.length > 0 && (
-              <div className="stat-card wide">
-                <div className="stat-label">Top Services (30d)</div>
-                <div className="top-services">
-                  {stats.topServices.map((s, i) => (
-                    <div key={s.serviceId} className="service-stat">
-                      <span className="service-rank">#{i + 1}</span>
-                      <span className="service-name">{s.serviceName}</span>
-                      <span className="service-count">{s.count} bookings</span>
+          <>
+            {/* Action Required Section */}
+            {actionRequired.length > 0 && (
+              <div className="action-required-section">
+                <div className="action-required-header">
+                  <h2>
+                    <span className="action-icon">⚠️</span>
+                    Action Required ({actionRequired.length})
+                  </h2>
+                  <p>Past appointments need to be marked as completed or no-show</p>
+                </div>
+                <div className="action-required-list">
+                  {actionRequired.map(apt => (
+                    <div key={apt.id} className="action-required-card">
+                      <div className="action-required-info">
+                        <div className="action-required-customer">
+                          <strong>{apt.customerName}</strong>
+                          <span className="action-required-service">{apt.serviceName}</span>
+                        </div>
+                        <div className="action-required-details">
+                          <span>{formatDate(apt.appointmentDate)}</span>
+                          <span>{formatTime(apt.appointmentTime)}</span>
+                          {apt.staffName && <span>with {apt.staffName}</span>}
+                        </div>
+                      </div>
+                      <div className="action-required-buttons">
+                        <button
+                          className="btn-small success"
+                          onClick={() => handleUpdateAppointmentStatus(apt.id, 'completed')}
+                        >
+                          ✓ Completed
+                        </button>
+                        <button
+                          className="btn-small danger"
+                          onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
+                        >
+                          ✗ No-Show
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-          </div>
+
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-value">{stats.todayAppointments}</div>
+                <div className="stat-label">Today's Appointments</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{stats.weekAppointments}</div>
+                <div className="stat-label">This Week</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{stats.monthAppointments}</div>
+                <div className="stat-label">This Month</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{stats.upcomingCount}</div>
+                <div className="stat-label">Upcoming</div>
+              </div>
+              <div className="stat-card warning">
+                <div className="stat-value">{stats.cancelledCount}</div>
+                <div className="stat-label">Cancelled (30d)</div>
+              </div>
+              <div className="stat-card info">
+                <div className="stat-value">{stats.waitlistCount}</div>
+                <div className="stat-label">On Waitlist</div>
+              </div>
+              <div className="stat-card highlight">
+                <div className="stat-value">{stats.pendingCallbacksCount}</div>
+                <div className="stat-label">Pending Callbacks</div>
+              </div>
+
+              {/* Appointment Status Stats */}
+              {appointmentStats && (
+                <>
+                  {appointmentStats.pending > 0 && (
+                    <div className="stat-card highlight">
+                      <div className="stat-value">{appointmentStats.pending}</div>
+                      <div className="stat-label">Pending Confirmation</div>
+                    </div>
+                  )}
+                  <div className="stat-card success">
+                    <div className="stat-value">{appointmentStats.completed}</div>
+                    <div className="stat-label">Completed</div>
+                  </div>
+                  <div className={`stat-card ${appointmentStats.noShowRate > 10 ? 'danger' : 'warning'}`}>
+                    <div className="stat-value">{appointmentStats.noShow}</div>
+                    <div className="stat-label">No-Shows ({appointmentStats.noShowRate}%)</div>
+                  </div>
+                </>
+              )}
+
+              {stats.topServices.length > 0 && (
+                <div className="stat-card wide">
+                  <div className="stat-label">Top Services (30d)</div>
+                  <div className="top-services">
+                    {stats.topServices.map((s, i) => (
+                      <div key={s.serviceId} className="service-stat">
+                        <span className="service-rank">#{i + 1}</span>
+                        <span className="service-name">{s.serviceName}</span>
+                        <span className="service-count">{s.count} bookings</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Appointments Tab */}
         {activeTab === 'appointments' && !loading && (
           <div className="appointments-list">
-            <h2>Recent Appointments</h2>
+            <div className="section-header">
+              <h2>Appointments</h2>
+              <div className="date-filter-buttons">
+                {(['today', 'week', 'month', 'all'] as const).map(filter => (
+                  <button
+                    key={filter}
+                    className={`filter-btn ${appointmentFilter === filter ? 'active' : ''}`}
+                    onClick={() => setAppointmentFilter(filter)}
+                  >
+                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
             {appointments.length === 0 ? (
               <p className="no-data">No appointments found</p>
             ) : (
@@ -391,14 +760,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                       <td>
                         <span className={`status-badge ${apt.status}`}>{apt.status}</span>
                       </td>
-                      <td>
-                        {apt.status === 'confirmed' && (
-                          <button
-                            className="btn-small danger"
-                            onClick={() => handleCancelAppointment(apt.id)}
-                          >
-                            Cancel
-                          </button>
+                      <td className="actions-cell">
+                        {apt.status === 'pending' && (
+                          <>
+                            <button
+                              className="btn-small success"
+                              onClick={() => handleUpdateAppointmentStatus(apt.id, 'confirmed')}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              className="btn-small danger"
+                              onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="btn-small warning"
+                              onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
+                            >
+                              No-Show
+                            </button>
+                          </>
                         )}
                       </td>
                     </tr>

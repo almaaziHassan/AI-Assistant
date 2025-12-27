@@ -999,3 +999,100 @@
 .quick-action-btn.callback-btn:hover {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
+
+/* Phone Input Component */
+.phone-input-container {
+  width: 100%;
+}
+
+.phone-input-wrapper {
+  display: flex;
+  gap: 8px;
+}
+
+.country-code-select {
+  width: 140px;
+  flex-shrink: 0;
+  padding: 12px 10px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1f2937;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.country-code-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.country-code-select:disabled {
+  background-color: #f9fafb;
+  cursor: not-allowed;
+}
+
+.national-number-input {
+  flex: 1;
+  padding: 12px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1f2937;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.national-number-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.national-number-input::placeholder {
+  color: #9ca3af;
+}
+
+.national-number-input:disabled {
+  background-color: #f9fafb;
+  cursor: not-allowed;
+}
+
+.phone-input-hint {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.digit-counter {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.digit-counter.valid {
+  color: #22c55e;
+}
+
+.digit-counter.invalid {
+  color: #f59e0b;
+}
+
+.example-hint {
+  color: #9ca3af;
+}
+
+.phone-input-container .field-error {
+  margin-top: 6px;
+}
+
+/* Error state for phone input */
+.form-group.has-error .country-code-select,
+.form-group.has-error .national-number-input {
+  border-color: #dc2626;
+}

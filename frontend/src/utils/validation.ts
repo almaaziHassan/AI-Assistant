@@ -1,5 +1,5 @@
 // Phone number validation rules by country (length-based only for flexibility)
-interface CountryPhoneRule {
+export interface CountryPhoneRule {
   code: string;
   name: string;
   minLength: number;
@@ -7,7 +7,7 @@ interface CountryPhoneRule {
   example: string;
 }
 
-const countryPhoneRules: Record<string, CountryPhoneRule> = {
+export const countryPhoneRules: Record<string, CountryPhoneRule> = {
   '1': { code: '+1', name: 'USA/Canada', minLength: 10, maxLength: 10, example: '+1 555 123 4567' },
   '7': { code: '+7', name: 'Russia', minLength: 10, maxLength: 10, example: '+7 912 345 6789' },
   '20': { code: '+20', name: 'Egypt', minLength: 10, maxLength: 10, example: '+20 10 1234 5678' },
@@ -203,4 +203,64 @@ export function getSupportedCountries(): Array<{ code: string; name: string; exa
     name: rule.name,
     example: rule.example
   }));
+}
+
+// Get list of countries with full details for PhoneInput component
+export function getCountriesWithRules(): Array<CountryPhoneRule & { dialCode: string }> {
+  return Object.entries(countryPhoneRules)
+    .map(([dialCode, rule]) => ({
+      ...rule,
+      dialCode
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Get country rule by dial code (without +)
+export function getCountryByDialCode(dialCode: string): CountryPhoneRule | undefined {
+  return countryPhoneRules[dialCode];
+}
+
+// Validate phone with separate country code and number
+export function validatePhoneWithCountry(countryCode: string, nationalNumber: string): PhoneValidationResult {
+  const dialCode = countryCode.replace('+', '');
+  const rule = countryPhoneRules[dialCode];
+
+  if (!rule) {
+    // Unknown country - use generic validation
+    const digitsOnly = nationalNumber.replace(/\D/g, '');
+    if (digitsOnly.length < 6 || digitsOnly.length > 15) {
+      return {
+        isValid: false,
+        error: 'Please enter a valid phone number'
+      };
+    }
+    return {
+      isValid: true,
+      formattedNumber: countryCode + digitsOnly
+    };
+  }
+
+  const digitsOnly = nationalNumber.replace(/\D/g, '');
+
+  if (digitsOnly.length < rule.minLength) {
+    return {
+      isValid: false,
+      error: `${rule.name} numbers need ${rule.minLength} digits after ${rule.code}`,
+      country: rule.name
+    };
+  }
+
+  if (digitsOnly.length > rule.maxLength) {
+    return {
+      isValid: false,
+      error: `${rule.name} numbers have max ${rule.maxLength} digits after ${rule.code}`,
+      country: rule.name
+    };
+  }
+
+  return {
+    isValid: true,
+    country: rule.name,
+    formattedNumber: countryCode + digitsOnly
+  };
 }

@@ -72,6 +72,30 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/appointments/needing-action - Get past appointments that need status update
+// NOTE: Must be before /:id route to avoid matching 'needing-action' as an ID
+router.get('/needing-action', (_req: Request, res: Response) => {
+  try {
+    const appointments = scheduler.getAppointmentsNeedingAction();
+    res.json(appointments);
+  } catch (error) {
+    console.error('Get needing action error:', error);
+    res.status(500).json({ error: 'Failed to get appointments needing action' });
+  }
+});
+
+// GET /api/appointments/stats - Get appointment statistics
+// NOTE: Must be before /:id route to avoid matching 'stats' as an ID
+router.get('/stats', (_req: Request, res: Response) => {
+  try {
+    const stats = scheduler.getAppointmentStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Failed to get appointment statistics' });
+  }
+});
+
 // GET /api/appointments/:id - Get an appointment by ID
 router.get('/:id', (req: Request, res: Response) => {
   try {
@@ -205,6 +229,32 @@ router.post('/lookup', (req: Request, res: Response) => {
   } catch (error) {
     console.error('Lookup error:', error);
     res.status(500).json({ error: 'Failed to lookup appointments' });
+  }
+});
+
+// PATCH /api/appointments/:id/status - Update appointment status
+router.patch('/:id/status', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    const validStatuses = ['pending', 'confirmed', 'completed', 'no-show', 'cancelled'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const result = scheduler.updateAppointmentStatus(id, status);
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    const updated = scheduler.getAppointment(id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Update status error:', error);
+    res.status(500).json({ error: 'Failed to update appointment status' });
   }
 });
 

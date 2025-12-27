@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { validatePhoneNumber, validateEmail } from '../utils/validation';
+import PhoneInput from './PhoneInput';
 
 interface Service {
   id: string;
@@ -206,6 +207,21 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
     }
   };
 
+  const handlePhoneChange = useCallback((phone: string) => {
+    setFormData(prev => ({ ...prev, customerPhone: phone }));
+    // Clear phone validation error
+    if (validationErrors.customerPhone) {
+      setValidationErrors(prev => ({ ...prev, customerPhone: undefined }));
+    }
+  }, [validationErrors.customerPhone]);
+
+  const handlePhoneBlur = useCallback(() => {
+    const error = validateField('customerPhone', formData.customerPhone);
+    if (error) {
+      setValidationErrors(prev => ({ ...prev, customerPhone: error }));
+    }
+  }, [formData.customerPhone]);
+
   const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const error = validateField(name, value);
@@ -410,21 +426,14 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
               )}
             </div>
             <div className={`form-group ${validationErrors.customerPhone ? 'has-error' : ''}`}>
-              <label>Phone * <span className="label-hint">(with country code)</span></label>
-              <input
-                type="tel"
-                name="customerPhone"
+              <label>Phone *</label>
+              <PhoneInput
                 value={formData.customerPhone}
-                onChange={handleInputChange}
-                onBlur={handleInputBlur}
-                placeholder="+92 300 1234567 or +1 555 1234567"
+                onChange={handlePhoneChange}
+                onBlur={() => handlePhoneBlur()}
                 disabled={submitting}
-                autoComplete="tel"
+                error={validationErrors.customerPhone}
               />
-              <div className="field-hint">Include country code: +92 (Pakistan), +1 (USA), +44 (UK), etc.</div>
-              {validationErrors.customerPhone && (
-                <div className="field-error">{validationErrors.customerPhone}</div>
-              )}
             </div>
             <button
               type="submit"

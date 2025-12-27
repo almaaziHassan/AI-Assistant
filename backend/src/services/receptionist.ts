@@ -26,7 +26,7 @@ export interface CallbackConfirmation {
 export interface ReceptionistResponse {
   message: string;
   action?: {
-    type: 'book_appointment' | 'show_services' | 'show_hours' | 'escalate' | 'request_callback' | 'booking_confirmed' | 'callback_confirmed' | 'none';
+    type: 'book_appointment' | 'show_services' | 'show_hours' | 'escalate' | 'request_callback' | 'offer_callback' | 'booking_confirmed' | 'callback_confirmed' | 'none';
     data?: Record<string, unknown>;
     bookingConfirmation?: BookingConfirmation;
     callbackConfirmation?: CallbackConfirmation;
@@ -106,14 +106,25 @@ When unsure, explain more instead of showing booking form.`,
       {
         type: 'function',
         function: {
-          name: 'escalate_to_human',
-          description: 'Connect customer to a human staff member. Call when customer wants to speak to a real person, manager, or human representative.',
+          name: 'provide_contact_info',
+          description: `ALWAYS call this when customer mentions ANY of these:
+- "contact" / "contact directly" / "direct contact"
+- "speak to someone" / "speak to a person" / "real person" / "human"
+- "phone number" / "call you" / "your number"
+- "email" / "email address"
+- "talk to staff" / "talk to manager"
+
+Examples that MUST trigger this:
+- "can I contact directly?" → YES
+- "I want to speak to someone" → YES
+- "what's your phone number?" → YES
+- "how can I reach you?" → YES`,
           parameters: {
             type: 'object',
             properties: {
               reason: {
                 type: 'string',
-                description: 'Brief reason for escalation'
+                description: 'Brief reason (e.g., "wants phone number", "wants to speak to person")'
               }
             },
             required: ['reason']
@@ -123,8 +134,34 @@ When unsure, explain more instead of showing booking form.`,
       {
         type: 'function',
         function: {
+          name: 'offer_callback_form',
+          description: `Show the callback request form. ALWAYS call when:
+- Customer says "yes", "sure", "ok" after you offered a callback
+- Customer says "call me back" / "call me" / "callback"
+- Customer agrees to be contacted
+
+Examples that MUST trigger this:
+- "yes please call me back" → YES
+- "sure, I'd like a callback" → YES
+- "yes" (after you offered callback) → YES
+- "call me instead" → YES`,
+          parameters: {
+            type: 'object',
+            properties: {
+              message: {
+                type: 'string',
+                description: 'Brief message (e.g., "Perfect, I\'ll set that up!")'
+              }
+            },
+            required: ['message']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
           name: 'request_callback',
-          description: 'Request a callback. Call ONLY when customer explicitly asks to be called back AND has provided their real name and phone number.',
+          description: 'Submit a callback request. Call ONLY when customer has already provided their real name and phone number in the conversation.',
           parameters: {
             type: 'object',
             properties: {
@@ -402,14 +439,17 @@ ${faqsText}
 
 ## AVAILABLE ACTIONS (Use these functions when appropriate)
 
-1. **show_booking_form** - Customer wants to book or agrees to book
-2. **escalate_to_human** - Customer wants to speak to a real person
-3. **request_callback** - Customer explicitly asks to be called back AND gives name+phone
+1. **show_booking_form** - Customer clearly wants to book or agrees to book
+2. **provide_contact_info** - Customer wants to contact directly, speak to someone, or get contact details
+3. **offer_callback_form** - Customer agrees to a callback (after you offered it)
+4. **request_callback** - Customer gave their name+phone in conversation (rare - usually use offer_callback_form)
 
-## Callback vs Booking
+## Intent Flow Examples
 - "I want to book" → show_booking_form
-- "Call me back" → Ask for name+phone first, then request_callback
-- "Can I speak to someone?" → escalate_to_human
+- "Can I contact you directly?" → provide_contact_info (gives phone/email + offers callback)
+- "Can I speak to someone?" → provide_contact_info
+- "Yes, please call me back" (after you offered) → offer_callback_form
+- "I'd like a callback" → provide_contact_info first, then offer_callback_form if they confirm
 
 ## Your Job
 1. Understand what they need
@@ -471,11 +511,28 @@ Stay short, contextual, use bullets.${relevantFAQContext}`;
         };
       }
 
-      // Handle escalate_to_human - AI detected escalation intent
-      if (functionName === 'escalate_to_human') {
+      // Handle provide_contact_info - AI detected user wants direct contact
+      if (functionName === 'provide_contact_info') {
+        const { business } = this.config;
+        const contactMessage = `Here's how you can reach us directly:
+
+• **Phone:** ${business.phone}
+• **Email:** ${business.email}
+• **Address:** ${business.address}
+
+Would you like us to call you back instead? I can set that up for you!`;
+
         return {
-          message: "I'll connect you with one of our team members who can better assist you. Please call us at " + this.config.business.phone + " or we'll have someone reach out to you shortly.",
-          action: { type: 'escalate', data: { reason: functionArgs.reason } }
+          message: contactMessage,
+          action: { type: 'offer_callback', data: { reason: functionArgs.reason } }
+        };
+      }
+
+      // Handle offer_callback_form - User agreed to get a callback
+      if (functionName === 'offer_callback_form') {
+        return {
+          message: functionArgs.message || "I'll get that set up for you!",
+          action: { type: 'request_callback' }
         };
       }
 

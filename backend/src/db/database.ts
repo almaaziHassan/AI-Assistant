@@ -215,14 +215,17 @@ export function closeDatabase(): void {
   }
 }
 
+// Type for SQL values
+export type SqlValue = string | number | null | Uint8Array;
+
 // Helper functions for compatibility
-export function runQuery(sql: string, params: unknown[] = []): void {
+export function runQuery(sql: string, params: SqlValue[] = []): void {
   const database = getDbSync();
   database.run(sql, params);
   saveDatabase();
 }
 
-export function getOne(sql: string, params: unknown[] = []): Record<string, unknown> | undefined {
+export function getOne(sql: string, params: SqlValue[] = []): Record<string, unknown> | undefined {
   const database = getDbSync();
   const stmt = database.prepare(sql);
   stmt.bind(params);
@@ -237,7 +240,7 @@ export function getOne(sql: string, params: unknown[] = []): Record<string, unkn
   return undefined;
 }
 
-export function getAll(sql: string, params: unknown[] = []): Record<string, unknown>[] {
+export function getAll(sql: string, params: SqlValue[] = []): Record<string, unknown>[] {
   const database = getDbSync();
   const stmt = database.prepare(sql);
   stmt.bind(params);

@@ -9,9 +9,11 @@ import appointmentsRoutes from './routes/appointments';
 import servicesRoutes from './routes/services';
 import adminRoutes from './routes/admin';
 import callbacksRoutes from './routes/callbacks';
+import authRoutes from './routes/auth';
 import { initDatabase } from './db/database';
 import { ReceptionistService } from './services/receptionist';
 import { chatHistoryService } from './services/chatHistory';
+import { adminAuthMiddleware } from './middleware/adminAuth';
 
 dotenv.config();
 
@@ -34,11 +36,12 @@ app.use(express.json());
 const receptionist = new ReceptionistService();
 
 // REST API routes
+app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/appointments', appointmentsRoutes);
 app.use('/api/services', servicesRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/callbacks', callbacksRoutes);
+app.use('/api/admin', adminAuthMiddleware, adminRoutes); // Protected with auth
+app.use('/api/callbacks', adminAuthMiddleware, callbacksRoutes); // Protected with auth
 
 // API index
 app.get('/api', (req, res) => {
@@ -47,6 +50,11 @@ app.get('/api', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: 'GET /api/health',
+      auth: {
+        login: 'POST /api/auth/login',
+        logout: 'POST /api/auth/logout',
+        verify: 'GET /api/auth/verify'
+      },
       services: 'GET /api/services',
       appointments: {
         slots: 'GET /api/appointments/slots?date=YYYY-MM-DD&serviceId=xxx',
@@ -54,9 +62,13 @@ app.get('/api', (req, res) => {
         lookup: 'POST /api/appointments/lookup',
         get: 'GET /api/appointments/:id',
         cancel: 'DELETE /api/appointments/:id',
-        reschedule: 'POST /api/appointments/:id/reschedule'
+        reschedule: 'POST /api/appointments/:id/reschedule',
+        stats: 'GET /api/appointments/stats',
+        needingAction: 'GET /api/appointments/needing-action',
+        updateStatus: 'PATCH /api/appointments/:id/status'
       },
       admin: {
+        note: 'All admin routes require authentication (Bearer token)',
         dashboard: 'GET /api/admin/dashboard',
         appointments: 'GET /api/admin/appointments',
         staff: 'GET/POST/PUT/DELETE /api/admin/staff',

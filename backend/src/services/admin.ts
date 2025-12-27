@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { runQuery, getOne, getAll } from '../db/database';
+import { runQuery, getOne, getAll, SqlValue } from '../db/database';
 
 // Staff interfaces
 export interface Staff {
@@ -97,7 +97,7 @@ export class AdminService {
     if (!existing) return null;
 
     const updates: string[] = [];
-    const values: unknown[] = [];
+    const values: SqlValue[] = [];
 
     if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name); }
     if (data.email !== undefined) { updates.push('email = ?'); values.push(data.email); }
@@ -168,7 +168,7 @@ export class AdminService {
     if (!existing) return null;
 
     const updates: string[] = [];
-    const values: unknown[] = [];
+    const values: SqlValue[] = [];
 
     if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name); }
     if (data.address !== undefined) { updates.push('address = ?'); values.push(data.address); }
@@ -241,7 +241,7 @@ export class AdminService {
     if (!existing) return null;
 
     const updates: string[] = [];
-    const values: unknown[] = [];
+    const values: SqlValue[] = [];
 
     if (data.date !== undefined) { updates.push('date = ?'); values.push(data.date); }
     if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name); }
@@ -460,7 +460,7 @@ export class AdminService {
 
   getAllAppointments(options: { status?: string; limit?: number; offset?: number } = {}): Record<string, unknown>[] {
     let query = 'SELECT * FROM appointments';
-    const params: unknown[] = [];
+    const params: SqlValue[] = [];
 
     if (options.status) {
       query += ' WHERE status = ?';
