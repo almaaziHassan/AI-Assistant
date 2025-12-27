@@ -41,6 +41,7 @@ interface Appointment {
   customer_email: string;
   customer_phone: string;
   service_name: string;
+  staff_name?: string;
   appointment_date: string;
   appointment_time: string;
   status: string;
@@ -377,13 +378,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
+        // Update local state directly to preserve scroll position
+        setAppointments(prev => prev.map(apt =>
+          apt.id === id ? { ...apt, status } : apt
+        ));
         // Remove from action required list if marking as completed/no-show
         if (status === 'completed' || status === 'no-show') {
           setActionRequired(prev => prev.filter(a => a.id !== id));
         }
-        // Refresh appointments list
-        fetchData();
-        // Refresh stats
+        // Refresh stats in background
         const aptStatsRes = await fetch(`${serverUrl}/api/appointments/stats`, { headers: getAuthHeaders() });
         if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
       } else {
@@ -743,6 +746,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                     <th>Time</th>
                     <th>Customer</th>
                     <th>Service</th>
+                    <th>Staff</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -757,6 +761,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                         <div className="sub-text">{apt.customer_email}</div>
                       </td>
                       <td>{apt.service_name}</td>
+                      <td>{apt.staff_name || '-'}</td>
                       <td>
                         <span className={`status-badge ${apt.status}`}>{apt.status}</span>
                       </td>
