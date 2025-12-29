@@ -30,6 +30,7 @@ const io = new Server(httpServer, {
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+app.set('trust proxy', 1); // Trust Railway proxy for rate limiter
 app.use(cors());
 app.use(express.json());
 
