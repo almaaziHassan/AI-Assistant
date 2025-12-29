@@ -40,7 +40,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd pending status workflow and comprehensive test suite\n\n- Appointments now start with ''pending'' status instead of ''confirmed''\n- Admin dashboard has three action buttons: Confirm, Cancel, No-Show\n- Time-based restrictions: future appointments cannot be confirmed/completed/no-show\n- Added date filtering for appointments tab \\(Today, Week, Month, All\\)\n- Status transitions enforce valid state machine rules\n- Fixed route ordering to prevent /stats and /needing-action 404 errors\n\nBackend tests: 181 tests covering auth, booking, callbacks, chat, scheduling\nFrontend tests: vitest setup with component tests for forms and dashboard\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Staff column and fix scroll position on status update\n\n- Added Staff column to appointments table showing assigned staff member\n- Fixed scroll jumping to top when clicking Confirm/Cancel/No-Show buttons\n  by updating local state directly instead of refetching all data\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd real-time stats updates to Overview tab\n\n- Auto-refresh overview stats every 30 seconds\n- Added manual Refresh button for on-demand updates\n- All stats now refresh after appointment status changes\n- Stats refresh without showing loading state to avoid UI flicker\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
