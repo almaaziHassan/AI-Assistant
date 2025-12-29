@@ -9,7 +9,9 @@ interface AppProps {
   serverUrl?: string;
 }
 
-const App: React.FC<AppProps> = ({ serverUrl = 'http://localhost:3000' }) => {
+const App: React.FC<AppProps> = ({ 
+  serverUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000' 
+}) => {
   const [currentPage, setCurrentPage] = useState<'landing' | 'admin'>('landing');
   const [chatOpen, setChatOpen] = useState(false);
 

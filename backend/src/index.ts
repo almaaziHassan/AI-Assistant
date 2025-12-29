@@ -14,6 +14,7 @@ import { initDatabase } from './db/database';
 import { ReceptionistService } from './services/receptionist';
 import { chatHistoryService } from './services/chatHistory';
 import { adminAuthMiddleware } from './middleware/adminAuth';
+import { apiLimiter, chatLimiter, loginLimiter, bookingLimiter } from './middleware/rateLimiter';
 
 dotenv.config();
 
@@ -35,11 +36,12 @@ app.use(express.json());
 // Initialize receptionist service
 const receptionist = new ReceptionistService();
 
-// REST API routes
+// REST API routes with rate limiting
+app.use('/api/auth/login', loginLimiter); // Protect login endpoint
 app.use('/api/auth', authRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/appointments', appointmentsRoutes);
-app.use('/api/services', servicesRoutes);
+app.use('/api/chat', chatLimiter, chatRoutes); // Protect expensive AI calls
+app.use('/api/appointments', bookingLimiter, appointmentsRoutes); // Prevent spam bookings
+app.use('/api/services', apiLimiter, servicesRoutes); // General rate limit
 app.use('/api/admin', adminAuthMiddleware, adminRoutes); // Protected with auth
 app.use('/api/callbacks', adminAuthMiddleware, callbacksRoutes); // Protected with auth
 
