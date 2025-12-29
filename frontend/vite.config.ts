@@ -4,14 +4,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   build: {
-    lib: {
-      entry: 'src/main.tsx',
-      name: 'AIReceptionist',
-      fileName: 'ai-receptionist-widget'
-    },
+    outDir: 'dist',
     rollupOptions: {
       output: {
-        assetFileNames: 'ai-receptionist-widget.[ext]'
+        manualChunks: undefined
       }
     }
   },
