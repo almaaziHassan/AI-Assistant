@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getCountriesWithRules, getCountryByDialCode, validatePhoneWithCountry } from '../utils/validation';
+import { getCountriesWithRules, getCountryByDialCode } from '../utils/validation';
 
 interface PhoneInputProps {
   value: string;

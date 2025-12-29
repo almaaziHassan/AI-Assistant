@@ -379,25 +379,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     return `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
 
-  const handleCancelAppointment = async (id: string) => {
-    if (!confirm('Are you sure you want to cancel this appointment?')) return;
-
-    try {
-      const res = await fetch(`${serverUrl}/api/admin/appointments/${id}/cancel`, {
-        method: 'PUT',
-        headers: getAuthHeaders()
-      });
-      if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) {
-        fetchData();
-      } else {
-        alert('Failed to cancel appointment');
-      }
-    } catch {
-      alert('Failed to cancel appointment');
-    }
-  };
-
   const handleUpdateAppointmentStatus = async (id: string, status: 'pending' | 'confirmed' | 'completed' | 'no-show' | 'cancelled') => {
     try {
       const res = await fetch(`${serverUrl}/api/appointments/${id}/status`, {
