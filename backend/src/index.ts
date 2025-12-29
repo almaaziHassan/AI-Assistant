@@ -40,7 +40,9 @@ const receptionist = new ReceptionistService();
 app.use('/api/auth/login', loginLimiter); // Protect login endpoint
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatLimiter, chatRoutes); // Protect expensive AI calls
-app.use('/api/appointments', bookingLimiter, appointmentsRoutes); // Prevent spam bookings
+// Apply booking limiter only to POST requests (actual bookings), not GET (slot queries)
+app.post('/api/appointments', bookingLimiter);
+app.use('/api/appointments', apiLimiter, appointmentsRoutes); // General rate limit for all
 app.use('/api/services', apiLimiter, servicesRoutes); // General rate limit
 app.use('/api/admin', adminAuthMiddleware, adminRoutes); // Protected with auth
 app.use('/api/callbacks', adminAuthMiddleware, callbacksRoutes); // Protected with auth

@@ -120,7 +120,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
         if (!res.ok) throw new Error('Failed to load services');
         return res.json();
       }),
-      fetch(`${serverUrl}/api/admin/staff`).then(res => {
+      fetch(`${serverUrl}/api/services/staff`).then(res => {
         if (!res.ok) return []; // Staff is optional
         return res.json();
       })

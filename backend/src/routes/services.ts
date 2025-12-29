@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { ReceptionistService } from '../services/receptionist';
+import { adminService } from '../services/admin';
 
 const router = Router();
 const receptionist = new ReceptionistService();
@@ -52,6 +53,18 @@ router.get('/business/hours', (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get hours error:', error);
     res.status(500).json({ error: 'Failed to get business hours' });
+  }
+});
+
+// GET /api/services/staff - Get active staff members (public endpoint for booking)
+router.get('/staff', (req: Request, res: Response) => {
+  try {
+    // Only return active staff members for public booking
+    const staff = adminService.getAllStaff(true);
+    res.json(staff);
+  } catch (error) {
+    console.error('Get staff error:', error);
+    res.status(500).json({ error: 'Failed to get staff' });
   }
 });
 
