@@ -1,7 +1,8 @@
 {
-  "name": "ai-receptionist-widget",
+  "name": "ai-assistant-frontend",
+  "private": true,
   "version": "1.0.0",
-  "description": "AI Virtual Receptionist Chat Widget",
+  "description": "AI Virtual Receptionist Web Application",
   "type": "module",
   "scripts": {
     "dev": "vite",
