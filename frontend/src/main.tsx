@@ -19,3 +19,4 @@ ReactDOM.createRoot(container).render(
 
 // Export for UMD build
 export { App as AIReceptionist };
+// Force rebuild Mon Dec 29 22:57:35 PKT 2025
