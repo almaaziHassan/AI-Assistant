@@ -24,7 +24,7 @@ export async function seedDatabase() {
         db.run(
             `INSERT INTO staff (id, name, email, role, services, is_active, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [staffId, 'Available Staff', null, 'Therapist', 'all', 1, new Date().toISOString()]
+            [staffId, 'Available Staff', null, 'Therapist', '[]', 1, new Date().toISOString()]
         );
 
         console.log('✅ Default staff member added');

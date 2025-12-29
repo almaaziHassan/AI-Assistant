@@ -42,7 +42,8 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd real-time stats updates to Overview tab\n\n- Auto-refresh overview stats every 30 seconds\n- Added manual Refresh button for on-demand updates\n- All stats now refresh after appointment status changes\n- Stats refresh without showing loading state to avoid UI flicker\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(rm:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(ls:*)"
     ]
   }
 }
