@@ -115,12 +115,17 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
   // Fetch services and staff on mount
   useEffect(() => {
     setLoading(true);
+    const timestamp = Date.now();
     Promise.all([
-      fetch(`${serverUrl}/api/services`).then(res => {
+      fetch(`${serverUrl}/api/services?_t=${timestamp}`, {
+        headers: { 'Cache-Control': 'no-cache' }
+      }).then(res => {
         if (!res.ok) throw new Error('Failed to load services');
         return res.json();
       }),
-      fetch(`${serverUrl}/api/services/staff`).then(res => {
+      fetch(`${serverUrl}/api/services/staff?_t=${timestamp}`, {
+        headers: { 'Cache-Control': 'no-cache' }
+      }).then(res => {
         if (!res.ok) return []; // Staff is optional
         return res.json();
       })
@@ -146,12 +151,18 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
       setError(null);
 
       // Build URL with optional staffId for staff-specific availability
-      let url = `${serverUrl}/api/appointments/slots?date=${formData.date}&serviceId=${formData.serviceId}`;
+      // Add timestamp to prevent caching
+      let url = `${serverUrl}/api/appointments/slots?date=${formData.date}&serviceId=${formData.serviceId}&_t=${Date.now()}`;
       if (formData.staffId) {
         url += `&staffId=${formData.staffId}`;
       }
 
-      fetch(url)
+      fetch(url, {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      })
         .then(res => {
           if (!res.ok) throw new Error('Failed to load times');
           return res.json();

@@ -8,7 +8,13 @@ const scheduler = new SchedulerService();
 // GET /api/appointments/slots - Get available time slots
 router.get('/slots', (req: Request, res: Response) => {
   try {
+    // Prevent caching
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const { date, serviceId, staffId } = req.query;
+    console.log(`[slots] Request: date=${date}, serviceId=${serviceId}, staffId=${staffId}`);
 
     if (!date || typeof date !== 'string') {
       return res.status(400).json({ error: 'Date is required (YYYY-MM-DD format)' });
@@ -28,6 +34,7 @@ router.get('/slots', (req: Request, res: Response) => {
     const staffIdStr = typeof staffId === 'string' ? staffId : undefined;
 
     const slots = scheduler.getAvailableSlots(date, serviceId, staffIdStr);
+    console.log(`[slots] Returning ${slots.length} slots for ${date}`);
     res.json({ date, serviceId, staffId: staffIdStr, slots });
   } catch (error) {
     console.error('Get slots error:', error);
