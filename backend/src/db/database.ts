@@ -197,6 +197,10 @@ export async function initDatabase(): Promise<void> {
 
   dbInitialized = true;
   console.log('Database initialized successfully');
+
+  // Seed with default data if empty
+  const { seedDatabase } = await import('../utils/seedDatabase');
+  await seedDatabase();
 }
 
 export function saveDatabase(): void {
