@@ -20,6 +20,7 @@
     "nodemailer": "^6.9.8",
     "socket.io": "^4.7.2",
     "sql.js": "^1.10.0",
+    "typescript": "^5.3.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
@@ -35,7 +36,6 @@
     "socket.io-client": "^4.8.3",
     "supertest": "^6.3.4",
     "ts-jest": "^29.4.6",
-    "tsx": "^4.6.2",
-    "typescript": "^5.3.2"
+    "tsx": "^4.6.2"
   }
 }
