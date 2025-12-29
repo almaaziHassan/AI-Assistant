@@ -6,13 +6,21 @@ export async function seedDatabase() {
 
     const db = getDbSync();
 
-    // Check if we already have staff
+    // First, clean up any corrupted data from previous seeds
+    try {
+        db.run(`DELETE FROM staff WHERE services = 'all' OR services IS NULL OR services = ''`);
+        console.log('Cleaned up any corrupted staff records');
+    } catch (e) {
+        console.log('No cleanup needed');
+    }
+
+    // Check if we already have valid staff
     const stmt = db.prepare('SELECT * FROM staff LIMIT 1');
     const hasStaff = stmt.step();
     stmt.free();
 
     if (hasStaff) {
-        console.log('Database already has data, skipping seed.');
+        console.log('Database already has valid data, skipping seed.');
         return;
     }
 
