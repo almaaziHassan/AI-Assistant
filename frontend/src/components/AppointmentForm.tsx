@@ -168,19 +168,27 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
           return res.json();
         })
         .then(data => {
-          const availableSlots = data.slots || [];
-          setSlots(availableSlots);
+          // Ensure we have valid slot data
+          const slotsData = Array.isArray(data.slots) ? data.slots : [];
 
-          // Check if no slots available (could be closed day)
-          if (availableSlots.length === 0) {
+          // Set slots immediately
+          setSlots(slotsData);
+
+          // Clear closed message if we have slots
+          if (slotsData.length > 0) {
+            setClosedDayMessage(null);
+          } else {
+            // Only show closed message if truly no slots
             const dayName = new Date(formData.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
             setClosedDayMessage(`No available times on ${dayName}. This day may be closed or fully booked.`);
           }
 
           setLoading(false);
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('Failed to load slots:', err);
           setError('Failed to load available times. Please try again.');
+          setSlots([]);
           setLoading(false);
         });
     }
