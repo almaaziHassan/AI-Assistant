@@ -144,7 +144,21 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
 
   // Fetch available slots when date, service, or staff change
   useEffect(() => {
+    // Create abort controller for this effect
+    const abortController = new AbortController();
+
     if (formData.date && formData.serviceId) {
+      // Validate date format and ensure it's a reasonable year (not 0002, 0020, etc.)
+      const dateMatch = formData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!dateMatch) {
+        return; // Invalid date format, skip fetch
+      }
+
+      const year = parseInt(dateMatch[1], 10);
+      if (year < 2020 || year > 2100) {
+        return; // Invalid year (typing in progress), skip fetch
+      }
+
       setLoading(true);
       setSlots([]);
       setClosedDayMessage(null);
@@ -161,7 +175,8 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
-        }
+        },
+        signal: abortController.signal
       })
         .then(res => {
           if (!res.ok) throw new Error('Failed to load times');
@@ -189,12 +204,21 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
           setLoading(false);
         })
         .catch((err) => {
+          // Ignore abort errors (expected when date changes rapidly)
+          if (err.name === 'AbortError') {
+            return;
+          }
           console.error('Failed to load slots:', err);
           setError('Failed to load available times. Please try again.');
           setSlots([]);
           setLoading(false);
         });
     }
+
+    // Cleanup: abort fetch if date changes before response arrives
+    return () => {
+      abortController.abort();
+    };
   }, [formData.date, formData.serviceId, formData.staffId, serverUrl]);
 
   const handleServiceSelect = (serviceId: string) => {
