@@ -146,87 +146,99 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
   useEffect(() => {
     // Create abort controller for this effect
     const abortController = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     // Capture values in closure to prevent stale reference
     const requestDate = formData.date;
     const requestServiceId = formData.serviceId;
     const requestStaffId = formData.staffId;
 
-    if (requestDate && requestServiceId) {
-      // Validate date format and ensure it's a reasonable year (not 0002, 0020, etc.)
-      const dateMatch = requestDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (!dateMatch) {
-        return; // Invalid date format, skip fetch
-      }
-
-      const year = parseInt(dateMatch[1], 10);
-      if (year < 2020 || year > 2100) {
-        return; // Invalid year (typing in progress), skip fetch
-      }
-
-      // Debounce: wait 300ms before making the request to avoid rapid-fire during typing
-      const timeoutId = setTimeout(() => {
-        setLoading(true);
-        setSlots([]);
-        setClosedDayMessage(null);
-        setError(null);
-
-        // Build URL with optional staffId for staff-specific availability
-        let url = `${serverUrl}/api/appointments/slots?date=${requestDate}&serviceId=${requestServiceId}&_t=${Date.now()}`;
-        if (requestStaffId) {
-          url += `&staffId=${requestStaffId}`;
-        }
-
-        fetch(url, {
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          },
-          signal: abortController.signal
-        })
-          .then(res => {
-            if (!res.ok) throw new Error('Failed to load times');
-            return res.json();
-          })
-          .then(data => {
-            // Ensure we have valid slot data
-            const slotsData = Array.isArray(data.slots) ? data.slots : [];
-
-            // Filter to only available slots (available: true)
-            const availableCount = slotsData.filter((s: { available: boolean }) => s.available).length;
-
-            // Set slots immediately
-            setSlots(slotsData);
-
-            // Use requestDate (captured in closure) not formData.date
-            if (availableCount > 0) {
-              setClosedDayMessage(null);
-            } else {
-              // No available slots - either closed or fully booked
-              const dayName = new Date(requestDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
-              setClosedDayMessage(`No available times on ${dayName}. This day may be closed or fully booked.`);
-            }
-
-            setLoading(false);
-          })
-          .catch((err) => {
-            // Ignore abort errors (expected when date changes rapidly)
-            if (err.name === 'AbortError') {
-              return;
-            }
-            console.error('Failed to load slots:', err);
-            setError('Failed to load available times. Please try again.');
-            setSlots([]);
-            setLoading(false);
-          });
-      }, 300); // 300ms debounce
-
-      // Cleanup: clear timeout and abort fetch if dependencies change
-      return () => {
-        clearTimeout(timeoutId);
-        abortController.abort();
-      };
+    // Skip if missing required fields
+    if (!requestDate || !requestServiceId) {
+      return;
     }
+
+    // Validate date format and ensure it's a reasonable year (not 0002, 0020, etc.)
+    const dateMatch = requestDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!dateMatch) {
+      return; // Invalid date format, skip fetch
+    }
+
+    const year = parseInt(dateMatch[1], 10);
+    if (year < 2024 || year > 2100) {
+      // Invalid year - clear any stale messages and wait for valid year
+      return;
+    }
+
+    // Debounce: wait 400ms before making the request to avoid rapid-fire during typing
+    timeoutId = setTimeout(() => {
+      setLoading(true);
+      setSlots([]);
+      setClosedDayMessage(null);
+      setError(null);
+
+      // Build URL with optional staffId for staff-specific availability
+      let url = `${serverUrl}/api/appointments/slots?date=${requestDate}&serviceId=${requestServiceId}&_t=${Date.now()}`;
+      if (requestStaffId) {
+        url += `&staffId=${requestStaffId}`;
+      }
+
+      fetch(url, {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        signal: abortController.signal
+      })
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to load times');
+          return res.json();
+        })
+        .then(data => {
+          // Verify this response matches the current request (double-check)
+          if (abortController.signal.aborted) {
+            return; // Request was cancelled, ignore this response
+          }
+
+          // Ensure we have valid slot data
+          const slotsData = Array.isArray(data.slots) ? data.slots : [];
+
+          // Filter to only available slots (available: true)
+          const availableCount = slotsData.filter((s: { available: boolean }) => s.available).length;
+
+          // Set slots immediately
+          setSlots(slotsData);
+
+          // Use requestDate (captured in closure) not formData.date
+          if (availableCount > 0) {
+            setClosedDayMessage(null);
+          } else {
+            // No available slots - either closed or fully booked
+            const dayName = new Date(requestDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+            setClosedDayMessage(`No available times on ${dayName}. This day may be closed or fully booked.`);
+          }
+
+          setLoading(false);
+        })
+        .catch((err) => {
+          // Ignore abort errors (expected when date changes rapidly)
+          if (err.name === 'AbortError') {
+            return;
+          }
+          console.error('Failed to load slots:', err);
+          setError('Failed to load available times. Please try again.');
+          setSlots([]);
+          setLoading(false);
+        });
+    }, 400); // 400ms debounce (slightly longer for slower typers)
+
+    // ALWAYS return cleanup to prevent stale responses
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      abortController.abort();
+    };
   }, [formData.date, formData.serviceId, formData.staffId, serverUrl]);
 
   const handleServiceSelect = (serviceId: string) => {
