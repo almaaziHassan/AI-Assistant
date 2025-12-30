@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { validatePhoneNumber, validateEmail } from '../utils/validation';
 import PhoneInput from './PhoneInput';
 
+// Build version - increment to force cache invalidation
+const BUILD_VERSION = '2024123002';
+
 interface Service {
   id: string;
   name: string;
