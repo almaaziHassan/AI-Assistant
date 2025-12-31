@@ -74,7 +74,7 @@ export class AdminService {
       `INSERT INTO staff (id, name, email, phone, role, services, color, is_active, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, data.name, data.email || null, data.phone || null, data.role,
-       JSON.stringify(data.services), data.color || null, data.isActive ? 1 : 0, now]
+        JSON.stringify(data.services), data.color || null, data.isActive ? 1 : 0, now]
     );
 
     return { id, ...data, createdAt: now };
@@ -211,7 +211,7 @@ export class AdminService {
       `INSERT INTO holidays (id, date, name, is_closed, custom_hours_open, custom_hours_close, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [id, data.date, data.name, data.isClosed ? 1 : 0,
-       data.customHoursOpen || null, data.customHoursClose || null, now]
+        data.customHoursOpen || null, data.customHoursClose || null, now]
     );
 
     return { id, ...data, createdAt: now };
@@ -287,7 +287,7 @@ export class AdminService {
        preferred_date, preferred_time, staff_id, status, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
       [id, data.customerName, data.customerEmail, data.customerPhone, data.serviceId,
-       data.preferredDate, data.preferredTime || null, data.staffId || null, now]
+        data.preferredDate, data.preferredTime || null, data.staffId || null, now]
     );
 
     return {
@@ -369,23 +369,23 @@ export class AdminService {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Today's appointments
+    // Today's appointments (confirmed + completed)
     const todayResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date = ? AND status = 'confirmed'`,
+      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date = ? AND status IN ('confirmed', 'completed')`,
       [today]
     );
     const todayAppointments = (todayResult?.count as number) || 0;
 
-    // Week appointments
+    // Week appointments (confirmed + completed)
     const weekResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status = 'confirmed'`,
+      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN ('confirmed', 'completed')`,
       [weekAgo]
     );
     const weekAppointments = (weekResult?.count as number) || 0;
 
-    // Month appointments
+    // Month appointments (confirmed + completed)
     const monthResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status = 'confirmed'`,
+      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN ('confirmed', 'completed')`,
       [monthAgo]
     );
     const monthAppointments = (monthResult?.count as number) || 0;
@@ -397,9 +397,9 @@ export class AdminService {
     );
     const cancelledCount = (cancelledResult?.count as number) || 0;
 
-    // Upcoming appointments
+    // Upcoming appointments (only confirmed, not completed - they're in the future)
     const upcomingResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status = 'confirmed'`,
+      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN ('pending', 'confirmed')`,
       [today]
     );
     const upcomingCount = (upcomingResult?.count as number) || 0;
