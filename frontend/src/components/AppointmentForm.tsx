@@ -3,7 +3,7 @@ import { validatePhoneNumber, validateEmail } from '../utils/validation';
 import PhoneInput from './PhoneInput';
 
 // Build version - increment to force cache invalidation
-export const BUILD_VERSION = '2024123002';
+export const BUILD_VERSION = '2024123103';
 
 interface Service {
   id: string;
