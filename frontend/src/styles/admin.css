@@ -954,4 +954,48 @@
     gap: 12px;
     align-items: flex-start;
   }
+
+  .header-datetime {
+    order: 2;
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* Header DateTime Display */
+.header-datetime {
+  text-align: center;
+  padding: 10px 24px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.datetime-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4338ca;
+  margin-bottom: 4px;
+}
+
+.datetime-time {
+  font-size: 24px;
+  font-weight: 700;
+  color: #667eea;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 1px;
+}
+
+@media (max-width: 768px) {
+  .header-datetime {
+    padding: 8px 16px;
+  }
+
+  .datetime-time {
+    font-size: 20px;
+  }
+
+  .datetime-date {
+    font-size: 12px;
+  }
 }

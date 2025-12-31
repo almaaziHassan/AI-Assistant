@@ -119,6 +119,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [holidayForm, setHolidayForm] = useState({ date: '', name: '', isClosed: true });
   const [callbackFilter, setCallbackFilter] = useState<string>('pending');
   const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   // Get stored auth token
   const getAuthToken = (): string | null => {
@@ -245,6 +246,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
     return () => clearInterval(interval);
   }, [isAuthenticated, activeTab]);
+
+  // Update current date/time every second
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const clockInterval = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(clockInterval);
+  }, [isAuthenticated]);
 
   // Refresh only overview stats (without loading state)
   const refreshOverviewStats = async () => {
@@ -587,6 +599,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
           <div>
             <h1>Admin Dashboard</h1>
             <p>Manage appointments, staff, and settings</p>
+          </div>
+          <div className="header-datetime">
+            <div className="datetime-date">
+              {currentDateTime.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
+            </div>
+            <div className="datetime-time">
+              {currentDateTime.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              })}
+            </div>
           </div>
           <button className="btn-logout" onClick={handleLogout}>
             Logout
