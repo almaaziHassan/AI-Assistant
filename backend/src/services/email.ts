@@ -2,6 +2,9 @@ import nodemailer from 'nodemailer';
 import { Appointment } from './scheduler';
 import servicesConfig from '../config/services.json';
 
+// Import Brevo SDK
+import * as brevo from '@getbrevo/brevo';
+
 interface EmailConfig {
   host: string;
   port: number;
@@ -14,34 +17,49 @@ interface EmailConfig {
 
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
+  private brevoApi: brevo.TransactionalEmailsApi | null = null;
   private config = servicesConfig;
   private isConfigured: boolean = false;
+  private useBrevoApi: boolean = false;
 
   constructor() {
     this.initializeTransporter();
   }
 
   private initializeTransporter(): void {
+    // First try Brevo API (preferred - no port issues)
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    if (brevoApiKey) {
+      const apiInstance = new brevo.TransactionalEmailsApi();
+      apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, brevoApiKey);
+      this.brevoApi = apiInstance;
+      this.isConfigured = true;
+      this.useBrevoApi = true;
+      console.log('Email service configured: Brevo API');
+      return;
+    }
+
+    // Fallback to SMTP
     const host = process.env.SMTP_HOST;
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
     const user = process.env.SMTP_USER;
     const pass = process.env.SMTP_PASS;
 
     if (!host || !user || !pass) {
-      console.log('Email service not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS in .env');
+      console.log('Email service not configured. Set BREVO_API_KEY or SMTP_* in .env');
       console.log('Using console logging for email previews instead.');
       this.isConfigured = false;
       return;
     }
 
-    // Configure transporter with explicit STARTTLS settings for Brevo/SendGrid
+    // Configure transporter with explicit STARTTLS settings
     this.transporter = nodemailer.createTransport({
       host,
       port,
-      secure: port === 465, // Use SSL only for port 465
+      secure: port === 465,
       auth: { user, pass },
-      requireTLS: port === 587, // Force STARTTLS for port 587
-      connectionTimeout: 10000, // 10 second connection timeout
+      requireTLS: port === 587,
+      connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 15000,
       tls: {
@@ -51,7 +69,7 @@ export class EmailService {
     });
 
     this.isConfigured = true;
-    console.log(`Email service configured: ${host}:${port}`);
+    console.log(`Email service configured: SMTP ${host}:${port}`);
   }
 
   private formatDate(dateStr: string): string {
@@ -243,9 +261,10 @@ ${business.phone} | ${business.email}
 
   async sendConfirmationEmail(appointment: Appointment): Promise<boolean> {
     const { subject, html, text } = this.generateConfirmationEmail(appointment);
-    const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com';
+    const fromEmail = process.env.BREVO_FROM_EMAIL || process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com';
+    const fromName = process.env.BREVO_FROM_NAME || this.config.business.name;
 
-    if (!this.isConfigured || !this.transporter) {
+    if (!this.isConfigured) {
       // Log email preview to console when not configured
       console.log('\n========== EMAIL PREVIEW ==========');
       console.log(`To: ${appointment.customerEmail}`);
@@ -256,21 +275,45 @@ ${business.phone} | ${business.email}
       return true; // Return true so booking flow continues
     }
 
-    try {
-      await this.transporter.sendMail({
-        from: `"${this.config.business.name}" <${fromEmail}>`,
-        to: appointment.customerEmail,
-        subject,
-        text,
-        html
-      });
+    // Use Brevo API if available (preferred - no port blocking issues)
+    if (this.useBrevoApi && this.brevoApi) {
+      try {
+        const sendSmtpEmail = new (await import('@getbrevo/brevo')).SendSmtpEmail();
+        sendSmtpEmail.subject = subject;
+        sendSmtpEmail.htmlContent = html;
+        sendSmtpEmail.textContent = text;
+        sendSmtpEmail.sender = { name: fromName, email: fromEmail };
+        sendSmtpEmail.to = [{ email: appointment.customerEmail, name: appointment.customerName }];
 
-      console.log(`Confirmation email sent to ${appointment.customerEmail}`);
-      return true;
-    } catch (error) {
-      console.error('Failed to send confirmation email:', error);
-      return false;
+        await this.brevoApi.sendTransacEmail(sendSmtpEmail);
+        console.log(`Confirmation email sent via Brevo API to ${appointment.customerEmail}`);
+        return true;
+      } catch (error) {
+        console.error('Failed to send confirmation email via Brevo API:', error);
+        return false;
+      }
     }
+
+    // Fallback to SMTP
+    if (this.transporter) {
+      try {
+        await this.transporter.sendMail({
+          from: `"${fromName}" <${fromEmail}>`,
+          to: appointment.customerEmail,
+          subject,
+          text,
+          html
+        });
+
+        console.log(`Confirmation email sent via SMTP to ${appointment.customerEmail}`);
+        return true;
+      } catch (error) {
+        console.error('Failed to send confirmation email via SMTP:', error);
+        return false;
+      }
+    }
+
+    return false;
   }
 }
 
