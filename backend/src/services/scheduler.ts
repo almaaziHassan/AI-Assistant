@@ -582,23 +582,30 @@ export class SchedulerService {
       return { success: false, error: `Cannot change status from ${existing.status} to ${status}` };
     }
 
-    // For completed/no-show, appointment must be today or in the past
-    // This is a lenient check that allows marking appointments that have started today
+    // For completed/no-show, appointment time must have passed
+    // Default to Pakistan timezone (UTC+5, offset = -300) if no timezone provided
     if (status === 'completed' || status === 'no-show') {
-      const today = new Date();
-      const appointmentDate = new Date(existing.appointmentDate + 'T00:00:00');
-      const todayDate = new Date(today.toISOString().split('T')[0] + 'T00:00:00');
+      // Use provided timezone or default to Pakistan (UTC+5 = -300 minutes offset)
+      const tz = timezoneOffset !== undefined ? timezoneOffset : -300;
 
-      // If timezone offset provided, adjust today's date
-      if (timezoneOffset !== undefined) {
-        // Shift the date comparison based on client timezone
-        const clientDate = new Date(today.getTime() - (timezoneOffset * 60 * 1000));
-        const clientDateStr = clientDate.toISOString().split('T')[0];
-        todayDate.setTime(new Date(clientDateStr + 'T00:00:00').getTime());
-      }
+      // Get current time in client's timezone
+      const now = new Date();
+      const clientNow = new Date(now.getTime() - (tz * 60 * 1000));
 
-      if (appointmentDate > todayDate) {
-        return { success: false, error: 'Cannot mark future appointments as completed or no-show. Appointment must be today or in the past.' };
+      // Parse appointment datetime - stored as local time strings (e.g., "2024-12-31" and "15:15")
+      // Create appointment datetime as if it's in the same timezone reference
+      const appointmentDateTime = new Date(`${existing.appointmentDate}T${existing.appointmentTime}:00`);
+
+      // Compare appointment time with current client time
+      // Note: Both are now in the same reference frame (UTC for comparison)
+      const appointmentInClientTz = new Date(appointmentDateTime.getTime());
+
+      if (appointmentInClientTz > clientNow) {
+        const appointmentTimeStr = existing.appointmentTime;
+        return {
+          success: false,
+          error: `Cannot mark as ${status}. Appointment is scheduled for ${appointmentTimeStr}. Please wait until after the appointment time.`
+        };
       }
     }
 
