@@ -582,9 +582,10 @@ export class SchedulerService {
       return { success: false, error: `Cannot change status from ${existing.status} to ${status}` };
     }
 
-    // For completed/no-show, appointment time must have passed
+    // For confirmed/completed/no-show, appointment time must have passed
+    // Only cancellation is allowed for future appointments
     // Default to Pakistan timezone (UTC+5, offset = -300) if no timezone provided
-    if (status === 'completed' || status === 'no-show') {
+    if (status === 'confirmed' || status === 'completed' || status === 'no-show') {
       // Use provided timezone or default to Pakistan (UTC+5 = -300 minutes offset)
       const tz = timezoneOffset !== undefined ? timezoneOffset : -300;
 
@@ -604,7 +605,7 @@ export class SchedulerService {
         const appointmentTimeStr = existing.appointmentTime;
         return {
           success: false,
-          error: `Cannot mark as ${status}. Appointment is scheduled for ${appointmentTimeStr}. Please wait until after the appointment time.`
+          error: `Cannot mark as ${status}. Appointment is scheduled for ${existing.appointmentDate} at ${appointmentTimeStr}. You can only cancel future appointments.`
         };
       }
     }
