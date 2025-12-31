@@ -34,18 +34,24 @@ export class EmailService {
       return;
     }
 
+    // Configure transporter with explicit STARTTLS settings for Brevo/SendGrid
     this.transporter = nodemailer.createTransport({
       host,
       port,
-      secure: port === 465,
+      secure: port === 465, // Use SSL only for port 465
       auth: { user, pass },
+      requireTLS: port === 587, // Force STARTTLS for port 587
+      connectionTimeout: 10000, // 10 second connection timeout
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       tls: {
-        rejectUnauthorized: false // Allow self-signed certificates (for corporate proxies)
+        minVersion: 'TLSv1.2',
+        rejectUnauthorized: false
       }
     });
 
     this.isConfigured = true;
-    console.log('Email service configured successfully');
+    console.log(`Email service configured: ${host}:${port}`);
   }
 
   private formatDate(dateStr: string): string {
