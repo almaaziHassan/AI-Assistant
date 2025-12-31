@@ -46,9 +46,9 @@ app.post('/api/appointments', bookingLimiter);
 app.use('/api/appointments', appointmentsRoutes); // No rate limit on GET (slots, stats)
 app.use('/api/services', servicesRoutes); // No rate limit - public info
 app.use('/api/admin', adminAuthMiddleware, adminRoutes); // Protected with auth
-// Callbacks: POST is public (for users to submit), GET/PUT/DELETE are admin-only
-app.post('/api/callbacks', callbacksRoutes); // Public - users can submit callback requests
-app.use('/api/callbacks', adminAuthMiddleware, callbacksRoutes); // Protected - admin can view/update/delete
+// Callbacks: POST is public (for users to submit), other methods are admin-only
+// We handle this by mounting the router without auth, but the router's GET/PUT/DELETE are protected by checking auth
+app.use('/api/callbacks', callbacksRoutes);
 
 // API index
 app.get('/api', (req, res) => {

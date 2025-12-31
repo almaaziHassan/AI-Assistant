@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { runQuery, getOne, getAll } from '../db/database';
+import { adminAuthMiddleware } from '../middleware/adminAuth';
 
 const router = Router();
 
@@ -78,7 +79,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // GET /api/callbacks - Get all callback requests (admin)
-router.get('/', (req: Request, res: Response) => {
+router.get('/', adminAuthMiddleware, (req: Request, res: Response) => {
   try {
     const { status } = req.query;
 
@@ -111,8 +112,8 @@ router.get('/', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/callbacks/:id - Get a specific callback
-router.get('/:id', (req: Request, res: Response) => {
+// GET /api/callbacks/:id - Get a specific callback (admin)
+router.get('/:id', adminAuthMiddleware, (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const row = getOne('SELECT * FROM callbacks WHERE id = ?', [id]);
@@ -141,8 +142,8 @@ router.get('/:id', (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/callbacks/:id - Update callback status
-router.put('/:id', (req: Request, res: Response) => {
+// PUT /api/callbacks/:id - Update callback status (admin)
+router.put('/:id', adminAuthMiddleware, (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, notes } = req.body;
@@ -171,8 +172,8 @@ router.put('/:id', (req: Request, res: Response) => {
   }
 });
 
-// DELETE /api/callbacks/:id - Delete a callback request
-router.delete('/:id', (req: Request, res: Response) => {
+// DELETE /api/callbacks/:id - Delete a callback request (admin)
+router.delete('/:id', adminAuthMiddleware, (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
