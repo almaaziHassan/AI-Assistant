@@ -353,7 +353,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const getDateRange = (filter: 'today' | 'week' | 'month' | 'all'): { startDate: string; endDate: string } | null => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const formatDateStr = (d: Date) => d.toISOString().split('T')[0];
+    // Use local date format (YYYY-MM-DD) instead of toISOString which uses UTC
+    const formatDateStr = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
     switch (filter) {
       case 'today':
@@ -393,10 +399,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   const handleUpdateAppointmentStatus = async (id: string, status: 'pending' | 'confirmed' | 'completed' | 'no-show' | 'cancelled') => {
     try {
+      // Include timezone offset so server can correctly validate appointment time
+      const tz = new Date().getTimezoneOffset();
       const res = await fetch(`${serverUrl}/api/appointments/${id}/status`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, tz })
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {

@@ -562,7 +562,7 @@ export class SchedulerService {
   }
 
   // Update appointment status
-  updateAppointmentStatus(id: string, status: 'pending' | 'confirmed' | 'completed' | 'no-show' | 'cancelled'): { success: boolean; error?: string } {
+  updateAppointmentStatus(id: string, status: 'pending' | 'confirmed' | 'completed' | 'no-show' | 'cancelled', timezoneOffset?: number): { success: boolean; error?: string } {
     const existing = this.getAppointment(id);
     if (!existing) {
       return { success: false, error: 'Appointment not found' };
@@ -587,7 +587,14 @@ export class SchedulerService {
     if (status === 'completed' || status === 'no-show') {
       const appointmentStartTime = new Date(`${existing.appointmentDate}T${existing.appointmentTime}:00`);
 
-      if (appointmentStartTime > new Date()) {
+      // Get current time, adjusting for client timezone if provided
+      let now = new Date();
+      if (timezoneOffset !== undefined) {
+        // Adjust server's "now" to client's timezone
+        now = new Date(now.getTime() - (timezoneOffset * 60 * 1000));
+      }
+
+      if (appointmentStartTime > now) {
         return { success: false, error: 'Cannot mark future appointments as completed or no-show' };
       }
     }

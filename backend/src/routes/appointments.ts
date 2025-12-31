@@ -246,7 +246,7 @@ router.post('/lookup', (req: Request, res: Response) => {
 router.patch('/:id/status', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, tz } = req.body;
 
     // Validate status
     const validStatuses = ['pending', 'confirmed', 'completed', 'no-show', 'cancelled'];
@@ -254,7 +254,10 @@ router.patch('/:id/status', (req: Request, res: Response) => {
       return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(', ')}` });
     }
 
-    const result = scheduler.updateAppointmentStatus(id, status);
+    // Parse timezone offset if provided
+    const timezoneOffset = typeof tz === 'number' ? tz : undefined;
+
+    const result = scheduler.updateAppointmentStatus(id, status, timezoneOffset);
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });
