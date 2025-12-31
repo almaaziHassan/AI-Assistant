@@ -7,8 +7,16 @@ const sessions = new Map<string, { createdAt: number }>();
 // Session duration: 24 hours
 const SESSION_DURATION = 24 * 60 * 60 * 1000;
 
-// Get admin password from environment or use default for development
+// Get admin password from environment - REQUIRED in production
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+// Warn if using default password in production
+if (process.env.NODE_ENV === 'production' && ADMIN_PASSWORD === 'admin123') {
+  console.error('⚠️  WARNING: Using default admin password in production!');
+  console.error('⚠️  Set ADMIN_PASSWORD environment variable to a secure password.');
+} else if (ADMIN_PASSWORD === 'admin123') {
+  console.log('ℹ️  Using default admin password (development mode)');
+}
 
 // Generate a secure session token
 export function generateSessionToken(): string {
