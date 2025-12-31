@@ -33,8 +33,11 @@ router.get('/slots', (req: Request, res: Response) => {
     // staffId is optional - if provided, get slots for specific staff only
     const staffIdStr = typeof staffId === 'string' ? staffId : undefined;
 
-    const slots = scheduler.getAvailableSlots(date, serviceId, staffIdStr);
-    console.log(`[slots] Returning ${slots.length} slots for ${date}`);
+    // timezoneOffset is optional - client's timezone offset in minutes (e.g., -300 for EST)
+    const timezoneOffset = req.query.tz ? parseInt(req.query.tz as string, 10) : undefined;
+
+    const slots = scheduler.getAvailableSlots(date, serviceId, staffIdStr, timezoneOffset);
+    console.log(`[slots] Returning ${slots.length} slots for ${date} (tz offset: ${timezoneOffset ?? 'server'})`);
     res.json({ date, serviceId, staffId: staffIdStr, slots });
   } catch (error) {
     console.error('Get slots error:', error);

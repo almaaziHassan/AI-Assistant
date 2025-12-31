@@ -181,7 +181,9 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
       setError(null);
 
       // Build URL with optional staffId for staff-specific availability
-      let url = `${serverUrl}/api/appointments/slots?date=${requestDate}&serviceId=${requestServiceId}&_t=${Date.now()}`;
+      // Include timezone offset so backend can correctly filter past slots
+      const tzOffset = new Date().getTimezoneOffset(); // Negative for east of UTC, positive for west
+      let url = `${serverUrl}/api/appointments/slots?date=${requestDate}&serviceId=${requestServiceId}&tz=${tzOffset}&_t=${Date.now()}`;
       if (requestStaffId) {
         url += `&staffId=${requestStaffId}`;
       }

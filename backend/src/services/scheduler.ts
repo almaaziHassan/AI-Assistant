@@ -69,8 +69,22 @@ export class SchedulerService {
   }
 
   // Check if time slot is in the past (for today's bookings)
-  private isTimeSlotInPast(date: string, time: string): boolean {
+  // timezoneOffset: minutes offset from UTC (e.g., -300 for EST, +300 for IST)
+  private isTimeSlotInPast(date: string, time: string, timezoneOffset?: number): boolean {
     const now = new Date();
+
+    // If timezone offset provided, adjust "now" to client's timezone
+    if (timezoneOffset !== undefined) {
+      // Client sends their offset (e.g., -300 means UTC-5)
+      // We need to calculate what time it is for the client
+      const clientNow = new Date(now.getTime() - (timezoneOffset * 60 * 1000));
+      const slotDateTime = new Date(`${date}T${time}:00`);
+      // Adjust slot to compare in same reference
+      const slotInClientTime = new Date(slotDateTime.getTime());
+      return slotInClientTime <= clientNow;
+    }
+
+    // Default behavior: use server time
     const slotDateTime = new Date(`${date}T${time}:00`);
     return slotDateTime <= now;
   }
@@ -186,7 +200,7 @@ export class SchedulerService {
     return existing.length > 0;
   }
 
-  getAvailableSlots(date: string, serviceId: string, staffId?: string): TimeSlot[] {
+  getAvailableSlots(date: string, serviceId: string, staffId?: string, timezoneOffset?: number): TimeSlot[] {
     // Validate date format
     if (!this.isValidDateFormat(date)) {
       return [];
@@ -264,8 +278,8 @@ export class SchedulerService {
     while (currentTime + service.duration <= closeTime) {
       const timeStr = this.minutesToTime(currentTime);
 
-      // Skip past time slots for today
-      if (isToday && this.isTimeSlotInPast(date, timeStr)) {
+      // Skip past time slots for today (use timezone offset if provided)
+      if (isToday && this.isTimeSlotInPast(date, timeStr, timezoneOffset)) {
         currentTime += slotDuration;
         continue;
       }
@@ -568,12 +582,13 @@ export class SchedulerService {
       return { success: false, error: `Cannot change status from ${existing.status} to ${status}` };
     }
 
-    // For confirmed/completed/no-show, appointment time must have started
-    if (status === 'confirmed' || status === 'completed' || status === 'no-show') {
+    // For completed/no-show, appointment time must have passed (admin marking outcome)
+    // But "confirmed" can be done for future appointments (that's normal)
+    if (status === 'completed' || status === 'no-show') {
       const appointmentStartTime = new Date(`${existing.appointmentDate}T${existing.appointmentTime}:00`);
 
       if (appointmentStartTime > new Date()) {
-        return { success: false, error: 'Cannot mark future appointments as confirmed, completed, or no-show' };
+        return { success: false, error: 'Cannot mark future appointments as completed or no-show' };
       }
     }
 
