@@ -582,20 +582,23 @@ export class SchedulerService {
       return { success: false, error: `Cannot change status from ${existing.status} to ${status}` };
     }
 
-    // For completed/no-show, appointment time must have passed (admin marking outcome)
-    // But "confirmed" can be done for future appointments (that's normal)
+    // For completed/no-show, appointment must be today or in the past
+    // This is a lenient check that allows marking appointments that have started today
     if (status === 'completed' || status === 'no-show') {
-      const appointmentStartTime = new Date(`${existing.appointmentDate}T${existing.appointmentTime}:00`);
+      const today = new Date();
+      const appointmentDate = new Date(existing.appointmentDate + 'T00:00:00');
+      const todayDate = new Date(today.toISOString().split('T')[0] + 'T00:00:00');
 
-      // Get current time, adjusting for client timezone if provided
-      let now = new Date();
+      // If timezone offset provided, adjust today's date
       if (timezoneOffset !== undefined) {
-        // Adjust server's "now" to client's timezone
-        now = new Date(now.getTime() - (timezoneOffset * 60 * 1000));
+        // Shift the date comparison based on client timezone
+        const clientDate = new Date(today.getTime() - (timezoneOffset * 60 * 1000));
+        const clientDateStr = clientDate.toISOString().split('T')[0];
+        todayDate.setTime(new Date(clientDateStr + 'T00:00:00').getTime());
       }
 
-      if (appointmentStartTime > now) {
-        return { success: false, error: 'Cannot mark future appointments as completed or no-show' };
+      if (appointmentDate > todayDate) {
+        return { success: false, error: 'Cannot mark future appointments as completed or no-show. Appointment must be today or in the past.' };
       }
     }
 
