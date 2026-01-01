@@ -1,7 +1,7 @@
 {
   "name": "ai-assistant-frontend",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "AI Virtual Receptionist Web Application",
   "type": "module",
   "scripts": {
