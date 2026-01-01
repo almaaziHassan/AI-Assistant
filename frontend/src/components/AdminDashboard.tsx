@@ -22,19 +22,6 @@ interface AppointmentStats {
   noShowRate: number;
 }
 
-interface ActionRequiredAppointment {
-  id: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  serviceName: string;
-  staffName?: string;
-  appointmentDate: string;
-  appointmentTime: string;
-  duration: number;
-  status: string;
-}
-
 interface Appointment {
   id: string;
   customer_name: string;
@@ -103,7 +90,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'holidays' | 'waitlist'>('overview');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointmentStats, setAppointmentStats] = useState<AppointmentStats | null>(null);
-  const [actionRequired, setActionRequired] = useState<ActionRequiredAppointment[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [callbacks, setCallbacks] = useState<CallbackRequest[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -262,14 +248,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const refreshOverviewStats = async () => {
     const headers = getAuthHeaders();
     try {
-      const [statsRes, actionRes, aptStatsRes] = await Promise.all([
+      const [statsRes, aptStatsRes] = await Promise.all([
         fetch(`${serverUrl}/api/admin/dashboard`, { headers }),
-        fetch(`${serverUrl}/api/appointments/needing-action`, { headers }),
         fetch(`${serverUrl}/api/appointments/stats`, { headers })
       ]);
       if (statsRes.status === 401) { handleLogout(); return; }
       if (statsRes.ok) setStats(await statsRes.json());
-      if (actionRes.ok) setActionRequired(await actionRes.json());
       if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
     } catch {
       // Silently fail on background refresh
@@ -284,14 +268,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     try {
       switch (activeTab) {
         case 'overview':
-          const [statsRes, actionRes, aptStatsRes] = await Promise.all([
+          const [statsRes, aptStatsRes] = await Promise.all([
             fetch(`${serverUrl}/api/admin/dashboard`, { headers }),
-            fetch(`${serverUrl}/api/appointments/needing-action`, { headers }),
             fetch(`${serverUrl}/api/appointments/stats`, { headers })
           ]);
           if (statsRes.status === 401) { handleLogout(); return; }
           if (statsRes.ok) setStats(await statsRes.json());
-          if (actionRes.ok) setActionRequired(await actionRes.json());
           if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
           break;
         case 'appointments':
@@ -412,10 +394,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         setAppointments(prev => prev.map(apt =>
           apt.id === id ? { ...apt, status } : apt
         ));
-        // Remove from action required list if marking as completed/no-show
-        if (status === 'completed' || status === 'no-show') {
-          setActionRequired(prev => prev.filter(a => a.id !== id));
-        }
         // Refresh all stats in background
         refreshOverviewStats();
       } else {
