@@ -515,16 +515,16 @@ function applyFiltersToCache(
   let result = [...cached];
   let paramIndex = 0;
 
-  // appointment_date = ?
-  if (sqlLower.match(/appointment_date\s*=\s*\?/)) {
-    const dateParam = params[paramIndex++];
-    result = result.filter((row) => row.appointment_date === dateParam);
-  }
-
+  // Check >= FIRST (must be before = check to avoid false match)
   // appointment_date >= ?
   if (sqlLower.match(/appointment_date\s*>=\s*\?/)) {
     const dateParam = params[paramIndex++];
     result = result.filter((row) => String(row.appointment_date) >= String(dateParam));
+  }
+  // appointment_date = ? (only if not >=)
+  else if (sqlLower.match(/appointment_date\s*=\s*\?/)) {
+    const dateParam = params[paramIndex++];
+    result = result.filter((row) => row.appointment_date === dateParam);
   }
 
   // status IN ('confirmed', 'completed')
