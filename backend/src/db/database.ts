@@ -505,13 +505,70 @@ export async function runQueryAsync(sql: string, params: SqlValue[] = []): Promi
   }
 }
 
+// Helper function to apply SQL-like filters to cached data
+function applyFiltersToCache(
+  cached: Record<string, unknown>[],
+  sql: string,
+  params: SqlValue[]
+): Record<string, unknown>[] {
+  const sqlLower = sql.toLowerCase();
+  let result = [...cached];
+  let paramIndex = 0;
+
+  // appointment_date = ?
+  if (sqlLower.match(/appointment_date\s*=\s*\?/)) {
+    const dateParam = params[paramIndex++];
+    result = result.filter((row) => row.appointment_date === dateParam);
+  }
+
+  // appointment_date >= ?
+  if (sqlLower.match(/appointment_date\s*>=\s*\?/)) {
+    const dateParam = params[paramIndex++];
+    result = result.filter((row) => String(row.appointment_date) >= String(dateParam));
+  }
+
+  // status IN ('confirmed', 'completed')
+  if (sqlLower.includes("status in ('confirmed', 'completed')")) {
+    result = result.filter((row) => row.status === 'confirmed' || row.status === 'completed');
+  }
+
+  // status IN ('pending', 'confirmed')
+  if (sqlLower.includes("status in ('pending', 'confirmed')")) {
+    result = result.filter((row) => row.status === 'pending' || row.status === 'confirmed');
+  }
+
+  // status = 'cancelled'
+  if (sqlLower.includes("status = 'cancelled'")) {
+    result = result.filter((row) => row.status === 'cancelled');
+  }
+
+  // status = 'waiting'
+  if (sqlLower.includes("status = 'waiting'")) {
+    result = result.filter((row) => row.status === 'waiting');
+  }
+
+  // status = 'pending'
+  if (sqlLower.includes("status = 'pending'")) {
+    result = result.filter((row) => row.status === 'pending');
+  }
+
+  return result;
+}
+
 export function getOne(sql: string, params: SqlValue[] = []): Record<string, unknown> | undefined {
   if (dbMode === 'postgres') {
-    // Use cache for reads
+    const sqlLower = sql.toLowerCase();
     const table = extractTableName(sql);
     if (!table) return undefined;
 
-    const cached = pgCache.get(table) || [];
+    let cached = pgCache.get(table) || [];
+
+    // Handle COUNT(*) queries
+    if (sqlLower.includes('count(*)')) {
+      // Apply filters first
+      cached = applyFiltersToCache(cached, sql, params);
+      return { count: cached.length };
+    }
 
     // Simple WHERE clause matching for common queries
     if (params.length > 0) {
@@ -521,7 +578,8 @@ export function getOne(sql: string, params: SqlValue[] = []): Record<string, unk
         return cached.find((row) => row.id === params[0]);
       }
 
-      // For other queries, return first result that might match
+      // For other queries, apply filters and return first
+      cached = applyFiltersToCache(cached, sql, params);
       return cached[0];
     }
 
