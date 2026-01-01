@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import initSqlJs, { Database as SqlJsDatabase, BindParams } from 'sql.js';
+import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -11,6 +11,9 @@ type DbMode = 'postgres' | 'sqlite';
 
 // PostgreSQL pool
 let pgPool: Pool | null = null;
+
+// In-memory cache for PostgreSQL (for sync operations)
+const pgCache: Map<string, Record<string, unknown>[]> = new Map();
 
 // SQLite database (fallback for local dev)
 const dbPath = path.join(__dirname, '../../data/receptionist.db');
@@ -27,6 +30,12 @@ function getDbMode(): DbMode {
     return 'postgres';
   }
   return 'sqlite';
+}
+
+// Convert ? placeholders to $1, $2, etc for PostgreSQL
+function convertToPostgresParams(sql: string): string {
+  let paramIndex = 0;
+  return sql.replace(/\?/g, () => `$${++paramIndex}`);
 }
 
 // Initialize PostgreSQL
@@ -201,6 +210,25 @@ async function createPostgresTables(): Promise<void> {
   }
 }
 
+// Load all data from PostgreSQL into cache
+async function loadPostgresCache(): Promise<void> {
+  if (!pgPool) return;
+
+  const tables = ['appointments', 'conversations', 'waitlist', 'holidays', 'staff', 'locations', 'callbacks'];
+
+  for (const table of tables) {
+    try {
+      const result = await pgPool.query(`SELECT * FROM ${table}`);
+      pgCache.set(table, result.rows);
+    } catch (error) {
+      console.error(`Error loading ${table} into cache:`, error);
+      pgCache.set(table, []);
+    }
+  }
+
+  console.log('PostgreSQL cache loaded');
+}
+
 // Create tables for SQLite
 function createSqliteTables(): void {
   if (!sqliteDb) return;
@@ -343,6 +371,7 @@ export async function initDatabase(): Promise<void> {
   if (dbMode === 'postgres') {
     await initPostgres();
     await createPostgresTables();
+    await loadPostgresCache();
   } else {
     await initSqlite();
     createSqliteTables();
@@ -354,12 +383,50 @@ export async function initDatabase(): Promise<void> {
   // Seed with default data if empty
   const { seedDatabase } = await import('../utils/seedDatabase');
   await seedDatabase();
+
+  // Reload cache after seeding
+  if (dbMode === 'postgres') {
+    await loadPostgresCache();
+  }
+}
+
+// Invalidate cache for a table and reload from PostgreSQL
+async function refreshCache(table: string): Promise<void> {
+  if (dbMode !== 'postgres' || !pgPool) return;
+
+  try {
+    const result = await pgPool.query(`SELECT * FROM ${table}`);
+    pgCache.set(table, result.rows);
+  } catch (error) {
+    console.error(`Error refreshing ${table} cache:`, error);
+  }
+}
+
+// Extract table name from SQL query
+function extractTableName(sql: string): string | null {
+  const insertMatch = sql.match(/INSERT INTO\s+(\w+)/i);
+  const updateMatch = sql.match(/UPDATE\s+(\w+)/i);
+  const deleteMatch = sql.match(/DELETE FROM\s+(\w+)/i);
+  const selectMatch = sql.match(/FROM\s+(\w+)/i);
+
+  if (insertMatch) return insertMatch[1].toLowerCase();
+  if (updateMatch) return updateMatch[1].toLowerCase();
+  if (deleteMatch) return deleteMatch[1].toLowerCase();
+  if (selectMatch) return selectMatch[1].toLowerCase();
+
+  return null;
 }
 
 // Query execution functions
 export function runQuery(sql: string, params: SqlValue[] = []): void {
   if (dbMode === 'postgres') {
-    runQueryAsync(sql, params).catch(console.error);
+    // Run async in background and refresh cache
+    runQueryAsync(sql, params)
+      .then(() => {
+        const table = extractTableName(sql);
+        if (table) refreshCache(table);
+      })
+      .catch(console.error);
   } else {
     if (!sqliteDb) throw new Error('Database not initialized');
     sqliteDb.run(sql, params);
@@ -370,11 +437,12 @@ export function runQuery(sql: string, params: SqlValue[] = []): void {
 export async function runQueryAsync(sql: string, params: SqlValue[] = []): Promise<void> {
   if (dbMode === 'postgres') {
     if (!pgPool) throw new Error('Database not initialized');
-    // Convert ? placeholders to $1, $2, etc for PostgreSQL
-    const pgSql = sql.replace(/\?/g, (_, i) => `$${params.slice(0, sql.indexOf('?')).length + 1}`);
-    let paramIndex = 0;
-    const convertedSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
+    const convertedSql = convertToPostgresParams(sql);
     await pgPool.query(convertedSql, params);
+
+    // Refresh cache for the affected table
+    const table = extractTableName(sql);
+    if (table) await refreshCache(table);
   } else {
     if (!sqliteDb) throw new Error('Database not initialized');
     sqliteDb.run(sql, params);
@@ -384,10 +452,25 @@ export async function runQueryAsync(sql: string, params: SqlValue[] = []): Promi
 
 export function getOne(sql: string, params: SqlValue[] = []): Record<string, unknown> | undefined {
   if (dbMode === 'postgres') {
-    // For sync calls in postgres mode, we need to handle this differently
-    // This is a limitation - for now, return undefined and use async version
-    console.warn('getOne called in sync mode for PostgreSQL - use getOneAsync instead');
-    return undefined;
+    // Use cache for reads
+    const table = extractTableName(sql);
+    if (!table) return undefined;
+
+    const cached = pgCache.get(table) || [];
+
+    // Simple WHERE clause matching for common queries
+    if (params.length > 0) {
+      // Try to find by ID (most common case)
+      const idMatch = sql.match(/WHERE\s+id\s*=\s*\?/i);
+      if (idMatch) {
+        return cached.find((row) => row.id === params[0]);
+      }
+
+      // For other queries, return first result that might match
+      return cached[0];
+    }
+
+    return cached[0];
   }
 
   if (!sqliteDb) throw new Error('Database not initialized');
@@ -407,8 +490,7 @@ export function getOne(sql: string, params: SqlValue[] = []): Record<string, unk
 export async function getOneAsync(sql: string, params: SqlValue[] = []): Promise<Record<string, unknown> | undefined> {
   if (dbMode === 'postgres') {
     if (!pgPool) throw new Error('Database not initialized');
-    let paramIndex = 0;
-    const convertedSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
+    const convertedSql = convertToPostgresParams(sql);
     const result = await pgPool.query(convertedSql, params);
     return result.rows[0];
   }
@@ -418,8 +500,78 @@ export async function getOneAsync(sql: string, params: SqlValue[] = []): Promise
 
 export function getAll(sql: string, params: SqlValue[] = []): Record<string, unknown>[] {
   if (dbMode === 'postgres') {
-    console.warn('getAll called in sync mode for PostgreSQL - use getAllAsync instead');
-    return [];
+    // Use cache for reads
+    const table = extractTableName(sql);
+    if (!table) return [];
+
+    let cached = pgCache.get(table) || [];
+
+    // Apply simple filtering based on SQL
+    // WHERE status = ?
+    const statusMatch = sql.match(/WHERE\s+status\s*=\s*\?/i);
+    if (statusMatch && params.length > 0) {
+      cached = cached.filter((row) => row.status === params[0]);
+    }
+
+    // WHERE appointment_date = ?
+    const dateMatch = sql.match(/WHERE\s+appointment_date\s*=\s*\?/i);
+    if (dateMatch && params.length > 0) {
+      cached = cached.filter((row) => row.appointment_date === params[0]);
+    }
+
+    // WHERE appointment_date >= ?
+    const dateGteMatch = sql.match(/WHERE\s+appointment_date\s*>=\s*\?/i);
+    if (dateGteMatch && params.length > 0) {
+      cached = cached.filter((row) => String(row.appointment_date) >= String(params[0]));
+    }
+
+    // WHERE appointment_date BETWEEN ? AND ?
+    const dateBetweenMatch = sql.match(/WHERE\s+appointment_date\s+BETWEEN\s*\?\s*AND\s*\?/i);
+    if (dateBetweenMatch && params.length >= 2) {
+      cached = cached.filter((row) =>
+        String(row.appointment_date) >= String(params[0]) &&
+        String(row.appointment_date) <= String(params[1])
+      );
+    }
+
+    // WHERE is_active = 1
+    if (sql.includes('is_active = 1') || sql.includes('is_active=1')) {
+      cached = cached.filter((row) => row.is_active === 1 || row.is_active === true);
+    }
+
+    // WHERE session_id = ?
+    const sessionMatch = sql.match(/WHERE\s+session_id\s*=\s*\?/i);
+    if (sessionMatch && params.length > 0) {
+      cached = cached.filter((row) => row.session_id === params[0]);
+    }
+
+    // WHERE customer_email = ?
+    const emailMatch = sql.match(/WHERE\s+customer_email\s*=\s*\?/i);
+    if (emailMatch && params.length > 0) {
+      cached = cached.filter((row) => row.customer_email === params[0]);
+    }
+
+    // ORDER BY
+    if (sql.includes('ORDER BY')) {
+      const descMatch = sql.match(/ORDER BY\s+(\w+)\s+DESC/i);
+      const ascMatch = sql.match(/ORDER BY\s+(\w+)(?:\s+ASC)?/i);
+
+      if (descMatch) {
+        const field = descMatch[1];
+        cached = [...cached].sort((a, b) => String(b[field] || '').localeCompare(String(a[field] || '')));
+      } else if (ascMatch) {
+        const field = ascMatch[1];
+        cached = [...cached].sort((a, b) => String(a[field] || '').localeCompare(String(b[field] || '')));
+      }
+    }
+
+    // LIMIT
+    const limitMatch = sql.match(/LIMIT\s+(\d+)/i);
+    if (limitMatch) {
+      cached = cached.slice(0, parseInt(limitMatch[1]));
+    }
+
+    return cached;
   }
 
   if (!sqliteDb) throw new Error('Database not initialized');
@@ -438,8 +590,7 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
 export async function getAllAsync(sql: string, params: SqlValue[] = []): Promise<Record<string, unknown>[]> {
   if (dbMode === 'postgres') {
     if (!pgPool) throw new Error('Database not initialized');
-    let paramIndex = 0;
-    const convertedSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
+    const convertedSql = convertToPostgresParams(sql);
     const result = await pgPool.query(convertedSql, params);
     return result.rows;
   }
@@ -482,4 +633,11 @@ export function closeDatabase(): void {
 // Export current mode for checking
 export function getDatabaseMode(): DbMode {
   return dbMode;
+}
+
+// Force cache refresh (call after database changes from external sources)
+export async function refreshAllCaches(): Promise<void> {
+  if (dbMode === 'postgres') {
+    await loadPostgresCache();
+  }
 }
