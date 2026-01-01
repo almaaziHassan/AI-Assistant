@@ -420,10 +420,21 @@ function extractTableName(sql: string): string | null {
 // Query execution functions
 export function runQuery(sql: string, params: SqlValue[] = []): void {
   if (dbMode === 'postgres') {
-    // Run async in background and refresh cache
+    const table = extractTableName(sql);
+
+    // For UPDATE queries, update cache immediately
+    if (sql.toUpperCase().startsWith('UPDATE') && table) {
+      updateCacheImmediately(sql, params, table);
+    }
+
+    // For INSERT queries, add to cache immediately
+    if (sql.toUpperCase().startsWith('INSERT') && table) {
+      insertIntoCacheImmediately(sql, params, table);
+    }
+
+    // Run async in background and refresh cache from DB
     runQueryAsync(sql, params)
       .then(() => {
-        const table = extractTableName(sql);
         if (table) refreshCache(table);
       })
       .catch(console.error);
@@ -431,6 +442,50 @@ export function runQuery(sql: string, params: SqlValue[] = []): void {
     if (!sqliteDb) throw new Error('Database not initialized');
     sqliteDb.run(sql, params);
     saveSqliteDatabase();
+  }
+}
+
+// Update cache immediately for UPDATE queries
+function updateCacheImmediately(sql: string, params: SqlValue[], table: string): void {
+  const cached = pgCache.get(table);
+  if (!cached) return;
+
+  const sqlLower = sql.toLowerCase();
+
+  // Parse: UPDATE table SET field = ? WHERE id = ?
+  // For status updates: UPDATE appointments SET status = ?, updated_at = ? WHERE id = ?
+  if (sqlLower.includes('status = ?') && sqlLower.includes('where id = ?')) {
+    const newStatus = params[0];
+    const updatedAt = params[1];
+    const id = params[2];
+
+    const updated = cached.map(row => {
+      if (row.id === id) {
+        return { ...row, status: newStatus, updated_at: updatedAt };
+      }
+      return row;
+    });
+    pgCache.set(table, updated);
+  }
+}
+
+// Insert into cache immediately for INSERT queries
+function insertIntoCacheImmediately(sql: string, params: SqlValue[], table: string): void {
+  // For appointments table
+  if (table === 'appointments' && sql.toLowerCase().includes('insert into appointments')) {
+    const cached = pgCache.get(table) || [];
+    // Parse INSERT INTO appointments (...) VALUES (...)
+    // The params order matches the column order in the SQL
+    const colMatch = sql.match(/\(([^)]+)\)\s*VALUES/i);
+    if (colMatch) {
+      const columns = colMatch[1].split(',').map(c => c.trim().toLowerCase());
+      const newRow: Record<string, unknown> = {};
+      columns.forEach((col, idx) => {
+        newRow[col] = params[idx];
+      });
+      cached.push(newRow);
+      pgCache.set(table, cached);
+    }
   }
 }
 
