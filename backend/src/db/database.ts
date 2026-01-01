@@ -506,49 +506,83 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
 
     let cached = pgCache.get(table) || [];
 
-    // Apply simple filtering based on SQL
-    // WHERE status = ?
-    const statusMatch = sql.match(/WHERE\s+status\s*=\s*\?/i);
-    if (statusMatch && params.length > 0) {
-      cached = cached.filter((row) => row.status === params[0]);
-    }
+    // Parse all WHERE conditions for comprehensive filtering
+    const sqlLower = sql.toLowerCase();
 
-    // WHERE appointment_date = ?
-    const dateMatch = sql.match(/WHERE\s+appointment_date\s*=\s*\?/i);
-    if (dateMatch && params.length > 0) {
-      cached = cached.filter((row) => row.appointment_date === params[0]);
-    }
+    // Extract parameters based on their position in the SQL
+    let paramIndex = 0;
 
-    // WHERE appointment_date >= ?
-    const dateGteMatch = sql.match(/WHERE\s+appointment_date\s*>=\s*\?/i);
-    if (dateGteMatch && params.length > 0) {
-      cached = cached.filter((row) => String(row.appointment_date) >= String(params[0]));
-    }
-
-    // WHERE appointment_date BETWEEN ? AND ?
-    const dateBetweenMatch = sql.match(/WHERE\s+appointment_date\s+BETWEEN\s*\?\s*AND\s*\?/i);
-    if (dateBetweenMatch && params.length >= 2) {
+    // Match customer_email = ?
+    if (sqlLower.includes('customer_email') && sqlLower.includes('=')) {
+      const emailParam = params[paramIndex++];
       cached = cached.filter((row) =>
-        String(row.appointment_date) >= String(params[0]) &&
-        String(row.appointment_date) <= String(params[1])
+        String(row.customer_email).toLowerCase() === String(emailParam).toLowerCase()
       );
     }
 
+    // Match appointment_date = ?
+    if (sqlLower.includes('appointment_date') && sqlLower.match(/appointment_date\s*=\s*\?/)) {
+      const dateParam = params[paramIndex++];
+      cached = cached.filter((row) => row.appointment_date === dateParam);
+    }
+
+    // Match service_id = ?
+    if (sqlLower.includes('service_id') && sqlLower.match(/service_id\s*=\s*\?/)) {
+      const serviceParam = params[paramIndex++];
+      cached = cached.filter((row) => row.service_id === serviceParam);
+    }
+
+    // Match appointment_time = ?
+    if (sqlLower.includes('appointment_time') && sqlLower.match(/appointment_time\s*=\s*\?/)) {
+      const timeParam = params[paramIndex++];
+      cached = cached.filter((row) => row.appointment_time === timeParam);
+    }
+
+    // Match status IN ('pending', 'confirmed')
+    if (sqlLower.includes("status in ('pending', 'confirmed')") ||
+      sqlLower.includes('status in (\'pending\', \'confirmed\')')) {
+      cached = cached.filter((row) =>
+        row.status === 'pending' || row.status === 'confirmed'
+      );
+    }
+
+    // WHERE status = ? (simple single status match)
+    if (sqlLower.match(/where\s+status\s*=\s*\?/) && !sqlLower.includes('customer_email')) {
+      cached = cached.filter((row) => row.status === params[0]);
+    }
+
+    // WHERE appointment_date >= ?
+    if (sqlLower.match(/appointment_date\s*>=\s*\?/)) {
+      const idx = paramIndex > 0 ? paramIndex : 0;
+      cached = cached.filter((row) => String(row.appointment_date) >= String(params[idx]));
+    }
+
+    // WHERE appointment_date BETWEEN ? AND ?
+    if (sqlLower.includes('between')) {
+      const betweenMatch = sqlLower.match(/appointment_date\s+between/);
+      if (betweenMatch) {
+        cached = cached.filter((row) =>
+          String(row.appointment_date) >= String(params[0]) &&
+          String(row.appointment_date) <= String(params[1])
+        );
+      }
+    }
+
     // WHERE is_active = 1
-    if (sql.includes('is_active = 1') || sql.includes('is_active=1')) {
+    if (sqlLower.includes('is_active = 1') || sqlLower.includes('is_active=1')) {
       cached = cached.filter((row) => row.is_active === 1 || row.is_active === true);
     }
 
     // WHERE session_id = ?
-    const sessionMatch = sql.match(/WHERE\s+session_id\s*=\s*\?/i);
-    if (sessionMatch && params.length > 0) {
+    if (sqlLower.match(/where\s+session_id\s*=\s*\?/)) {
       cached = cached.filter((row) => row.session_id === params[0]);
     }
 
-    // WHERE customer_email = ?
-    const emailMatch = sql.match(/WHERE\s+customer_email\s*=\s*\?/i);
-    if (emailMatch && params.length > 0) {
-      cached = cached.filter((row) => row.customer_email === params[0]);
+    // WHERE customer_email = ? (standalone - reset param index for this case)
+    if (sqlLower.match(/where\s+customer_email\s*=\s*\?/) && !sqlLower.includes('appointment_date')) {
+      cached = cached.filter((row) =>
+        String(row.customer_email).toLowerCase() === String(params[0]).toLowerCase()
+      );
     }
 
     // ORDER BY
