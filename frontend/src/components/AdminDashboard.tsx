@@ -660,49 +660,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                 ↻ Refresh
               </button>
             </div>
-            {/* Action Required Section */}
-            {actionRequired.length > 0 && (
-              <div className="action-required-section">
-                <div className="action-required-header">
-                  <h2>
-                    <span className="action-icon">⚠️</span>
-                    Action Required ({actionRequired.length})
-                  </h2>
-                  <p>Past appointments need to be marked as completed or no-show</p>
-                </div>
-                <div className="action-required-list">
-                  {actionRequired.map(apt => (
-                    <div key={apt.id} className="action-required-card">
-                      <div className="action-required-info">
-                        <div className="action-required-customer">
-                          <strong>{apt.customerName}</strong>
-                          <span className="action-required-service">{apt.serviceName}</span>
-                        </div>
-                        <div className="action-required-details">
-                          <span>{formatDate(apt.appointmentDate)}</span>
-                          <span>{formatTime(apt.appointmentTime)}</span>
-                          {apt.staffName && <span>with {apt.staffName}</span>}
-                        </div>
-                      </div>
-                      <div className="action-required-buttons">
-                        <button
-                          className="btn-small success"
-                          onClick={() => handleUpdateAppointmentStatus(apt.id, 'completed')}
-                        >
-                          ✓ Completed
-                        </button>
-                        <button
-                          className="btn-small danger"
-                          onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
-                        >
-                          ✗ No-Show
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <div className="stats-grid">
               <div className="stat-card">
