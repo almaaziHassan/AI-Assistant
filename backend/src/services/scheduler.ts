@@ -651,6 +651,7 @@ export class SchedulerService {
     noShow: number;
     noShowRate: number;
   } {
+    // All-time stats
     const stats = getOne(
       `SELECT
         COUNT(*) as total,
@@ -662,9 +663,21 @@ export class SchedulerService {
        FROM appointments`
     ) as { total: number; pending: number; confirmed: number; completed: number; cancelled: number; no_show: number };
 
-    const finishedAppointments = stats.completed + stats.no_show;
-    const noShowRate = finishedAppointments > 0
-      ? Math.round((stats.no_show / finishedAppointments) * 100)
+    // No-show rate for last 30 days only
+    const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const monthStats = getOne(
+      `SELECT
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN status = 'no-show' THEN 1 ELSE 0 END) as no_show
+       FROM appointments WHERE appointment_date >= ?`,
+      [monthAgo]
+    ) as { completed: number; no_show: number } | undefined;
+
+    const completed30d = monthStats?.completed || 0;
+    const noShow30d = monthStats?.no_show || 0;
+    const finishedAppointments30d = completed30d + noShow30d;
+    const noShowRate = finishedAppointments30d > 0
+      ? Math.round((noShow30d / finishedAppointments30d) * 100)
       : 0;
 
     return {

@@ -678,13 +678,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                       <div className="stat-label">Pending Confirmation</div>
                     </div>
                   )}
-                  <div className="stat-card success">
-                    <div className="stat-value">{appointmentStats.completed}</div>
-                    <div className="stat-label">Completed</div>
-                  </div>
                   <div className={`stat-card ${appointmentStats.noShowRate > 10 ? 'danger' : 'warning'}`}>
                     <div className="stat-value">{appointmentStats.noShow}</div>
-                    <div className="stat-label">No-Shows ({appointmentStats.noShowRate}%)</div>
+                    <div className="stat-label">No-Shows (30d) - {appointmentStats.noShowRate}%</div>
                   </div>
                 </>
               )}
