@@ -498,6 +498,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
+        // Update local state immediately for instant UI feedback
+        setCallbacks(prev => prev.map(cb =>
+          cb.id === id ? { ...cb, status, notes: notes || cb.notes } : cb
+        ));
+        // Also refresh in background for consistency
         fetchData();
       } else {
         alert('Failed to update callback status');
@@ -1027,14 +1032,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                           onClick={() => handleUpdateCallbackStatus(cb.id, 'completed')}
                         >
                           Mark Completed
-                        </button>
-                      )}
-                      {cb.status === 'no_answer' && (
-                        <button
-                          className="btn-small"
-                          onClick={() => handleUpdateCallbackStatus(cb.id, 'pending')}
-                        >
-                          Retry
                         </button>
                       )}
                       <button
