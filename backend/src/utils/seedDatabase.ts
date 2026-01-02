@@ -14,14 +14,6 @@ export async function seedDatabase() {
 }
 
 async function seedPostgres() {
-    try {
-        // Clean up any corrupted data from previous seeds
-        await runQueryAsync(`DELETE FROM staff WHERE services = 'all' OR services IS NULL OR services = ''`);
-        console.log('Cleaned up any corrupted staff records');
-    } catch (e) {
-        console.log('No cleanup needed');
-    }
-
     // Check if we already have valid staff
     const hasStaff = await getOneAsync('SELECT * FROM staff LIMIT 1');
 
@@ -33,12 +25,12 @@ async function seedPostgres() {
     console.log('Database is empty, seeding with default data...');
 
     try {
-        // Add default staff member
+        // Add default staff member (without services column - now uses junction table)
         const staffId = uuidv4();
         await runQueryAsync(
-            `INSERT INTO staff (id, name, email, role, services, is_active, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [staffId, 'Available Staff', null, 'Therapist', '[]', 1, new Date().toISOString()]
+            `INSERT INTO staff (id, name, email, role, is_active, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [staffId, 'Available Staff', null, 'Therapist', true, new Date().toISOString()]
         );
 
         console.log('✅ Default staff member added');
@@ -50,14 +42,6 @@ async function seedPostgres() {
 
 function seedSqlite() {
     const db = getDbSync();
-
-    // First, clean up any corrupted data from previous seeds
-    try {
-        db.run(`DELETE FROM staff WHERE services = 'all' OR services IS NULL OR services = ''`);
-        console.log('Cleaned up any corrupted staff records');
-    } catch (e) {
-        console.log('No cleanup needed');
-    }
 
     // Check if we already have valid staff
     const stmt = db.prepare('SELECT * FROM staff LIMIT 1');
@@ -72,7 +56,7 @@ function seedSqlite() {
     console.log('Database is empty, seeding with default data...');
 
     try {
-        // Add default staff member
+        // Add default staff member (SQLite still has services column for backward compat)
         const staffId = uuidv4();
         db.run(
             `INSERT INTO staff (id, name, email, role, services, is_active, created_at)
