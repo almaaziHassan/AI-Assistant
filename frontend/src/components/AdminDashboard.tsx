@@ -754,28 +754,72 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                         <span className={`status-badge ${apt.status}`}>{apt.status}</span>
                       </td>
                       <td className="actions-cell">
-                        {apt.status === 'pending' && (
-                          <>
-                            <button
-                              className="btn-small success"
-                              onClick={() => handleUpdateAppointmentStatus(apt.id, 'confirmed')}
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              className="btn-small danger"
-                              onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              className="btn-small warning"
-                              onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
-                            >
-                              No-Show
-                            </button>
-                          </>
-                        )}
+                        {(() => {
+                          // Check if appointment is in the past
+                          const aptDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
+                          const now = new Date();
+                          const isPast = aptDateTime < now;
+
+                          if (apt.status === 'pending') {
+                            return (
+                              <>
+                                <button
+                                  className="btn-small success"
+                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'confirmed')}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  className="btn-small danger"
+                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
+                                >
+                                  Cancel
+                                </button>
+                                {/* No-Show only for past appointments */}
+                                {isPast && (
+                                  <button
+                                    className="btn-small warning"
+                                    onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
+                                  >
+                                    No-Show
+                                  </button>
+                                )}
+                              </>
+                            );
+                          }
+
+                          if (apt.status === 'confirmed') {
+                            return (
+                              <>
+                                {/* Completed/No-Show only for past appointments */}
+                                {isPast && (
+                                  <>
+                                    <button
+                                      className="btn-small success"
+                                      onClick={() => handleUpdateAppointmentStatus(apt.id, 'completed')}
+                                    >
+                                      Complete
+                                    </button>
+                                    <button
+                                      className="btn-small warning"
+                                      onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
+                                    >
+                                      No-Show
+                                    </button>
+                                  </>
+                                )}
+                                <button
+                                  className="btn-small danger"
+                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            );
+                          }
+
+                          return null;
+                        })()}
                       </td>
                     </tr>
                   ))}
