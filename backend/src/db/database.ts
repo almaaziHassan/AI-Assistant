@@ -49,6 +49,31 @@ function convertParamsForSqlite(params: SqlValue[]): SqliteSafeValue[] {
   });
 }
 
+// Reset PostgreSQL schema (drops all tables) - triggered by RESET_SCHEMA=true env var
+async function resetPostgresSchema(): Promise<void> {
+  if (!pgPool) return;
+
+  console.log('⚠️ RESET_SCHEMA=true detected - Dropping all tables...');
+
+  const client = await pgPool.connect();
+  try {
+    await client.query(`
+      DROP TABLE IF EXISTS appointments CASCADE;
+      DROP TABLE IF EXISTS waitlist CASCADE;
+      DROP TABLE IF EXISTS conversations CASCADE;
+      DROP TABLE IF EXISTS callbacks CASCADE;
+      DROP TABLE IF EXISTS holidays CASCADE;
+      DROP TABLE IF EXISTS staff_services CASCADE;
+      DROP TABLE IF EXISTS staff CASCADE;
+      DROP TABLE IF EXISTS services CASCADE;
+      DROP TABLE IF EXISTS locations CASCADE;
+    `);
+    console.log('✅ All tables dropped successfully');
+  } finally {
+    client.release();
+  }
+}
+
 // Initialize PostgreSQL
 async function initPostgres(): Promise<void> {
   const connectionString = process.env.DATABASE_URL;
@@ -412,6 +437,12 @@ export async function initDatabase(): Promise<void> {
 
   if (dbMode === 'postgres') {
     await initPostgres();
+
+    // If RESET_SCHEMA=true, drop all tables first
+    if (process.env.RESET_SCHEMA === 'true') {
+      await resetPostgresSchema();
+    }
+
     await createPostgresTables();
     await loadPostgresCache();
   } else {
