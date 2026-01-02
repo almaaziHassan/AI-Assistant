@@ -131,7 +131,7 @@ export class AdminService {
       role: row.role as string,
       services: JSON.parse((row.services as string) || '[]'),
       color: row.color as string | undefined,
-      isActive: (row.is_active as number) === 1,
+      isActive: row.is_active === true || row.is_active === 1,
       createdAt: row.created_at as string
     };
   }
@@ -196,7 +196,7 @@ export class AdminService {
       name: row.name as string,
       address: row.address as string | undefined,
       phone: row.phone as string | undefined,
-      isActive: (row.is_active as number) === 1,
+      isActive: row.is_active === true || row.is_active === 1,
       createdAt: row.created_at as string
     };
   }
