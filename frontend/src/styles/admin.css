@@ -85,17 +85,22 @@
 .stat-card {
   background: #f9fafb;
   border-radius: 12px;
-  padding: 20px;
+  padding: 24px 20px;
   text-align: center;
-  min-height: 100px;
+  height: 120px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
 }
 
 .stat-card.wide {
   grid-column: span 2;
   text-align: left;
+  height: auto;
+  min-height: 120px;
+  align-items: flex-start;
 }
 
 .stat-card.warning {
