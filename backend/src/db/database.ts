@@ -651,6 +651,12 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
       cached = cached.filter((row) => row.appointment_time === timeParam);
     }
 
+    // Match staff_id = ? (for staff-specific slot availability)
+    if (sqlLower.includes('staff_id') && sqlLower.match(/staff_id\s*=\s*\?/)) {
+      const staffParam = params[paramIndex++];
+      cached = cached.filter((row) => row.staff_id === staffParam);
+    }
+
     // Match status IN ('pending', 'confirmed')
     if (sqlLower.includes("status in ('pending', 'confirmed')") ||
       sqlLower.includes('status in (\'pending\', \'confirmed\')')) {
