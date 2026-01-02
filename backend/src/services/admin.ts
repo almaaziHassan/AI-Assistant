@@ -87,7 +87,7 @@ export class AdminService {
 
   getAllStaff(activeOnly: boolean = false): Staff[] {
     const query = activeOnly
-      ? 'SELECT * FROM staff WHERE is_active = 1 ORDER BY name'
+      ? 'SELECT * FROM staff WHERE is_active = true ORDER BY name'
       : 'SELECT * FROM staff ORDER BY name';
     return getAll(query).map(row => this.rowToStaff(row));
   }
@@ -158,7 +158,7 @@ export class AdminService {
 
   getAllLocations(activeOnly: boolean = false): Location[] {
     const query = activeOnly
-      ? 'SELECT * FROM locations WHERE is_active = 1 ORDER BY name'
+      ? 'SELECT * FROM locations WHERE is_active = true ORDER BY name'
       : 'SELECT * FROM locations ORDER BY name';
     return getAll(query).map(row => this.rowToLocation(row));
   }
@@ -245,7 +245,7 @@ export class AdminService {
 
     if (data.date !== undefined) { updates.push('date = ?'); values.push(data.date); }
     if (data.name !== undefined) { updates.push('name = ?'); values.push(data.name); }
-    if (data.isClosed !== undefined) { updates.push('is_closed = ?'); values.push(data.isClosed ? 1 : 0); }
+    if (data.isClosed !== undefined) { updates.push('is_closed = ?'); values.push(data.isClosed); }
     if (data.customHoursOpen !== undefined) { updates.push('custom_hours_open = ?'); values.push(data.customHoursOpen); }
     if (data.customHoursClose !== undefined) { updates.push('custom_hours_close = ?'); values.push(data.customHoursClose); }
 
@@ -269,7 +269,7 @@ export class AdminService {
       id: row.id as string,
       date: row.date as string,
       name: row.name as string,
-      isClosed: (row.is_closed as number) === 1,
+      isClosed: row.is_closed === true || row.is_closed === 1,
       customHoursOpen: row.custom_hours_open as string | undefined,
       customHoursClose: row.custom_hours_close as string | undefined,
       createdAt: row.created_at as string

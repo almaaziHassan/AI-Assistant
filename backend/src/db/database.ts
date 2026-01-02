@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Type for SQL values (compatible with both pg and sql.js)
-export type SqlValue = string | number | null | Uint8Array;
+export type SqlValue = string | number | boolean | null | Uint8Array;
 
 // Database connection mode
 type DbMode = 'postgres' | 'sqlite';
@@ -36,6 +36,17 @@ function getDbMode(): DbMode {
 function convertToPostgresParams(sql: string): string {
   let paramIndex = 0;
   return sql.replace(/\?/g, () => `$${++paramIndex}`);
+}
+
+// SQLite doesn't support boolean - convert to 1/0
+type SqliteSafeValue = string | number | null | Uint8Array;
+function convertParamsForSqlite(params: SqlValue[]): SqliteSafeValue[] {
+  return params.map(p => {
+    if (typeof p === 'boolean') {
+      return p ? 1 : 0;
+    }
+    return p;
+  });
 }
 
 // Initialize PostgreSQL
@@ -81,13 +92,65 @@ async function initSqlite(): Promise<void> {
   }
 }
 
-// Create tables for PostgreSQL
+// Create tables for PostgreSQL - Improved Schema with UUID, proper types, and foreign keys
 async function createPostgresTables(): Promise<void> {
   if (!pgPool) return;
 
   const client = await pgPool.connect();
   try {
-    // Appointments table
+    // Enable UUID extension
+    await client.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
+
+    // Staff table (created first for FK references)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS staff (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        role TEXT DEFAULT 'staff',
+        color TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Services table (NEW - moved from JSON config)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS services (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        duration INTEGER NOT NULL,
+        price DECIMAL(10,2) NOT NULL DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Staff-Services junction table (NEW)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS staff_services (
+        staff_id TEXT NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
+        service_id TEXT NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+        PRIMARY KEY (staff_id, service_id)
+      )
+    `);
+
+    // Locations table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS locations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        address TEXT,
+        phone TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Appointments table (with foreign keys)
     await client.query(`
       CREATE TABLE IF NOT EXISTS appointments (
         id TEXT PRIMARY KEY,
@@ -96,22 +159,25 @@ async function createPostgresTables(): Promise<void> {
         customer_phone TEXT NOT NULL,
         service_id TEXT NOT NULL,
         service_name TEXT NOT NULL,
-        staff_id TEXT,
+        staff_id TEXT REFERENCES staff(id) ON DELETE SET NULL,
         staff_name TEXT,
-        appointment_date TEXT NOT NULL,
-        appointment_time TEXT NOT NULL,
+        appointment_date DATE NOT NULL,
+        appointment_time TIME NOT NULL,
         duration INTEGER NOT NULL,
         status TEXT DEFAULT 'confirmed',
-        location_id TEXT,
+        location_id TEXT REFERENCES locations(id) ON DELETE SET NULL,
         notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
+    // Appointments indexes (including composite for performance)
     await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(appointment_date)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_email ON appointments(customer_email)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_staff ON appointments(staff_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_date_staff_status ON appointments(appointment_date, staff_id, status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_appointments_status_date ON appointments(status, appointment_date)`);
 
     // Conversations table
     await client.query(`
@@ -122,8 +188,8 @@ async function createPostgresTables(): Promise<void> {
         content TEXT NOT NULL,
         message_type TEXT DEFAULT 'text',
         action_type TEXT,
-        action_data TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        action_data JSONB,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -137,12 +203,12 @@ async function createPostgresTables(): Promise<void> {
         customer_email TEXT NOT NULL,
         customer_phone TEXT NOT NULL,
         service_id TEXT NOT NULL,
-        preferred_date TEXT NOT NULL,
-        preferred_time TEXT,
-        staff_id TEXT,
+        preferred_date DATE NOT NULL,
+        preferred_time TIME,
+        staff_id TEXT REFERENCES staff(id) ON DELETE SET NULL,
         status TEXT DEFAULT 'waiting',
-        notified_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        notified_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -152,39 +218,12 @@ async function createPostgresTables(): Promise<void> {
     await client.query(`
       CREATE TABLE IF NOT EXISTS holidays (
         id TEXT PRIMARY KEY,
-        date TEXT NOT NULL UNIQUE,
+        date DATE NOT NULL UNIQUE,
         name TEXT NOT NULL,
-        is_closed INTEGER DEFAULT 1,
-        custom_hours_open TEXT,
-        custom_hours_close TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Staff table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS staff (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT,
-        phone TEXT,
-        role TEXT DEFAULT 'staff',
-        services TEXT,
-        color TEXT,
-        is_active INTEGER DEFAULT 1,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Locations table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS locations (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        address TEXT,
-        phone TEXT,
-        is_active INTEGER DEFAULT 1,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        is_closed BOOLEAN DEFAULT true,
+        custom_hours_open TIME,
+        custom_hours_close TIME,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -199,12 +238,15 @@ async function createPostgresTables(): Promise<void> {
         concerns TEXT,
         status TEXT DEFAULT 'pending',
         notes TEXT,
-        called_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        called_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     await client.query(`CREATE INDEX IF NOT EXISTS idx_callbacks_status ON callbacks(status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_callbacks_phone ON callbacks(customer_phone)`);
+
+    console.log('PostgreSQL tables created/verified with improved schema');
   } finally {
     client.release();
   }
@@ -214,7 +256,7 @@ async function createPostgresTables(): Promise<void> {
 async function loadPostgresCache(): Promise<void> {
   if (!pgPool) return;
 
-  const tables = ['appointments', 'conversations', 'waitlist', 'holidays', 'staff', 'locations', 'callbacks'];
+  const tables = ['appointments', 'conversations', 'waitlist', 'holidays', 'staff', 'locations', 'callbacks', 'services', 'staff_services'];
 
   for (const table of tables) {
     try {
@@ -440,7 +482,7 @@ export function runQuery(sql: string, params: SqlValue[] = []): void {
       .catch(console.error);
   } else {
     if (!sqliteDb) throw new Error('Database not initialized');
-    sqliteDb.run(sql, params);
+    sqliteDb.run(sql, convertParamsForSqlite(params));
     saveSqliteDatabase();
   }
 }
@@ -500,7 +542,7 @@ export async function runQueryAsync(sql: string, params: SqlValue[] = []): Promi
     if (table) await refreshCache(table);
   } else {
     if (!sqliteDb) throw new Error('Database not initialized');
-    sqliteDb.run(sql, params);
+    sqliteDb.run(sql, convertParamsForSqlite(params));
     saveSqliteDatabase();
   }
 }
@@ -588,7 +630,7 @@ export function getOne(sql: string, params: SqlValue[] = []): Record<string, unk
 
   if (!sqliteDb) throw new Error('Database not initialized');
   const stmt = sqliteDb.prepare(sql);
-  stmt.bind(params);
+  stmt.bind(convertParamsForSqlite(params));
 
   if (stmt.step()) {
     const row = stmt.getAsObject();
@@ -687,8 +729,8 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
       }
     }
 
-    // WHERE is_active = 1
-    if (sqlLower.includes('is_active = 1') || sqlLower.includes('is_active=1')) {
+    // WHERE is_active = true OR is_active = 1
+    if (sqlLower.includes('is_active = true') || sqlLower.includes('is_active = 1') || sqlLower.includes('is_active=1')) {
       cached = cached.filter((row) => row.is_active === 1 || row.is_active === true);
     }
 
@@ -729,7 +771,7 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
 
   if (!sqliteDb) throw new Error('Database not initialized');
   const stmt = sqliteDb.prepare(sql);
-  stmt.bind(params);
+  stmt.bind(convertParamsForSqlite(params));
 
   const results: Record<string, unknown>[] = [];
   while (stmt.step()) {
