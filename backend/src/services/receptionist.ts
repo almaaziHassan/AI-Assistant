@@ -202,7 +202,7 @@ Examples that MUST trigger this:
     serviceId: string;
     date: string;
     time: string;
-    staffId?: string;
+    staffId: string;  // Required - must select a staff member
   }): Promise<{ success: boolean; confirmation?: BookingConfirmation; error?: string }> {
     try {
       const appointment = await this.scheduler.bookAppointment({
