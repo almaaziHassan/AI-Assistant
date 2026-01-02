@@ -31,7 +31,7 @@ export interface BookingRequest {
   customerEmail: string;
   customerPhone: string;
   serviceId: string;
-  staffId?: string;
+  staffId: string;  // Required - must select a staff member
   date: string;
   time: string;
   notes?: string;
@@ -418,6 +418,11 @@ export class SchedulerService {
     const service = this.config.services.find(s => s.id === normalizedRequest.serviceId);
     if (!service) {
       throw new Error('Selected service not found');
+    }
+
+    // Verify staff member is selected
+    if (!normalizedRequest.staffId) {
+      throw new Error('Please select a staff member');
     }
 
     // Check for duplicate booking (same email, date, service, and time)

@@ -156,8 +156,8 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
     const requestServiceId = formData.serviceId;
     const requestStaffId = formData.staffId;
 
-    // Skip if missing required fields
-    if (!requestDate || !requestServiceId) {
+    // Skip if missing required fields (now including staffId)
+    if (!requestDate || !requestServiceId || !requestStaffId) {
       return;
     }
 
@@ -393,16 +393,17 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
             {selectedService?.name} - {selectedService?.duration} min (${selectedService?.price})
           </div>
 
-          {/* Staff Selection */}
+          {/* Staff Selection - Required */}
           {staff.length > 0 && (
             <div className="staff-picker">
-              <label>Preferred Staff Member (Optional):</label>
+              <label>Select Staff Member:</label>
               <select
                 value={formData.staffId}
                 onChange={(e) => handleStaffSelect(e.target.value)}
                 className="staff-select"
+                required
               >
-                <option value="">No preference</option>
+                <option value="">-- Choose a staff member --</option>
                 {staff.map(s => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.role})
