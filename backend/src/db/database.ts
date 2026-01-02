@@ -709,7 +709,13 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
     // Match appointment_date = ?
     if (sqlLower.includes('appointment_date') && sqlLower.match(/appointment_date\s*=\s*\?/)) {
       const dateParam = params[paramIndex++];
-      cached = cached.filter((row) => row.appointment_date === dateParam);
+      // Handle both Date objects (from PostgreSQL) and strings
+      cached = cached.filter((row) => {
+        const rowDate = row.appointment_date instanceof Date
+          ? row.appointment_date.toISOString().split('T')[0]
+          : String(row.appointment_date);
+        return rowDate === String(dateParam);
+      });
     }
 
     // Match service_id = ?
@@ -721,7 +727,11 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
     // Match appointment_time = ?
     if (sqlLower.includes('appointment_time') && sqlLower.match(/appointment_time\s*=\s*\?/)) {
       const timeParam = params[paramIndex++];
-      cached = cached.filter((row) => row.appointment_time === timeParam);
+      // Handle TIME type from PostgreSQL
+      cached = cached.filter((row) => {
+        const rowTime = String(row.appointment_time).substring(0, 5); // HH:MM format
+        return rowTime === String(timeParam).substring(0, 5);
+      });
     }
 
     // Match staff_id = ? (for staff-specific slot availability)
@@ -746,17 +756,24 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
     // WHERE appointment_date >= ?
     if (sqlLower.match(/appointment_date\s*>=\s*\?/)) {
       const idx = paramIndex > 0 ? paramIndex : 0;
-      cached = cached.filter((row) => String(row.appointment_date) >= String(params[idx]));
+      cached = cached.filter((row) => {
+        const rowDate = row.appointment_date instanceof Date
+          ? row.appointment_date.toISOString().split('T')[0]
+          : String(row.appointment_date);
+        return rowDate >= String(params[idx]);
+      });
     }
 
     // WHERE appointment_date BETWEEN ? AND ?
     if (sqlLower.includes('between')) {
       const betweenMatch = sqlLower.match(/appointment_date\s+between/);
       if (betweenMatch) {
-        cached = cached.filter((row) =>
-          String(row.appointment_date) >= String(params[0]) &&
-          String(row.appointment_date) <= String(params[1])
-        );
+        cached = cached.filter((row) => {
+          const rowDate = row.appointment_date instanceof Date
+            ? row.appointment_date.toISOString().split('T')[0]
+            : String(row.appointment_date);
+          return rowDate >= String(params[0]) && rowDate <= String(params[1]);
+        });
       }
     }
 
