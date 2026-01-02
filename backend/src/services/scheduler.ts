@@ -202,26 +202,33 @@ export class SchedulerService {
   }
 
   getAvailableSlots(date: string, serviceId: string, staffId?: string, timezoneOffset?: number): TimeSlot[] {
+    console.log(`[getAvailableSlots] date=${date}, serviceId=${serviceId}, staffId=${staffId}`);
+
     // Validate date format
     if (!this.isValidDateFormat(date)) {
+      console.log('[getAvailableSlots] Invalid date format');
       return [];
     }
 
     // Check if date is in past
     if (this.isDateInPast(date)) {
+      console.log('[getAvailableSlots] Date is in past');
       return [];
     }
 
     // Check if date is too far ahead
     if (this.isDateTooFarAhead(date)) {
+      console.log('[getAvailableSlots] Date is too far ahead');
       return [];
     }
 
     // Check for holidays
     const holiday = adminService.getHolidayByDate(date);
     if (holiday) {
+      console.log('[getAvailableSlots] Holiday found:', holiday);
       // If closed on this holiday
       if (holiday.isClosed) {
+        console.log('[getAvailableSlots] Closed for holiday');
         return [];
       }
       // Use custom hours if available
@@ -232,14 +239,18 @@ export class SchedulerService {
 
     const dayOfWeek = this.getDayOfWeek(date);
     const hours = this.config.hours[dayOfWeek as keyof typeof this.config.hours];
+    console.log(`[getAvailableSlots] dayOfWeek=${dayOfWeek}, hours=`, hours);
 
     // If closed on this day
     if (!hours.open || !hours.close) {
+      console.log('[getAvailableSlots] Closed on this day');
       return [];
     }
 
     const service = this.config.services.find(s => s.id === serviceId);
     if (!service) {
+      console.log(`[getAvailableSlots] Service not found: ${serviceId}`);
+      console.log('[getAvailableSlots] Available services:', this.config.services.map(s => s.id));
       return [];
     }
 
