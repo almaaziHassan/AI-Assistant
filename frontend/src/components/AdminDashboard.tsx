@@ -489,7 +489,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     }
   };
 
-  const handleUpdateCallbackStatus = async (id: string, status: string, notes?: string) => {
+  const handleUpdateCallbackStatus = async (id: string, status: 'pending' | 'contacted' | 'completed' | 'no_answer', notes?: string) => {
     try {
       const res = await fetch(`${serverUrl}/api/callbacks/${id}`, {
         method: 'PUT',
@@ -500,7 +500,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       if (res.ok) {
         // Update local state immediately for instant UI feedback
         setCallbacks(prev => prev.map(cb =>
-          cb.id === id ? { ...cb, status, notes: notes || cb.notes } : cb
+          cb.id === id ? { ...cb, status, notes: notes ?? cb.notes } : cb
         ));
         // Also refresh in background for consistency
         fetchData();
