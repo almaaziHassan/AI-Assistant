@@ -190,12 +190,13 @@ export class SchedulerService {
     return { valid: true };
   }
 
-  // Check for duplicate booking (same email, same date, same time)
-  private hasDuplicateBooking(email: string, date: string, serviceId: string, time: string): boolean {
+  // Check for duplicate booking (same email, same date, same time, same staff)
+  // Note: Customer CAN book same time with DIFFERENT staff members
+  private hasDuplicateBooking(email: string, date: string, serviceId: string, time: string, staffId: string): boolean {
     const existing = getAll(
       `SELECT id FROM appointments
-       WHERE customer_email = ? AND appointment_date = ? AND service_id = ? AND appointment_time = ? AND status IN ('pending', 'confirmed')`,
-      [email.toLowerCase(), date, serviceId, time]
+       WHERE customer_email = ? AND appointment_date = ? AND service_id = ? AND appointment_time = ? AND staff_id = ? AND status IN ('pending', 'confirmed')`,
+      [email.toLowerCase(), date, serviceId, time, staffId]
     );
     return existing.length > 0;
   }
@@ -425,9 +426,9 @@ export class SchedulerService {
       throw new Error('Please select a staff member');
     }
 
-    // Check for duplicate booking (same email, date, service, and time)
-    if (this.hasDuplicateBooking(normalizedRequest.customerEmail, normalizedRequest.date, normalizedRequest.serviceId, normalizedRequest.time)) {
-      throw new Error('You already have this exact booking');
+    // Check for duplicate booking (same email, date, service, time, AND staff)
+    if (this.hasDuplicateBooking(normalizedRequest.customerEmail, normalizedRequest.date, normalizedRequest.serviceId, normalizedRequest.time, normalizedRequest.staffId)) {
+      throw new Error('You already have this exact booking with this staff member');
     }
 
     // Create lock key for this specific slot
