@@ -286,6 +286,8 @@ export class SchedulerService {
 
     const today = new Date().toISOString().split('T')[0];
     const isToday = date === today;
+    const serverTime = new Date().toISOString();
+    console.log(`[getAvailableSlots] serverTime=${serverTime}, today=${today}, requestedDate=${date}, isToday=${isToday}`);
 
     while (currentTime + service.duration <= closeTime) {
       const timeStr = this.minutesToTime(currentTime);
@@ -318,6 +320,7 @@ export class SchedulerService {
       currentTime += slotDuration;
     }
 
+    console.log(`[getAvailableSlots] Generated ${slots.length} slots, ${slots.filter(s => s.available).length} available`);
     return slots;
   }
 
