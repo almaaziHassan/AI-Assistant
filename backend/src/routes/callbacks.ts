@@ -143,7 +143,7 @@ router.get('/:id', adminAuthMiddleware, (req: Request, res: Response) => {
 });
 
 // PUT /api/callbacks/:id - Update callback status (admin)
-router.put('/:id', adminAuthMiddleware, (req: Request, res: Response) => {
+router.put('/:id', adminAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, notes } = req.body;
@@ -160,7 +160,9 @@ router.put('/:id', adminAuthMiddleware, (req: Request, res: Response) => {
 
     const calledAt = status === 'contacted' || status === 'completed' ? new Date().toISOString() : null;
 
-    runQuery(
+    // Use async to ensure cache is updated before response
+    const { runQueryAsync } = await import('../db/database');
+    await runQueryAsync(
       `UPDATE callbacks SET status = COALESCE(?, status), notes = COALESCE(?, notes), called_at = COALESCE(?, called_at) WHERE id = ?`,
       [status || null, notes || null, calledAt, id]
     );

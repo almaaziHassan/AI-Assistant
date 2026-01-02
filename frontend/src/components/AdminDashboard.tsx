@@ -502,8 +502,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         setCallbacks(prev => prev.map(cb =>
           cb.id === id ? { ...cb, status, notes: notes ?? cb.notes } : cb
         ));
-        // Also refresh in background for consistency
-        fetchData();
+        // Backend now uses async, so cache is updated - no need to refetch
       } else {
         alert('Failed to update callback status');
       }
