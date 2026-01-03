@@ -413,10 +413,14 @@ export class AdminService {
     );
     const cancelledCount = (cancelledResult?.count as number) || 0;
 
-    // Upcoming appointments (only confirmed, not completed - they're in the future)
+    // Upcoming appointments - truly in the future (date > today, OR date = today AND time > now)
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
     const upcomingResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN ('pending', 'confirmed')`,
-      [today]
+      `SELECT COUNT(*) as count FROM appointments 
+       WHERE status IN ('pending', 'confirmed') 
+       AND (appointment_date > ? OR (appointment_date = ? AND appointment_time > ?))`,
+      [today, today, currentTime]
     );
     const upcomingCount = (upcomingResult?.count as number) || 0;
 
