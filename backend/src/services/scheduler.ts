@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { runQuery, getOne, getAll } from '../db/database';
 import servicesConfig from '../config/services.json';
-import { adminService } from './admin';
+import { adminService, WeeklySchedule } from './admin';
 
 export interface Appointment {
   id: string;
@@ -202,109 +202,119 @@ export class SchedulerService {
   }
 
   getAvailableSlots(date: string, serviceId: string, staffId?: string, timezoneOffset?: number): TimeSlot[] {
-
-    // Validate date format
-    if (!this.isValidDateFormat(date)) {
-      return [];
-    }
-
-    // Check if date is in past
-    if (this.isDateInPast(date)) {
-      return [];
-    }
-
-    // Check if date is too far ahead
-    if (this.isDateTooFarAhead(date)) {
-      return [];
-    }
-
-    // Check for holidays
-    const holiday = adminService.getHolidayByDate(date);
-    if (holiday) {
-      // If closed on this holiday
-      if (holiday.isClosed) {
-        return [];
-      }
-      // Use custom hours if available
-      if (holiday.customHoursOpen && holiday.customHoursClose) {
-        return this.generateSlotsForHours(date, serviceId, holiday.customHoursOpen, holiday.customHoursClose, staffId);
-      }
-    }
-
-    const dayOfWeek = this.getDayOfWeek(date);
-    const hours = this.config.hours[dayOfWeek as keyof typeof this.config.hours];
-
-    // If closed on this day
-    if (!hours.open || !hours.close) {
+    // 1. Validations
+    if (!this.isValidDateFormat(date) || this.isDateInPast(date) || this.isDateTooFarAhead(date)) {
       return [];
     }
 
     const service = adminService.getService(serviceId);
-    if (!service) {
-      return [];
-    }
+    if (!service) return [];
 
-    // Get existing appointments for this date
-    // If staffId is provided, only get appointments for that staff member
-    // If no staffId, get ALL appointments (for general availability or "any staff" option)
-    let existingAppointments: { appointment_time: string; duration: number }[];
+    // 2. Determine Business Open/Close (Outer Bounds)
+    let businessOpen = '';
+    let businessClose = '';
 
-    if (staffId) {
-      // Staff-specific: only check this staff's appointments
-      existingAppointments = getAll(
-        `SELECT appointment_time, duration FROM appointments
-         WHERE appointment_date = ? AND staff_id = ? AND status IN ('pending', 'confirmed')`,
-        [date, staffId]
-      ) as { appointment_time: string; duration: number }[];
+    // Check Holiday
+    const holiday = adminService.getHolidayByDate(date);
+    if (holiday) {
+      if (holiday.isClosed) return [];
+      if (holiday.customHoursOpen && holiday.customHoursClose) {
+        businessOpen = holiday.customHoursOpen;
+        businessClose = holiday.customHoursClose;
+      } else {
+        // Fallback to regular hours if holiday doesn't specify custom ones
+        const dayOfWeek = this.getDayOfWeek(date);
+        const h = this.config.hours[dayOfWeek as keyof typeof this.config.hours];
+        if (!h.open || !h.close) return [];
+        businessOpen = h.open;
+        businessClose = h.close;
+      }
     } else {
-      // No staff selected: check ALL staff appointments to find any available slot
-      // This is for when user hasn't selected a specific staff yet
-      existingAppointments = getAll(
-        `SELECT appointment_time, duration FROM appointments
-         WHERE appointment_date = ? AND status IN ('pending', 'confirmed')`,
-        [date]
-      ) as { appointment_time: string; duration: number }[];
+      const dayOfWeek = this.getDayOfWeek(date);
+      const h = this.config.hours[dayOfWeek as keyof typeof this.config.hours];
+      if (!h.open || !h.close) return [];
+      businessOpen = h.open;
+      businessClose = h.close;
     }
 
-    // Generate all possible time slots
+    // 3. Get Relevant Staff
+    let relevantStaff = [];
+    if (staffId) {
+      const s = adminService.getStaff(staffId);
+      if (s) relevantStaff.push(s);
+    } else {
+      // Get all active staff who provide this service
+      relevantStaff = adminService.getAllStaff(true).filter(s =>
+        !s.services || s.services.length === 0 || s.services.includes(serviceId)
+      );
+    }
+
+    if (relevantStaff.length === 0) return [];
+
+    // 4. Get ALL appointments for this date
+    // We fetch all to be efficient, then filter in memory/loop
+    const allAppointments = getAll(
+      `SELECT appointment_time, duration, staff_id FROM appointments 
+          WHERE appointment_date = ? AND status IN ('pending', 'confirmed')`,
+      [date]
+    ) as { appointment_time: string; duration: number; staff_id: string }[];
+
+    // 5. Generate Slots
+    // Optimization: Calculate time integers once
     const slots: TimeSlot[] = [];
     const slotDuration = this.config.appointmentSettings.slotDuration;
     const buffer = this.config.appointmentSettings.bufferBetweenAppointments;
 
-    let currentTime = this.timeToMinutes(hours.open);
-    const closeTime = this.timeToMinutes(hours.close);
-
+    let currentTime = this.timeToMinutes(businessOpen);
+    const closeTime = this.timeToMinutes(businessClose);
     const today = new Date().toISOString().split('T')[0];
     const isToday = date === today;
+    const dayOfWeek = this.getDayOfWeek(date);
 
     while (currentTime + service.duration <= closeTime) {
       const timeStr = this.minutesToTime(currentTime);
 
-      // Skip past time slots for today (use timezone offset if provided)
+      // Check if past (respecting timezone)
       if (isToday && this.isTimeSlotInPast(date, timeStr, timezoneOffset)) {
         currentTime += slotDuration;
         continue;
       }
 
-      // Check if this slot conflicts with existing appointments
-      const isAvailable = !existingAppointments.some(apt => {
-        const aptStart = this.timeToMinutes(apt.appointment_time);
-        const aptEnd = aptStart + apt.duration + buffer;
-        const slotEnd = currentTime + service.duration;
+      // Check if ANY relevant staff is available
+      const isAnyStaffAvailable = relevantStaff.some(staff => {
+        // A. Check Staff Schedule
+        if (staff.schedule) {
+          const schedule = staff.schedule[dayOfWeek as keyof WeeklySchedule];
+          if (!schedule) return false; // Staff is OFF today
 
-        // Check for overlap
-        return (
-          (currentTime >= aptStart && currentTime < aptEnd) ||
-          (slotEnd > aptStart && slotEnd <= aptEnd) ||
-          (currentTime <= aptStart && slotEnd >= aptEnd)
-        );
+          const shiftStart = this.timeToMinutes(schedule.start);
+          const shiftEnd = this.timeToMinutes(schedule.end);
+
+          // Required: [currentTime, currentTime + duration] IS SUBSET OF [shiftStart, shiftEnd]
+          if (currentTime < shiftStart || (currentTime + service.duration) > shiftEnd) {
+            return false;
+          }
+        }
+        // If no schedule defined, they work full business hours (checked by outer loop)
+
+        // B. Check Staff Booking Conflicts
+        const staffApts = allAppointments.filter(a => a.staff_id === staff.id);
+        const hasConflict = staffApts.some(apt => {
+          const aptStart = this.timeToMinutes(apt.appointment_time);
+          const aptEnd = aptStart + apt.duration + buffer;
+          const slotEnd = currentTime + service.duration;
+
+          return (
+            (currentTime >= aptStart && currentTime < aptEnd) ||
+            (slotEnd > aptStart && slotEnd <= aptEnd) ||
+            (currentTime <= aptStart && slotEnd >= aptEnd)
+          );
+        });
+
+        return !hasConflict;
       });
 
-      slots.push({
-        time: timeStr,
-        available: isAvailable
-      });
-
+      slots.push({ time: timeStr, available: isAnyStaffAvailable });
       currentTime += slotDuration;
     }
 

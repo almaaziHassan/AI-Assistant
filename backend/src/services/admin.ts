@@ -2,6 +2,21 @@ import { v4 as uuidv4 } from 'uuid';
 import { runQuery, getOne, getAll, SqlValue } from '../db/database';
 
 // Staff interfaces
+export interface DailySchedule {
+  start: string; // HH:mm
+  end: string;   // HH:mm
+}
+
+export interface WeeklySchedule {
+  monday: DailySchedule | null;
+  tuesday: DailySchedule | null;
+  wednesday: DailySchedule | null;
+  thursday: DailySchedule | null;
+  friday: DailySchedule | null;
+  saturday: DailySchedule | null;
+  sunday: DailySchedule | null;
+}
+
 export interface Staff {
   id: string;
   name: string;
@@ -9,6 +24,7 @@ export interface Staff {
   phone?: string;
   role: string;
   services: string[]; // Array of service IDs this staff can provide
+  schedule?: WeeklySchedule; // Specific working hours for this staff
   color?: string;
   isActive: boolean;
   createdAt: string;
@@ -68,10 +84,11 @@ export class AdminService {
     const now = new Date().toISOString();
 
     runQuery(
-      `INSERT INTO staff (id, name, email, phone, role, services, color, is_active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO staff (id, name, email, phone, role, services, schedule, color, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, data.name, data.email || null, data.phone || null, data.role,
-        JSON.stringify(data.services), data.color || null, data.isActive ? 1 : 0, now]
+        JSON.stringify(data.services), data.schedule ? JSON.stringify(data.schedule) : null,
+        data.color || null, data.isActive ? 1 : 0, now]
     );
 
     return { id, ...data, createdAt: now };
@@ -101,6 +118,7 @@ export class AdminService {
     if (data.phone !== undefined) { updates.push('phone = ?'); values.push(data.phone); }
     if (data.role !== undefined) { updates.push('role = ?'); values.push(data.role); }
     if (data.services !== undefined) { updates.push('services = ?'); values.push(JSON.stringify(data.services)); }
+    if (data.schedule !== undefined) { updates.push('schedule = ?'); values.push(data.schedule ? JSON.stringify(data.schedule) : null); }
     if (data.color !== undefined) { updates.push('color = ?'); values.push(data.color); }
     if (data.isActive !== undefined) { updates.push('is_active = ?'); values.push(data.isActive ? 1 : 0); }
 
@@ -117,6 +135,17 @@ export class AdminService {
     if (!existing) return false;
     runQuery('DELETE FROM staff WHERE id = ?', [id]);
     return true;
+  }
+  private parseSchedule(data: unknown): WeeklySchedule | undefined {
+    if (!data) return undefined;
+    if (typeof data === 'string') {
+      try {
+        return JSON.parse(data);
+      } catch {
+        return undefined;
+      }
+    }
+    return data as WeeklySchedule;
   }
 
   private rowToStaff(row: Record<string, unknown>): Staff {
@@ -143,6 +172,7 @@ export class AdminService {
       phone: row.phone as string | undefined,
       role: row.role as string,
       services,
+      schedule: this.parseSchedule(row.schedule),
       color: row.color as string | undefined,
       isActive: row.is_active === true || row.is_active === 1,
       createdAt: row.created_at as string

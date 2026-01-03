@@ -135,11 +135,19 @@ async function createPostgresTables(): Promise<void> {
         phone TEXT,
         role TEXT DEFAULT 'staff',
         services JSONB DEFAULT '[]',
+        schedule JSONB DEFAULT NULL,
         color TEXT,
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Migration: Add schedule column if it doesn't exist (Postgres)
+    try {
+      await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS schedule JSONB DEFAULT NULL`);
+    } catch (e) {
+      // Ignore error if column exists
+    }
 
     // Services table (NEW - moved from JSON config)
     await client.query(`
@@ -391,11 +399,23 @@ function createSqliteTables(): void {
       phone TEXT,
       role TEXT DEFAULT 'staff',
       services TEXT,
+      schedule TEXT,
       color TEXT,
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Migration: Add schedule column if it doesn't exist (SQLite)
+  try {
+    const tableInfo = sqliteDb.exec("PRAGMA table_info(staff)");
+    const columns = tableInfo[0].values.map((v: any) => v[1]);
+    if (!columns.includes('schedule')) {
+      sqliteDb.run(`ALTER TABLE staff ADD COLUMN schedule TEXT DEFAULT NULL`);
+    }
+  } catch (e) {
+    console.error('Migration error:', e);
+  }
 
   sqliteDb.run(`
     CREATE TABLE IF NOT EXISTS locations (

@@ -35,12 +35,28 @@ interface Appointment {
   created_at: string;
 }
 
+interface DailySchedule {
+  start: string;
+  end: string;
+}
+
+interface WeeklySchedule {
+  monday: DailySchedule | null;
+  tuesday: DailySchedule | null;
+  wednesday: DailySchedule | null;
+  thursday: DailySchedule | null;
+  friday: DailySchedule | null;
+  saturday: DailySchedule | null;
+  sunday: DailySchedule | null;
+}
+
 interface Staff {
   id: string;
   name: string;
   email?: string;
   role: string;
   services?: string[];
+  schedule?: WeeklySchedule;
   isActive: boolean;
 }
 
@@ -111,7 +127,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
-  const [staffForm, setStaffForm] = useState({ name: '', email: '', role: 'staff', services: [] as string[] });
+  const [staffForm, setStaffForm] = useState<{ name: string, email: string, role: string, services: string[], schedule?: WeeklySchedule }>({ name: '', email: '', role: 'staff', services: [] });
   const [availableServices, setAvailableServices] = useState<Service[]>([]);
   const [serviceForm, setServiceForm] = useState({ name: '', description: '', duration: 30, price: 0, isActive: true });
   const [holidayForm, setHolidayForm] = useState({ date: '', name: '', isClosed: true });
@@ -939,6 +955,76 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                     <small className="helper-text">Leave all unchecked if staff can provide all services</small>
                   </div>
                 )}
+
+                {/* Schedule Editor */}
+                <div style={{ marginTop: '20px' }}>
+                  <label className="checkbox-group-label" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Working Hours (Optional)</label>
+                  <small className="helper-text" style={{ display: 'block', marginBottom: '15px' }}>Check days this staff member works. Unchecked days are considered OFF.</small>
+
+                  <div className="schedule-grid">
+                    {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map(day => {
+                      const currentSchedule = staffForm.schedule?.[day];
+                      const isActive = !!currentSchedule;
+
+                      return (
+                        <div key={day} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                          <div style={{ width: '100px', fontWeight: 500 }}>{day.charAt(0).toUpperCase() + day.slice(1)}</div>
+                          <input
+                            type="checkbox"
+                            checked={isActive}
+                            onChange={(e) => {
+                              let newSchedule = {
+                                ...(staffForm.schedule || {
+                                  monday: null, tuesday: null, wednesday: null, thursday: null, friday: null, saturday: null, sunday: null
+                                })
+                              };
+
+                              if (e.target.checked) {
+                                newSchedule[day] = { start: '09:00', end: '17:00' };
+                              } else {
+                                newSchedule[day] = null;
+                              }
+                              setStaffForm({ ...staffForm, schedule: newSchedule });
+                            }}
+                          />
+
+                          {isActive && (
+                            <>
+                              <input
+                                type="time"
+                                value={currentSchedule.start}
+                                onChange={(e) => {
+                                  if (!staffForm.schedule) return;
+                                  const newSchedule = { ...staffForm.schedule };
+                                  if (newSchedule[day]) {
+                                    newSchedule[day]!.start = e.target.value;
+                                    setStaffForm({ ...staffForm, schedule: newSchedule });
+                                  }
+                                }}
+                                style={{ width: '110px' }}
+                              />
+                              <span>to</span>
+                              <input
+                                type="time"
+                                value={currentSchedule.end}
+                                onChange={(e) => {
+                                  if (!staffForm.schedule) return;
+                                  const newSchedule = { ...staffForm.schedule };
+                                  if (newSchedule[day]) {
+                                    newSchedule[day]!.end = e.target.value;
+                                    setStaffForm({ ...staffForm, schedule: newSchedule });
+                                  }
+                                }}
+                                style={{ width: '110px' }}
+                              />
+                            </>
+                          )}
+                          {!isActive && <span style={{ color: '#888', fontStyle: 'italic' }}>Off</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <button type="submit" className="btn-primary">Add Staff</button>
               </form>
