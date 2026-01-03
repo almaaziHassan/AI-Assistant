@@ -123,13 +123,29 @@ export class AdminService {
   }
 
   private rowToStaff(row: Record<string, unknown>): Staff {
+    // Handle services field: PostgreSQL JSONB returns as object, SQLite TEXT needs parsing
+    let services: string[] = [];
+    if (row.services) {
+      if (typeof row.services === 'string') {
+        // SQLite: stored as JSON string
+        try {
+          services = JSON.parse(row.services);
+        } catch {
+          services = [];
+        }
+      } else if (Array.isArray(row.services)) {
+        // PostgreSQL JSONB: already parsed as array
+        services = row.services as string[];
+      }
+    }
+
     return {
       id: row.id as string,
       name: row.name as string,
       email: row.email as string | undefined,
       phone: row.phone as string | undefined,
       role: row.role as string,
-      services: JSON.parse((row.services as string) || '[]'),
+      services,
       color: row.color as string | undefined,
       isActive: row.is_active === true || row.is_active === 1,
       createdAt: row.created_at as string
