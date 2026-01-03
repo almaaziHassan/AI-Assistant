@@ -20,10 +20,18 @@ dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+
+// CORS Configuration
+const allowedOrigin = process.env.FRONTEND_URL || '*';
+if (process.env.NODE_ENV === 'production' && allowedOrigin === '*') {
+  console.warn('⚠️  WARNING: CORS is allowing all origins in production! Set FRONTEND_URL.');
+}
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || '*',
-    methods: ['GET', 'POST']
+    origin: allowedOrigin,
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
@@ -31,7 +39,10 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.set('trust proxy', 1); // Trust Railway proxy for rate limiter
-app.use(cors());
+app.use(cors({
+  origin: allowedOrigin,
+  credentials: true
+}));
 app.use(express.json());
 
 // Initialize receptionist service

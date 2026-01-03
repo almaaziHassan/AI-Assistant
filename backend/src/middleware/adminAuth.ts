@@ -1,26 +1,32 @@
 import { Request, Response, NextFunction } from 'express';
-import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
-// Simple session store (in production, use Redis or database)
-const sessions = new Map<string, { createdAt: number }>();
-
-// Session duration: 24 hours
-const SESSION_DURATION = 24 * 60 * 60 * 1000;
-
-// Get admin password from environment - REQUIRED in production
+// Environment variables
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-prod';
 
-// Warn if using default password in production
-if (process.env.NODE_ENV === 'production' && ADMIN_PASSWORD === 'admin123') {
-  console.error('⚠️  WARNING: Using default admin password in production!');
-  console.error('⚠️  Set ADMIN_PASSWORD environment variable to a secure password.');
-} else if (ADMIN_PASSWORD === 'admin123') {
-  console.log('ℹ️  Using default admin password (development mode)');
+// Enforce security in production
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.ADMIN_PASSWORD) {
+    throw new Error('FATAL: ADMIN_PASSWORD environment variable is required in production.');
+  }
+  if (!process.env.JWT_SECRET) {
+    throw new Error('FATAL: JWT_SECRET environment variable is required in production.');
+  }
+  if (ADMIN_PASSWORD === 'admin123') {
+    throw new Error('FATAL: You must change the ADMIN_PASSWORD in production.');
+  }
+} else {
+  // Dev warnings
+  if (ADMIN_PASSWORD === 'admin123') {
+    console.warn('⚠️  [Security] Using default admin password (admin123). Set ADMIN_PASSWORD in .env');
+  }
 }
 
-// Generate a secure session token
-export function generateSessionToken(): string {
-  return crypto.randomBytes(32).toString('hex');
+// Generate a JWT session token
+export function createSession(): string {
+  // Token expires in 24 hours
+  return jwt.sign({ role: 'admin', timestamp: Date.now() }, JWT_SECRET, { expiresIn: '24h' });
 }
 
 // Verify admin password
@@ -28,41 +34,22 @@ export function verifyAdminPassword(password: string): boolean {
   return password === ADMIN_PASSWORD;
 }
 
-// Create a new session
-export function createSession(): string {
-  const token = generateSessionToken();
-  sessions.set(token, { createdAt: Date.now() });
-  return token;
-}
-
 // Validate session token
 export function validateSession(token: string): boolean {
-  const session = sessions.get(token);
-  if (!session) return false;
-
-  // Check if session has expired
-  if (Date.now() - session.createdAt > SESSION_DURATION) {
-    sessions.delete(token);
+  try {
+    jwt.verify(token, JWT_SECRET);
+    return true;
+  } catch (err) {
     return false;
   }
-
-  return true;
 }
 
-// Destroy session (logout)
+// Destroy session (Logout)
 export function destroySession(token: string): void {
-  sessions.delete(token);
+  // With JWT, we can't truly invalidate without a blacklist/DB.
+  // For this scale, client-side removal is standard. 
+  // Optionally, we could implement a blacklist here if using Redis.
 }
-
-// Clean up expired sessions periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, session] of sessions.entries()) {
-    if (now - session.createdAt > SESSION_DURATION) {
-      sessions.delete(token);
-    }
-  }
-}, 60 * 60 * 1000); // Clean up every hour
 
 // Middleware to protect admin routes
 export function adminAuthMiddleware(req: Request, res: Response, next: NextFunction) {
@@ -82,12 +69,6 @@ export function adminAuthMiddleware(req: Request, res: Response, next: NextFunct
   next();
 }
 
-// Get session count (for testing)
-export function getSessionCount(): number {
-  return sessions.size;
-}
-
-// Clear all sessions (for testing)
-export function clearAllSessions(): void {
-  sessions.clear();
-}
+// Testing helpers - No-ops in JWT mode
+export function getSessionCount(): number { return 0; }
+export function clearAllSessions(): void { }
