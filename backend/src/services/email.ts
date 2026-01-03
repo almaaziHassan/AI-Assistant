@@ -278,7 +278,7 @@ ${business.phone} | ${business.email}
     // Use Brevo API if available (preferred - no port blocking issues)
     if (this.useBrevoApi && this.brevoApi) {
       try {
-        const sendSmtpEmail = new (await import('@getbrevo/brevo')).SendSmtpEmail();
+        const sendSmtpEmail = new brevo.SendSmtpEmail();
         sendSmtpEmail.subject = subject;
         sendSmtpEmail.htmlContent = html;
         sendSmtpEmail.textContent = text;

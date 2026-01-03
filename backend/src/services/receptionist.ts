@@ -466,15 +466,6 @@ Stay short, contextual, use bullets.${relevantFAQContext}`;
     // Find relevant FAQs for this message
     const relevantFAQs = this.findRelevantFAQs(userMessage);
 
-    // Get staff from database
-    const dbStaff = adminService.getAllStaff(true); // only active staff
-    const staffList = dbStaff.map(s => ({
-      id: s.id,
-      name: s.name,
-      role: s.role,
-      services: s.services || []
-    }));
-
     // Get services from database
     const dbServices = adminService.getAllServices(true); // only active services
     const servicesList = dbServices.map(s => ({
@@ -484,6 +475,23 @@ Stay short, contextual, use bullets.${relevantFAQContext}`;
       duration: s.duration,
       price: s.price
     }));
+
+    // Get staff from database
+    const dbStaff = adminService.getAllStaff(true); // only active staff
+    const staffList = dbStaff.map(s => {
+      // Map service IDs to names for AI context
+      const serviceNames = (s.services || []).map(sid => {
+        const service = dbServices.find(dS => dS.id === sid);
+        return service ? service.name : null;
+      }).filter((n): n is string => n !== null);
+
+      return {
+        id: s.id,
+        name: s.name,
+        role: s.role,
+        services: serviceNames // Send Names instead of IDs
+      };
+    });
 
     const systemPrompt = this.buildSystemPrompt(relevantFAQs, staffList, servicesList);
 
