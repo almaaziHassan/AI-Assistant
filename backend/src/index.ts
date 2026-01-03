@@ -219,11 +219,20 @@ io.on('connection', (socket) => {
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      console.error('Error processing message:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error processing message:', errorMessage);
+      console.error('Full error:', error);
       socket.emit('typing', { isTyping: false });
+
+      // Provide a more helpful error message
+      const isAiError = errorMessage.includes('AI service') || errorMessage.includes('GROQ') || errorMessage.includes('API');
+      const fallbackContent = isAiError
+        ? "I'm having a brief technical difficulty. Could you try your message again? If you'd like to book an appointment, I can help with that!"
+        : config.receptionist.fallbackMessage;
+
       socket.emit('message', {
         role: 'assistant',
-        content: config.receptionist.fallbackMessage,
+        content: fallbackContent,
         timestamp: new Date().toISOString()
       });
     }
