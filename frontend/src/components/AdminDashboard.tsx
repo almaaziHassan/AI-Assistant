@@ -47,8 +47,10 @@ interface Staff {
 interface Service {
   id: string;
   name: string;
+  description?: string;
   duration: number;
   price: number;
+  isActive: boolean;
 }
 
 interface Holiday {
@@ -95,7 +97,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [password, setPassword] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'holidays' | 'waitlist'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays' | 'waitlist'>('overview');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointmentStats, setAppointmentStats] = useState<AppointmentStats | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -108,9 +110,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   // Form states
   const [showStaffForm, setShowStaffForm] = useState(false);
+  const [showServiceForm, setShowServiceForm] = useState(false);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
   const [staffForm, setStaffForm] = useState({ name: '', email: '', role: 'staff', services: [] as string[] });
   const [availableServices, setAvailableServices] = useState<Service[]>([]);
+  const [serviceForm, setServiceForm] = useState({ name: '', description: '', duration: 30, price: 0, isActive: true });
   const [holidayForm, setHolidayForm] = useState({ date: '', name: '', isClosed: true });
   const [callbackFilter, setCallbackFilter] = useState<string>('pending');
   const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
@@ -304,6 +308,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
           if (staffRes.ok) setStaff(await staffRes.json());
           if (servicesRes.ok) setAvailableServices(await servicesRes.json());
           break;
+        case 'services':
+          const svcsRes = await fetch(`${serverUrl}/api/admin/services`, { headers });
+          if (svcsRes.status === 401) { handleLogout(); return; }
+          if (svcsRes.ok) setAvailableServices(await svcsRes.json());
+          break;
         case 'holidays':
           const holidaysRes = await fetch(`${serverUrl}/api/admin/holidays`, { headers });
           if (holidaysRes.status === 401) { handleLogout(); return; }
@@ -471,6 +480,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       if (res.ok) fetchData();
     } catch {
       alert('Failed to delete staff');
+    }
+  };
+
+  const handleAddService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${serverUrl}/api/admin/services`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(serviceForm)
+      });
+      if (res.status === 401) { handleLogout(); return; }
+      if (res.ok) {
+        setShowServiceForm(false);
+        setServiceForm({ name: '', description: '', duration: 30, price: 0, isActive: true });
+        fetchData();
+      }
+    } catch {
+      alert('Failed to add service');
+    }
+  };
+
+  const handleDeleteService = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this service?')) return;
+
+    try {
+      const res = await fetch(`${serverUrl}/api/admin/services/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) { handleLogout(); return; }
+      if (res.ok) fetchData();
+    } catch {
+      alert('Failed to delete service');
     }
   };
 
@@ -650,7 +693,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       </header>
 
       <nav className="admin-tabs">
-        {(['overview', 'appointments', 'callbacks', 'staff', 'holidays', 'waitlist'] as const).map(tab => (
+        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays', 'waitlist'] as const).map(tab => (
           <button
             key={tab}
             className={`admin-tab ${activeTab === tab ? 'active' : ''}`}
@@ -951,6 +994,108 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Services Tab */}
+        {activeTab === 'services' && !loading && (
+          <div className="services-section">
+            <div className="section-header">
+              <h2>Services</h2>
+              <button className="btn-primary" onClick={() => setShowServiceForm(!showServiceForm)}>
+                {showServiceForm ? 'Cancel' : '+ Add Service'}
+              </button>
+            </div>
+
+            {showServiceForm && (
+              <form className="admin-form" onSubmit={handleAddService}>
+                <div className="form-group" style={{ width: '100%' }}>
+                  <input
+                    type="text"
+                    placeholder="Service Name"
+                    value={serviceForm.name}
+                    onChange={e => setServiceForm({ ...serviceForm, name: e.target.value })}
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div className="form-group" style={{ width: '100%' }}>
+                  <input
+                    type="text"
+                    placeholder="Description (optional)"
+                    value={serviceForm.description}
+                    onChange={e => setServiceForm({ ...serviceForm, description: e.target.value })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Duration (min):</label>
+                  <input
+                    type="number"
+                    placeholder="Duration"
+                    value={serviceForm.duration}
+                    onChange={e => setServiceForm({ ...serviceForm, duration: parseInt(e.target.value) || 0 })}
+                    required
+                    min="5"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Price ($):</label>
+                  <input
+                    type="number"
+                    placeholder="Price"
+                    value={serviceForm.price}
+                    onChange={e => setServiceForm({ ...serviceForm, price: parseFloat(e.target.value) || 0 })}
+                    required
+                    min="0"
+                  />
+                </div>
+                <button type="submit" className="btn-primary">Add Service</button>
+              </form>
+            )}
+
+            {availableServices.length === 0 ? (
+              <p className="no-data">No services added yet</p>
+            ) : (
+              <div className="admin-table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Duration</th>
+                      <th>Price</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availableServices.map(service => (
+                      <tr key={service.id} className={!service.isActive ? 'cancelled' : ''}>
+                        <td>
+                          <div className="service-name">{service.name}</div>
+                          {service.description && <div className="sub-text">{service.description}</div>}
+                        </td>
+                        <td>{service.duration} min</td>
+                        <td>${service.price}</td>
+                        <td>
+                          <span className={`status-badge ${service.isActive ? 'confirmed' : 'cancelled'}`}>
+                            {service.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="btn-small danger"
+                            onClick={() => handleDeleteService(service.id)}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

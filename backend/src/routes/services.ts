@@ -12,11 +12,12 @@ const noCache = (res: Response) => {
   res.set('Expires', '0');
 };
 
-// GET /api/services - Get all services
+// GET /api/services - Get all services (from database)
 router.get('/', (req: Request, res: Response) => {
   try {
     noCache(res);
-    const services = receptionist.getServices();
+    // Get active services from database
+    const services = adminService.getAllServices(true);
     res.json(services);
   } catch (error) {
     console.error('Get services error:', error);
@@ -98,8 +99,7 @@ router.get('/staff/:serviceId', (req: Request, res: Response) => {
 router.get('/:id', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const services = receptionist.getServices();
-    const service = services.find(s => s.id === id);
+    const service = adminService.getService(id);
 
     if (!service) {
       return res.status(404).json({ error: 'Service not found' });

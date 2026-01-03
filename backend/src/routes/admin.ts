@@ -117,6 +117,99 @@ router.delete('/staff/:id', (req: Request, res: Response) => {
   }
 });
 
+// ============ SERVICE MANAGEMENT ============
+
+// GET /api/admin/services - Get all services
+router.get('/services', (req: Request, res: Response) => {
+  try {
+    const activeOnly = req.query.active === 'true';
+    const services = adminService.getAllServices(activeOnly);
+    res.json(services);
+  } catch (error) {
+    console.error('Get services error:', error);
+    res.status(500).json({ error: 'Failed to get services' });
+  }
+});
+
+// GET /api/admin/services/:id - Get specific service
+router.get('/services/:id', (req: Request, res: Response) => {
+  try {
+    const service = adminService.getService(req.params.id);
+    if (!service) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+    res.json(service);
+  } catch (error) {
+    console.error('Get service error:', error);
+    res.status(500).json({ error: 'Failed to get service' });
+  }
+});
+
+// POST /api/admin/services - Create new service
+router.post('/services', (req: Request, res: Response) => {
+  try {
+    const { name, description, duration, price, isActive, displayOrder } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    if (!duration || duration <= 0) {
+      return res.status(400).json({ error: 'Duration must be a positive number' });
+    }
+    if (price === undefined || price < 0) {
+      return res.status(400).json({ error: 'Price must be a non-negative number' });
+    }
+
+    const service = adminService.createService({
+      name,
+      description,
+      duration: Number(duration),
+      price: Number(price),
+      isActive: isActive !== false,
+      displayOrder: displayOrder || 0
+    });
+
+    res.status(201).json(service);
+  } catch (error) {
+    console.error('Create service error:', error);
+    res.status(500).json({ error: 'Failed to create service' });
+  }
+});
+
+// PUT /api/admin/services/:id - Update service
+router.put('/services/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const service = adminService.updateService(id, req.body);
+
+    if (!service) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+
+    res.json(service);
+  } catch (error) {
+    console.error('Update service error:', error);
+    res.status(500).json({ error: 'Failed to update service' });
+  }
+});
+
+// DELETE /api/admin/services/:id - Delete service
+router.delete('/services/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const success = adminService.deleteService(id);
+
+    if (!success) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+
+    res.json({ message: 'Service deleted successfully' });
+  } catch (error) {
+    console.error('Delete service error:', error);
+    res.status(500).json({ error: 'Failed to delete service' });
+  }
+});
+
 // ============ LOCATION MANAGEMENT ============
 
 // GET /api/admin/locations - Get all locations
