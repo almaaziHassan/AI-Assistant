@@ -125,6 +125,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   // Form states
   const [showStaffForm, setShowStaffForm] = useState(false);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
   const [staffForm, setStaffForm] = useState<{ name: string, email: string, role: string, services: string[], schedule?: WeeklySchedule }>({ name: '', email: '', role: 'staff', services: [] });
@@ -463,20 +464,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${serverUrl}/api/admin/staff`, {
-        method: 'POST',
+      const url = editingStaffId
+        ? `${serverUrl}/api/admin/staff/${editingStaffId}`
+        : `${serverUrl}/api/admin/staff`;
+      const method = editingStaffId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: getAuthHeaders(),
         body: JSON.stringify(staffForm)
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
         setShowStaffForm(false);
+        setEditingStaffId(null); // Reset editing state
         setStaffForm({ name: '', email: '', role: 'staff', services: [] });
         fetchData();
       }
     } catch {
-      alert('Failed to add staff');
+      alert('Failed to save staff');
     }
+  };
+
+  const handleEditStaff = (staffMember: Staff) => {
+    setStaffForm({
+      name: staffMember.name,
+      email: staffMember.email || '',
+      role: staffMember.role,
+      services: staffMember.services || [],
+      schedule: staffMember.schedule
+    });
+    setEditingStaffId(staffMember.id);
+    setShowStaffForm(true);
   };
 
   const handleDeleteStaff = async (id: string) => {
@@ -950,8 +969,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         {activeTab === 'staff' && !loading && (
           <div className="staff-section">
             <div className="section-header">
-              <h2>Staff Members</h2>
-              <button className="btn-primary" onClick={() => setShowStaffForm(!showStaffForm)}>
+              <h2>{editingStaffId ? 'Edit Staff Member' : 'Staff Members'}</h2>
+              <button className="btn-primary" onClick={() => {
+                if (showStaffForm) {
+                  setShowStaffForm(false);
+                  setEditingStaffId(null);
+                  setStaffForm({ name: '', email: '', role: 'staff', services: [] });
+                } else {
+                  setShowStaffForm(true);
+                }
+              }}>
                 {showStaffForm ? 'Cancel' : '+ Add Staff'}
               </button>
             </div>
@@ -1076,7 +1103,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                   </div>
                 </div>
 
-                <button type="submit" className="btn-primary">Add Staff</button>
+                <button type="submit" className="btn-primary">{editingStaffId ? 'Update Staff & Schedule' : 'Add Staff'}</button>
               </form>
             )}
 
@@ -1105,12 +1132,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                       ) : (
                         <div className="staff-services all-services">All Services</div>
                       )}
-                      <button
-                        className="btn-small danger"
-                        onClick={() => handleDeleteStaff(s.id)}
-                      >
-                        Delete
-                      </button>
+                      {s.schedule ? (
+                        <div className="staff-schedule" style={{ fontSize: '0.85em', color: '#666', marginTop: '5px' }}>
+                          <strong>Schedule: </strong>
+                          <span style={{ color: '#2980b9' }}>Custom (Edit to view)</span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.85em', color: '#999', marginTop: '5px' }}>Schedule: Default Hours</div>
+                      )}
+
+                      <div className="card-actions" style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn-small"
+                          onClick={() => handleEditStaff(s)}
+                          style={{ backgroundColor: '#3498db', color: 'white', border: 'none' }}
+                        >
+                          Edit / Schedule
+                        </button>
+                        <button
+                          className="btn-small danger"
+                          onClick={() => handleDeleteStaff(s.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
