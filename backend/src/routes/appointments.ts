@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { SchedulerService, BookingRequest } from '../services/scheduler';
 import { emailService } from '../services/email';
+import { validateBookingRequest } from '../middleware/validation';
 
 const router = Router();
 const scheduler = new SchedulerService();
@@ -46,24 +47,11 @@ router.get('/slots', (req: Request, res: Response) => {
 });
 
 // POST /api/appointments - Book a new appointment
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', validateBookingRequest, async (req: Request, res: Response) => {
   try {
     const booking: BookingRequest = req.body;
 
-    // Validate required fields
-    const requiredFields = ['customerName', 'customerEmail', 'customerPhone', 'serviceId', 'date', 'time'];
-    for (const field of requiredFields) {
-      if (!booking[field as keyof BookingRequest]) {
-        return res.status(400).json({ error: `${field} is required` });
-      }
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(booking.customerEmail)) {
-      return res.status(400).json({ error: 'Invalid email format' });
-    }
-
+    // Inputs are already validated and sanitized by middleware
     const appointment = await scheduler.bookAppointment(booking);
 
     // Send confirmation email (non-blocking)
