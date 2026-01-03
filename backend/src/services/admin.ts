@@ -483,7 +483,7 @@ export class AdminService {
       params.push(options.status);
     }
 
-    query += ' ORDER BY appointment_date DESC, appointment_time DESC';
+    query += ' ORDER BY appointment_date ASC, appointment_time ASC';
 
     if (options.limit) {
       query += ' LIMIT ?';
