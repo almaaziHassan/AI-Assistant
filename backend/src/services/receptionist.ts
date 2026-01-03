@@ -300,13 +300,13 @@ Examples that MUST trigger this:
     );
   }
 
-  private buildSystemPrompt(relevantFAQs: FAQ[] = [], staffList: { id: string; name: string; role: string; services: string[] }[] = []): string {
-    const { business, hours, services, receptionist } = this.config;
+  private buildSystemPrompt(relevantFAQs: FAQ[] = [], staffList: { id: string; name: string; role: string; services: string[] }[] = [], servicesList: { id: string; name: string; description?: string; duration: number; price: number }[] = []): string {
+    const { business, hours, receptionist } = this.config;
     const faqs = (this.config as { faqs?: FAQ[] }).faqs || [];
     const industryKnowledge = (this.config as { industryKnowledge?: IndustryKnowledge }).industryKnowledge;
 
-    const servicesText = services
-      .map(s => `- ${s.name}: ${s.description} (${s.duration} min, $${s.price})`)
+    const servicesText = servicesList
+      .map(s => `- ${s.name}: ${s.description || 'Service'} (${s.duration} min, $${s.price})`)
       .join('\n');
 
     // Build staff text
@@ -475,7 +475,17 @@ Stay short, contextual, use bullets.${relevantFAQContext}`;
       services: s.services || []
     }));
 
-    const systemPrompt = this.buildSystemPrompt(relevantFAQs, staffList);
+    // Get services from database
+    const dbServices = adminService.getAllServices(true); // only active services
+    const servicesList = dbServices.map(s => ({
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      duration: s.duration,
+      price: s.price
+    }));
+
+    const systemPrompt = this.buildSystemPrompt(relevantFAQs, staffList, servicesList);
 
     // Build messages array for Groq
     const messages: ChatMessage[] = [
@@ -570,7 +580,7 @@ Would you like us to call you back instead? I can set that up for you!`;
   }
 
   getServices() {
-    return this.config.services;
+    return adminService.getAllServices(true);
   }
 
   getBusinessHours() {
