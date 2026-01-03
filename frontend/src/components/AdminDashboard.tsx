@@ -128,6 +128,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [staffForm, setStaffForm] = useState<{ name: string, email: string, role: string, services: string[], schedule?: WeeklySchedule }>({ name: '', email: '', role: 'staff', services: [] });
   const [availableServices, setAvailableServices] = useState<Service[]>([]);
   const [serviceForm, setServiceForm] = useState({ name: '', description: '', duration: 30, price: 0, isActive: true });
@@ -463,6 +464,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
     try {
       const url = editingStaffId
         ? `${serverUrl}/api/admin/staff/${editingStaffId}`
@@ -476,13 +480,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
+        const savedStaff = await res.json();
+        setStaff(prev => editingStaffId
+          ? prev.map(s => s.id === savedStaff.id ? savedStaff : s)
+          : [...prev, savedStaff]
+        );
         setShowStaffForm(false);
-        setEditingStaffId(null); // Reset editing state
+        setEditingStaffId(null);
         setStaffForm({ name: '', email: '', role: 'staff', services: [] });
-        fetchData();
       }
     } catch {
       alert('Failed to save staff');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -507,7 +517,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         headers: getAuthHeaders()
       });
       if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) fetchData();
+      if (res.ok) {
+        setStaff(prev => prev.filter(s => s.id !== id));
+      }
     } catch {
       alert('Failed to delete staff');
     }
@@ -515,6 +527,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
     try {
       const res = await fetch(`${serverUrl}/api/admin/services`, {
         method: 'POST',
@@ -523,12 +538,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
+        const savedService = await res.json();
+        setAvailableServices(prev => [...prev, savedService]);
         setShowServiceForm(false);
         setServiceForm({ name: '', description: '', duration: 30, price: 0, isActive: true });
-        fetchData();
       }
     } catch {
       alert('Failed to add service');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -541,7 +559,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         headers: getAuthHeaders()
       });
       if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) fetchData();
+      if (res.ok) {
+        setAvailableServices(prev => prev.filter(s => s.id !== id));
+      }
     } catch {
       alert('Failed to delete service');
     }
