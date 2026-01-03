@@ -127,6 +127,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [showServiceForm, setShowServiceForm] = useState(false);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [staffForm, setStaffForm] = useState<{ name: string, email: string, role: string, services: string[], schedule?: WeeklySchedule }>({ name: '', email: '', role: 'staff', services: [] });
@@ -531,23 +532,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${serverUrl}/api/admin/services`, {
-        method: 'POST',
+      const url = editingServiceId
+        ? `${serverUrl}/api/admin/services/${editingServiceId}`
+        : `${serverUrl}/api/admin/services`;
+      const method = editingServiceId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: getAuthHeaders(),
         body: JSON.stringify(serviceForm)
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
         const savedService = await res.json();
-        setAvailableServices(prev => [...prev, savedService]);
+        setAvailableServices(prev => editingServiceId
+          ? prev.map(s => s.id === savedService.id ? savedService : s)
+          : [...prev, savedService]
+        );
         setShowServiceForm(false);
+        setEditingServiceId(null);
         setServiceForm({ name: '', description: '', duration: 30, price: 0, isActive: true });
       }
     } catch {
-      alert('Failed to add service');
+      alert('Failed to save service');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEditService = (service: Service) => {
+    setServiceForm({
+      name: service.name,
+      description: service.description || '',
+      duration: service.duration,
+      price: service.price,
+      isActive: service.isActive
+    });
+    setEditingServiceId(service.id);
+    setShowServiceForm(true);
   };
 
   const handleDeleteService = async (id: string) => {
@@ -1188,8 +1210,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         {activeTab === 'services' && !loading && (
           <div className="services-section">
             <div className="section-header">
-              <h2>Services</h2>
-              <button className="btn-primary" onClick={() => setShowServiceForm(!showServiceForm)}>
+              <h2>{editingServiceId ? 'Edit Service' : 'Services'}</h2>
+              <button className="btn-primary" onClick={() => {
+                if (showServiceForm) {
+                  setShowServiceForm(false);
+                  setEditingServiceId(null);
+                  setServiceForm({ name: '', description: '', duration: 30, price: 0, isActive: true });
+                } else {
+                  setShowServiceForm(true);
+                }
+              }}>
                 {showServiceForm ? 'Cancel' : '+ Add Service'}
               </button>
             </div>
@@ -1237,7 +1267,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                     min="0"
                   />
                 </div>
-                <button type="submit" className="btn-primary">Add Service</button>
+                <button type="submit" className="btn-primary">{editingServiceId ? 'Update Service' : 'Add Service'}</button>
               </form>
             )}
 
@@ -1270,12 +1300,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                           </span>
                         </td>
                         <td>
-                          <button
-                            className="btn-small danger"
-                            onClick={() => handleDeleteService(service.id)}
-                          >
-                            Delete
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="btn-small"
+                              onClick={() => handleEditService(service)}
+                              style={{ backgroundColor: '#3498db', color: 'white', border: 'none' }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn-small danger"
+                              onClick={() => handleDeleteService(service.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
