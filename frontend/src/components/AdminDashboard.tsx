@@ -97,14 +97,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [password, setPassword] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays' | 'waitlist'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays'>('overview');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointmentStats, setAppointmentStats] = useState<AppointmentStats | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [callbacks, setCallbacks] = useState<CallbackRequest[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -318,11 +317,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
           if (holidaysRes.status === 401) { handleLogout(); return; }
           if (holidaysRes.ok) setHolidays(await holidaysRes.json());
           break;
-        case 'waitlist':
-          const waitlistRes = await fetch(`${serverUrl}/api/admin/waitlist?status=waiting`, { headers });
-          if (waitlistRes.status === 401) { handleLogout(); return; }
-          if (waitlistRes.ok) setWaitlist(await waitlistRes.json());
-          break;
+
         case 'callbacks':
           const callbacksUrl = callbackFilter === 'all'
             ? `${serverUrl}/api/callbacks`
@@ -554,18 +549,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     }
   };
 
-  const handleRemoveFromWaitlist = async (id: string) => {
-    try {
-      const res = await fetch(`${serverUrl}/api/admin/waitlist/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) fetchData();
-    } catch {
-      alert('Failed to remove from waitlist');
-    }
-  };
+
 
   const handleUpdateCallbackStatus = async (id: string, status: 'pending' | 'contacted' | 'completed' | 'no_answer', notes?: string) => {
     try {
@@ -1163,30 +1147,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         )}
 
         {/* Waitlist Tab */}
-        {activeTab === 'waitlist' && !loading && (
-          <div className="waitlist-section">
-            <h2>Waitlist</h2>
-            {waitlist.length === 0 ? (
-              <p className="no-data">No one on the waitlist</p>
-            ) : (
-              <div className="waitlist-list">
-                {waitlist.map(w => (
-                  <div key={w.id} className="waitlist-card">
-                    <div className="waitlist-customer">{w.customerName}</div>
-                    <div className="waitlist-email">{w.customerEmail}</div>
-                    <div className="waitlist-date">Preferred: {formatDate(w.preferredDate)}</div>
-                    <button
-                      className="btn-small"
-                      onClick={() => handleRemoveFromWaitlist(w.id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+
 
         {/* Callbacks Tab */}
         {activeTab === 'callbacks' && !loading && (

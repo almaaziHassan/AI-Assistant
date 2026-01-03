@@ -35,20 +35,6 @@ export interface Holiday {
   createdAt: string;
 }
 
-// Waitlist interfaces
-export interface WaitlistEntry {
-  id: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  serviceId: string;
-  preferredDate: string;
-  preferredTime?: string;
-  staffId?: string;
-  status: 'waiting' | 'notified' | 'booked' | 'expired';
-  notifiedAt?: string;
-  createdAt: string;
-}
 
 // Service interfaces
 export interface Service {
@@ -70,7 +56,6 @@ export interface DashboardStats {
   totalRevenue: number;
   cancelledCount: number;
   upcomingCount: number;
-  waitlistCount: number;
   pendingCallbacksCount: number;
   topServices: { serviceId: string; serviceName: string; count: number }[];
 }
@@ -378,91 +363,7 @@ export class AdminService {
     };
   }
 
-  // ============ WAITLIST MANAGEMENT ============
 
-  addToWaitlist(data: Omit<WaitlistEntry, 'id' | 'status' | 'notifiedAt' | 'createdAt'>): WaitlistEntry {
-    const id = uuidv4();
-    const now = new Date().toISOString();
-
-    runQuery(
-      `INSERT INTO waitlist (id, customer_name, customer_email, customer_phone, service_id,
-       preferred_date, preferred_time, staff_id, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?)`,
-      [id, data.customerName, data.customerEmail, data.customerPhone, data.serviceId,
-        data.preferredDate, data.preferredTime || null, data.staffId || null, now]
-    );
-
-    return {
-      id,
-      ...data,
-      status: 'waiting',
-      createdAt: now
-    };
-  }
-
-  getWaitlistEntry(id: string): WaitlistEntry | null {
-    const row = getOne('SELECT * FROM waitlist WHERE id = ?', [id]);
-    return row ? this.rowToWaitlistEntry(row) : null;
-  }
-
-  getWaitlistByDate(date: string): WaitlistEntry[] {
-    return getAll(
-      'SELECT * FROM waitlist WHERE preferred_date = ? AND status = ? ORDER BY created_at',
-      [date, 'waiting']
-    ).map(row => this.rowToWaitlistEntry(row));
-  }
-
-  getWaitlistByEmail(email: string): WaitlistEntry[] {
-    return getAll(
-      'SELECT * FROM waitlist WHERE customer_email = ? ORDER BY created_at DESC',
-      [email.toLowerCase()]
-    ).map(row => this.rowToWaitlistEntry(row));
-  }
-
-  getAllWaitlist(status?: string): WaitlistEntry[] {
-    if (status) {
-      return getAll('SELECT * FROM waitlist WHERE status = ? ORDER BY preferred_date, created_at', [status])
-        .map(row => this.rowToWaitlistEntry(row));
-    }
-    return getAll('SELECT * FROM waitlist ORDER BY preferred_date, created_at')
-      .map(row => this.rowToWaitlistEntry(row));
-  }
-
-  updateWaitlistStatus(id: string, status: WaitlistEntry['status']): WaitlistEntry | null {
-    const existing = this.getWaitlistEntry(id);
-    if (!existing) return null;
-
-    const notifiedAt = status === 'notified' ? new Date().toISOString() : existing.notifiedAt;
-    runQuery(
-      'UPDATE waitlist SET status = ?, notified_at = ? WHERE id = ?',
-      [status, notifiedAt || null, id]
-    );
-
-    return this.getWaitlistEntry(id);
-  }
-
-  removeFromWaitlist(id: string): boolean {
-    const existing = this.getWaitlistEntry(id);
-    if (!existing) return false;
-    runQuery('DELETE FROM waitlist WHERE id = ?', [id]);
-    return true;
-  }
-
-  private rowToWaitlistEntry(row: Record<string, unknown>): WaitlistEntry {
-    return {
-      id: row.id as string,
-      customerName: row.customer_name as string,
-      customerEmail: row.customer_email as string,
-      customerPhone: row.customer_phone as string,
-      serviceId: row.service_id as string,
-      preferredDate: row.preferred_date as string,
-      preferredTime: row.preferred_time as string | undefined,
-      staffId: row.staff_id as string | undefined,
-      status: row.status as WaitlistEntry['status'],
-      notifiedAt: row.notified_at as string | undefined,
-      createdAt: row.created_at as string
-    };
-  }
 
   // ============ ANALYTICS & DASHBOARD ============
 
@@ -515,11 +416,7 @@ export class AdminService {
     );
     const upcomingCount = (upcomingResult?.count as number) || 0;
 
-    // Waitlist count
-    const waitlistResult = getOne(
-      `SELECT COUNT(*) as count FROM waitlist WHERE status = 'waiting'`
-    );
-    const waitlistCount = (waitlistResult?.count as number) || 0;
+
 
     // Pending callbacks count
     const callbacksResult = getOne(
@@ -554,7 +451,7 @@ export class AdminService {
       totalRevenue,
       cancelledCount,
       upcomingCount,
-      waitlistCount,
+
       pendingCallbacksCount,
       topServices
     };
