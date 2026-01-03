@@ -790,43 +790,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                           const now = new Date();
                           const isFuture = aptDateTime > now;
 
-                          // Only show actions for pending or confirmed appointments
-                          if (apt.status === 'pending' || apt.status === 'confirmed') {
+                          // Future appointments: Only Cancel is available (for pending or confirmed)
+                          if (isFuture && (apt.status === 'pending' || apt.status === 'confirmed')) {
+                            return (
+                              <button
+                                className="btn-small danger"
+                                onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
+                              >
+                                Cancel
+                              </button>
+                            );
+                          }
+
+                          // Past appointments: Only show actions if status is 'pending'
+                          // Once confirmed, cancelled, or no-show - no more actions needed
+                          if (!isFuture && apt.status === 'pending') {
                             return (
                               <>
-                                {/* Future appointments: Only Cancel is available */}
-                                {isFuture ? (
-                                  <button
-                                    className="btn-small danger"
-                                    onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
-                                  >
-                                    Cancel
-                                  </button>
-                                ) : (
-                                  /* Past/current appointments: Confirm, No-Show, and Cancel */
-                                  <>
-                                    {apt.status !== 'confirmed' && (
-                                      <button
-                                        className="btn-small success"
-                                        onClick={() => handleUpdateAppointmentStatus(apt.id, 'confirmed')}
-                                      >
-                                        Confirm
-                                      </button>
-                                    )}
-                                    <button
-                                      className="btn-small danger"
-                                      onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      className="btn-small warning"
-                                      onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
-                                    >
-                                      No Show
-                                    </button>
-                                  </>
-                                )}
+                                <button
+                                  className="btn-small success"
+                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'confirmed')}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  className="btn-small danger"
+                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  className="btn-small warning"
+                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
+                                >
+                                  No Show
+                                </button>
                               </>
                             );
                           }
