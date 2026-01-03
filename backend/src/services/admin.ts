@@ -414,13 +414,18 @@ export class AdminService {
     const cancelledCount = (cancelledResult?.count as number) || 0;
 
     // Upcoming appointments - truly in the future (date > today, OR date = today AND time > now)
-    const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+    // Use business timezone (UTC+5 for PKT) to correctly compare times
+    const nowUTC = new Date();
+    const businessOffset = 5 * 60; // PKT is UTC+5 (in minutes)
+    const businessTime = new Date(nowUTC.getTime() + businessOffset * 60 * 1000);
+    const businessDate = businessTime.toISOString().split('T')[0];
+    const currentTime = businessTime.toTimeString().slice(0, 5); // HH:MM format in business timezone
+
     const upcomingResult = getOne(
       `SELECT COUNT(*) as count FROM appointments 
        WHERE status IN ('pending', 'confirmed') 
        AND (appointment_date > ? OR (appointment_date = ? AND appointment_time > ?))`,
-      [today, today, currentTime]
+      [businessDate, businessDate, currentTime]
     );
     const upcomingCount = (upcomingResult?.count as number) || 0;
 
