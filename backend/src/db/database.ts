@@ -134,6 +134,7 @@ async function createPostgresTables(): Promise<void> {
         email TEXT,
         phone TEXT,
         role TEXT DEFAULT 'staff',
+        services JSONB DEFAULT '[]',
         color TEXT,
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -270,6 +271,13 @@ async function createPostgresTables(): Promise<void> {
 
     await client.query(`CREATE INDEX IF NOT EXISTS idx_callbacks_status ON callbacks(status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_callbacks_phone ON callbacks(customer_phone)`);
+
+    // Migration: Add services column to staff table if it doesn't exist
+    try {
+      await client.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS services JSONB DEFAULT '[]'`);
+    } catch (e) {
+      // Column might already exist, ignore error
+    }
 
     console.log('PostgreSQL tables created/verified with improved schema');
   } finally {
