@@ -604,16 +604,37 @@ function applyFiltersToCache(
     return String(val);
   };
 
-  // Check >= FIRST (must be before = check to avoid false match)
-  // appointment_date >= ?
-  if (sqlLower.match(/appointment_date\s*>=\s*\?/)) {
-    const dateParam = params[paramIndex++];
-    result = result.filter((row) => toDateString(row.appointment_date) >= String(dateParam));
-  }
-  // appointment_date = ? (only if not >=)
-  else if (sqlLower.match(/appointment_date\s*=\s*\?/)) {
-    const dateParam = params[paramIndex++];
-    result = result.filter((row) => toDateString(row.appointment_date) === String(dateParam));
+  // Complex: (appointment_date > ? OR (appointment_date = ? AND appointment_time > ?))
+  // Used for "upcoming" count - appointments truly in the future
+  // MUST be checked FIRST before simple date patterns to avoid param misalignment
+  const upcomingPattern = /\(appointment_date\s*>\s*\?\s+or\s+\(appointment_date\s*=\s*\?\s+and\s+appointment_time\s*>\s*\?\)\)/i;
+  const hasComplexUpcoming = sqlLower.match(upcomingPattern);
+
+  if (hasComplexUpcoming) {
+    const todayDate = String(params[paramIndex++]);
+    const todayDate2 = String(params[paramIndex++]);
+    const currentTime = String(params[paramIndex++]);
+
+    result = result.filter((row) => {
+      const rowDate = toDateString(row.appointment_date);
+      const rowTime = String(row.appointment_time || '').slice(0, 5); // HH:MM format
+
+      // Either date is in future, OR same date but time is in future
+      return rowDate > todayDate || (rowDate === todayDate2 && rowTime > currentTime);
+    });
+  } else {
+    // Simple date patterns (only check if NOT using complex pattern)
+    // Check >= FIRST (must be before = check to avoid false match)
+    // appointment_date >= ?
+    if (sqlLower.match(/appointment_date\s*>=\s*\?/)) {
+      const dateParam = params[paramIndex++];
+      result = result.filter((row) => toDateString(row.appointment_date) >= String(dateParam));
+    }
+    // appointment_date = ? (only if not >=)
+    else if (sqlLower.match(/appointment_date\s*=\s*\?/)) {
+      const dateParam = params[paramIndex++];
+      result = result.filter((row) => toDateString(row.appointment_date) === String(dateParam));
+    }
   }
 
   // holidays.date = ? (for holiday lookup)
@@ -645,23 +666,6 @@ function applyFiltersToCache(
   // status = 'pending'
   if (sqlLower.includes("status = 'pending'")) {
     result = result.filter((row) => row.status === 'pending');
-  }
-
-  // Complex: (appointment_date > ? OR (appointment_date = ? AND appointment_time > ?))
-  // Used for "upcoming" count - appointments truly in the future
-  const upcomingPattern = /\(appointment_date\s*>\s*\?\s+or\s+\(appointment_date\s*=\s*\?\s+and\s+appointment_time\s*>\s*\?\)\)/i;
-  if (sqlLower.match(upcomingPattern)) {
-    const todayDate = String(params[paramIndex++]);
-    const todayDate2 = String(params[paramIndex++]);
-    const currentTime = String(params[paramIndex++]);
-
-    result = result.filter((row) => {
-      const rowDate = toDateString(row.appointment_date);
-      const rowTime = String(row.appointment_time || '').slice(0, 5); // HH:MM format
-
-      // Either date is in future, OR same date but time is in future
-      return rowDate > todayDate || (rowDate === todayDate2 && rowTime > currentTime);
-    });
   }
 
   return result;
