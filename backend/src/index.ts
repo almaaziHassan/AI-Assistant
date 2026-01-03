@@ -21,15 +21,30 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
-// CORS Configuration
-const allowedOrigin = process.env.FRONTEND_URL || '*';
-if (process.env.NODE_ENV === 'production' && allowedOrigin === '*') {
+// CORS Configuration - Support multiple origins (comma-separated)
+const frontendUrlEnv = process.env.FRONTEND_URL || '*';
+const allowedOrigins = frontendUrlEnv === '*'
+  ? '*'
+  : frontendUrlEnv.split(',').map(url => url.trim());
+
+if (process.env.NODE_ENV === 'production' && frontendUrlEnv === '*') {
   console.warn('⚠️  WARNING: CORS is allowing all origins in production! Set FRONTEND_URL.');
 }
 
+// CORS origin checker function
+const corsOrigin = allowedOrigins === '*'
+  ? '*'
+  : (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin || (Array.isArray(allowedOrigins) && allowedOrigins.includes(origin))) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  };
+
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigin,
+    origin: corsOrigin,
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -40,7 +55,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.set('trust proxy', 1); // Trust Railway proxy for rate limiter
 app.use(cors({
-  origin: allowedOrigin,
+  origin: corsOrigin,
   credentials: true
 }));
 app.use(express.json());
