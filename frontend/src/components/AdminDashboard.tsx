@@ -1,4 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Calendar, momentLocalizer } from 'react-big-calendar';
+import moment from 'moment';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+
+const localizer = momentLocalizer(moment);
 
 interface DashboardStats {
   todayAppointments: number;
@@ -31,6 +36,7 @@ interface Appointment {
   staff_name?: string;
   appointment_date: string;
   appointment_time: string;
+  duration: number;
   status: string;
   created_at: string;
 }
@@ -78,14 +84,7 @@ interface Holiday {
   customHoursClose?: string;
 }
 
-interface WaitlistEntry {
-  id: string;
-  customerName: string;
-  customerEmail: string;
-  serviceId: string;
-  preferredDate: string;
-  status: string;
-}
+
 
 interface CallbackRequest {
   id: string;
@@ -114,6 +113,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [password, setPassword] = useState('');
 
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays'>('overview');
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointmentStats, setAppointmentStats] = useState<AppointmentStats | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -693,7 +693,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       </header>
 
       <nav className="admin-tabs">
-        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays', 'waitlist'] as const).map(tab => (
+        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays'] as const).map(tab => (
           <button
             key={tab}
             className={`admin-tab ${activeTab === tab ? 'active' : ''}`}
@@ -790,6 +790,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
           <div className="appointments-list">
             <div className="section-header">
               <h2>Appointments</h2>
+              <div style={{ display: 'flex', gap: '10px', marginRight: 'auto', marginLeft: '20px' }}>
+                <button
+                  className={`filter-btn ${viewMode === 'table' ? 'active' : ''}`}
+                  onClick={() => setViewMode('table')}
+                >
+                  Table
+                </button>
+                <button
+                  className={`filter-btn ${viewMode === 'calendar' ? 'active' : ''}`}
+                  onClick={() => setViewMode('calendar')}
+                >
+                  Calendar
+                </button>
+              </div>
               <div className="date-filter-buttons">
                 {(['today', 'week', 'month', 'all'] as const).map(filter => (
                   <button
@@ -802,7 +816,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                 ))}
               </div>
             </div>
-            {appointments.length === 0 ? (
+
+            {viewMode === 'calendar' ? (
+              <div style={{ height: '700px', background: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                <Calendar
+                  localizer={localizer}
+                  events={appointments.map(apt => {
+                    const dateStr = String(apt.appointment_date).split('T')[0];
+                    const start = new Date(`${dateStr}T${apt.appointment_time}`);
+                    // Ensure duration is treated as number
+                    const duration = Number(apt.duration) || 30;
+                    const end = new Date(start.getTime() + duration * 60000);
+                    return {
+                      id: apt.id,
+                      title: `${apt.customer_name} (${apt.service_name})`,
+                      start,
+                      end,
+                      resource: apt,
+                      status: apt.status
+                    };
+                  })}
+                  startAccessor="start"
+                  endAccessor="end"
+                  style={{ height: '100%' }}
+                  eventPropGetter={(event) => {
+                    let backgroundColor = '#3174ad'; // confirmed/default
+                    if (event.status === 'cancelled') backgroundColor = '#e74c3c';
+                    if (event.status === 'pending') backgroundColor = '#f39c12';
+                    if (event.status === 'completed') backgroundColor = '#27ae60';
+                    if (event.status === 'no-show') backgroundColor = '#7f8c8d';
+                    return { style: { backgroundColor } };
+                  }}
+                  onSelectEvent={(event) => {
+                    alert(`Appointment Details:\n\nCustomer: ${event.resource.customer_name}\nService: ${event.resource.service_name}\nStaff: ${event.resource.staff_name || 'Unassigned'}\nTime: ${moment(event.start).format('h:mm A')} - ${moment(event.end).format('h:mm A')}\nStatus: ${event.status}`);
+                  }}
+                />
+              </div>
+            ) : appointments.length === 0 ? (
               <p className="no-data">No appointments found</p>
             ) : (
               <table className="admin-table">
