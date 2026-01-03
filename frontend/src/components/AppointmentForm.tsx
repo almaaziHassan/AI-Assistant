@@ -115,28 +115,19 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
     }
   };
 
-  // Fetch services and staff on mount
+  // Fetch services on mount
   useEffect(() => {
     setLoading(true);
     const timestamp = Date.now();
-    Promise.all([
-      fetch(`${serverUrl}/api/services?_t=${timestamp}`, {
-        headers: { 'Cache-Control': 'no-cache' }
-      }).then(res => {
+    fetch(`${serverUrl}/api/services?_t=${timestamp}`, {
+      headers: { 'Cache-Control': 'no-cache' }
+    })
+      .then(res => {
         if (!res.ok) throw new Error('Failed to load services');
         return res.json();
-      }),
-      fetch(`${serverUrl}/api/services/staff?_t=${timestamp}`, {
-        headers: { 'Cache-Control': 'no-cache' }
-      }).then(res => {
-        if (!res.ok) return []; // Staff is optional
-        return res.json();
       })
-    ])
-      .then(([servicesData, staffData]) => {
+      .then(servicesData => {
         setServices(servicesData);
-        // Filter to only active staff
-        setStaff(staffData.filter((s: Staff & { isActive?: boolean }) => s.isActive !== false));
         setLoading(false);
       })
       .catch(() => {
@@ -144,6 +135,32 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
         setLoading(false);
       });
   }, [serverUrl]);
+
+  // Fetch staff when service is selected (filtered by service)
+  useEffect(() => {
+    if (!formData.serviceId) {
+      setStaff([]);
+      return;
+    }
+
+    const timestamp = Date.now();
+    fetch(`${serverUrl}/api/services/staff/${formData.serviceId}?_t=${timestamp}`, {
+      headers: { 'Cache-Control': 'no-cache' }
+    })
+      .then(res => {
+        if (!res.ok) return [];
+        return res.json();
+      })
+      .then(staffData => {
+        // Filter to only active staff
+        const activeStaff = staffData.filter((s: Staff & { isActive?: boolean }) => s.isActive !== false);
+        setStaff(activeStaff);
+      })
+      .catch(() => {
+        console.error('Failed to load staff for service');
+        setStaff([]);
+      });
+  }, [serverUrl, formData.serviceId]);
 
   // Fetch available slots when date, service, or staff change
   useEffect(() => {

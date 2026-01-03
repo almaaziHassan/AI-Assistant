@@ -64,6 +64,36 @@ router.get('/business/hours', (req: Request, res: Response) => {
   }
 });
 
+// GET /api/services/staff/:serviceId - Get staff members for a specific service
+router.get('/staff/:serviceId', (req: Request, res: Response) => {
+  try {
+    noCache(res);
+    const { serviceId } = req.params;
+    console.log(`[services/staff/:serviceId] Fetching staff for service: ${serviceId}`);
+
+    // Get all active staff
+    const allStaff = adminService.getAllStaff(true);
+
+    // Filter to only staff who provide this service
+    // A staff member provides a service if their services array includes the serviceId
+    // OR if they have no services assigned (legacy: can do anything)
+    const filteredStaff = allStaff.filter(s => {
+      // If staff has no services assigned, they can do all services (backwards compatible)
+      if (!s.services || s.services.length === 0) {
+        return true;
+      }
+      // Otherwise, check if serviceId is in their services array
+      return s.services.includes(serviceId);
+    });
+
+    console.log(`[services/staff/:serviceId] Found ${filteredStaff.length} staff for service ${serviceId}`);
+    res.json(filteredStaff);
+  } catch (error) {
+    console.error('Get staff by service error:', error);
+    res.status(500).json({ error: 'Failed to get staff' });
+  }
+});
+
 // GET /api/services/:id - Get a specific service (MUST be last - catches all)
 router.get('/:id', (req: Request, res: Response) => {
   try {

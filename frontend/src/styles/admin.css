@@ -380,7 +380,53 @@
 .staff-email {
   font-size: 13px;
   color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.staff-services {
+  font-size: 12px;
+  color: #4b5563;
   margin-bottom: 12px;
+  padding: 6px 10px;
+  background: #e5e7eb;
+  border-radius: 6px;
+}
+
+.staff-services.all-services {
+  background: #dbeafe;
+  color: #1e40af;
+  font-style: italic;
+}
+
+/* Service checkboxes in staff form */
+.service-checkboxes {
+  width: 100%;
+  padding: 12px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.checkbox-group-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 10px;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.helper-text {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
 }
 
 /* Holidays */

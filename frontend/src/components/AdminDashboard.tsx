@@ -40,7 +40,15 @@ interface Staff {
   name: string;
   email?: string;
   role: string;
+  services?: string[];
   isActive: boolean;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  duration: number;
+  price: number;
 }
 
 interface Holiday {
@@ -101,7 +109,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   // Form states
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
-  const [staffForm, setStaffForm] = useState({ name: '', email: '', role: 'staff' });
+  const [staffForm, setStaffForm] = useState({ name: '', email: '', role: 'staff', services: [] as string[] });
+  const [availableServices, setAvailableServices] = useState<Service[]>([]);
   const [holidayForm, setHolidayForm] = useState({ date: '', name: '', isClosed: true });
   const [callbackFilter, setCallbackFilter] = useState<string>('pending');
   const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
@@ -287,9 +296,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
           if (aptsRes.ok) setAppointments(await aptsRes.json());
           break;
         case 'staff':
-          const staffRes = await fetch(`${serverUrl}/api/admin/staff`, { headers });
+          const [staffRes, servicesRes] = await Promise.all([
+            fetch(`${serverUrl}/api/admin/staff`, { headers }),
+            fetch(`${serverUrl}/api/services`)
+          ]);
           if (staffRes.status === 401) { handleLogout(); return; }
           if (staffRes.ok) setStaff(await staffRes.json());
+          if (servicesRes.ok) setAvailableServices(await servicesRes.json());
           break;
         case 'holidays':
           const holidaysRes = await fetch(`${serverUrl}/api/admin/holidays`, { headers });
@@ -438,7 +451,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
         setShowStaffForm(false);
-        setStaffForm({ name: '', email: '', role: 'staff' });
+        setStaffForm({ name: '', email: '', role: 'staff', services: [] });
         fetchData();
       }
     } catch {
@@ -873,6 +886,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                   <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
+
+                {/* Service selection */}
+                {availableServices.length > 0 && (
+                  <div className="service-checkboxes">
+                    <label className="checkbox-group-label">Services this staff can provide:</label>
+                    <div className="checkbox-group">
+                      {availableServices.map(service => (
+                        <label key={service.id} className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={staffForm.services.includes(service.id)}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                setStaffForm({ ...staffForm, services: [...staffForm.services, service.id] });
+                              } else {
+                                setStaffForm({ ...staffForm, services: staffForm.services.filter(id => id !== service.id) });
+                              }
+                            }}
+                          />
+                          {service.name}
+                        </label>
+                      ))}
+                    </div>
+                    <small className="helper-text">Leave all unchecked if staff can provide all services</small>
+                  </div>
+                )}
+
                 <button type="submit" className="btn-primary">Add Staff</button>
               </form>
             )}
@@ -881,19 +921,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
               <p className="no-data">No staff members added yet</p>
             ) : (
               <div className="staff-grid">
-                {staff.map(s => (
-                  <div key={s.id} className={`staff-card ${!s.isActive ? 'inactive' : ''}`}>
-                    <div className="staff-name">{s.name}</div>
-                    <div className="staff-role">{s.role}</div>
-                    {s.email && <div className="staff-email">{s.email}</div>}
-                    <button
-                      className="btn-small danger"
-                      onClick={() => handleDeleteStaff(s.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
+                {staff.map(s => {
+                  // Get service names for display
+                  const serviceNames = s.services && s.services.length > 0
+                    ? s.services.map(svcId => {
+                      const svc = availableServices.find(sv => sv.id === svcId);
+                      return svc ? svc.name : svcId;
+                    })
+                    : [];
+
+                  return (
+                    <div key={s.id} className={`staff-card ${!s.isActive ? 'inactive' : ''}`}>
+                      <div className="staff-name">{s.name}</div>
+                      <div className="staff-role">{s.role}</div>
+                      {s.email && <div className="staff-email">{s.email}</div>}
+                      {serviceNames.length > 0 ? (
+                        <div className="staff-services">
+                          <strong>Services:</strong> {serviceNames.join(', ')}
+                        </div>
+                      ) : (
+                        <div className="staff-services all-services">All Services</div>
+                      )}
+                      <button
+                        className="btn-small danger"
+                        onClick={() => handleDeleteStaff(s.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
