@@ -239,7 +239,7 @@ export class SchedulerService {
       return [];
     }
 
-    const service = this.config.services.find(s => s.id === serviceId);
+    const service = adminService.getService(serviceId);
     if (!service) {
       return [];
     }
@@ -313,7 +313,7 @@ export class SchedulerService {
 
   // Generate slots for custom hours (holidays, special days)
   private generateSlotsForHours(date: string, serviceId: string, openTime: string, closeTime: string, staffId?: string): TimeSlot[] {
-    const service = this.config.services.find(s => s.id === serviceId);
+    const service = adminService.getService(serviceId);
     if (!service) {
       return [];
     }
@@ -416,8 +416,8 @@ export class SchedulerService {
       throw new Error(`Sorry, we are closed on ${dayOfWeek}s`);
     }
 
-    // Verify service exists
-    const service = this.config.services.find(s => s.id === normalizedRequest.serviceId);
+    // Verify service exists in database
+    const service = adminService.getService(normalizedRequest.serviceId);
     if (!service) {
       throw new Error('Selected service not found');
     }
