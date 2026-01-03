@@ -816,17 +816,57 @@ export function getAll(sql: string, params: SqlValue[] = []): Record<string, unk
       );
     }
 
-    // ORDER BY
+    // ORDER BY - support multiple fields
     if (sql.includes('ORDER BY')) {
-      const descMatch = sql.match(/ORDER BY\s+(\w+)\s+DESC/i);
-      const ascMatch = sql.match(/ORDER BY\s+(\w+)(?:\s+ASC)?/i);
+      // Parse ORDER BY clause to extract fields and directions
+      // Examples: "ORDER BY appointment_date, appointment_time"
+      //           "ORDER BY appointment_date DESC, appointment_time DESC"
+      //           "ORDER BY appointment_date ASC, appointment_time ASC"
+      const orderByMatch = sql.match(/ORDER BY\s+(.+?)(?:\s+LIMIT|\s*$)/i);
+      if (orderByMatch) {
+        const orderClause = orderByMatch[1];
+        const orderFields: { field: string; desc: boolean }[] = [];
 
-      if (descMatch) {
-        const field = descMatch[1];
-        cached = [...cached].sort((a, b) => String(b[field] || '').localeCompare(String(a[field] || '')));
-      } else if (ascMatch) {
-        const field = ascMatch[1];
-        cached = [...cached].sort((a, b) => String(a[field] || '').localeCompare(String(b[field] || '')));
+        // Split by comma and parse each field
+        const parts = orderClause.split(',').map(p => p.trim());
+        for (const part of parts) {
+          const fieldMatch = part.match(/(\w+)(?:\s+(ASC|DESC))?/i);
+          if (fieldMatch) {
+            orderFields.push({
+              field: fieldMatch[1],
+              desc: fieldMatch[2]?.toUpperCase() === 'DESC'
+            });
+          }
+        }
+
+        if (orderFields.length > 0) {
+          cached = [...cached].sort((a, b) => {
+            for (const { field, desc } of orderFields) {
+              const aVal = a[field];
+              const bVal = b[field];
+
+              // Handle Date objects (PostgreSQL returns Date for date/timestamp columns)
+              let aStr: string;
+              let bStr: string;
+              if (aVal instanceof Date) {
+                aStr = aVal.toISOString();
+              } else {
+                aStr = String(aVal || '');
+              }
+              if (bVal instanceof Date) {
+                bStr = bVal.toISOString();
+              } else {
+                bStr = String(bVal || '');
+              }
+
+              const cmp = aStr.localeCompare(bStr);
+              if (cmp !== 0) {
+                return desc ? -cmp : cmp;
+              }
+            }
+            return 0;
+          });
+        }
       }
     }
 
