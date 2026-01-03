@@ -365,8 +365,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+  const formatDate = (dateStr: string | Date) => {
+    // Handle Date object from PostgreSQL or string
+    let dateToFormat: Date;
+    if (dateStr instanceof Date) {
+      dateToFormat = dateStr;
+    } else if (typeof dateStr === 'string') {
+      // Check if it's an ISO date string or just YYYY-MM-DD
+      dateToFormat = dateStr.includes('T')
+        ? new Date(dateStr)
+        : new Date(dateStr + 'T00:00:00');
+    } else {
+      return 'Invalid Date';
+    }
+
+    if (isNaN(dateToFormat.getTime())) {
+      return 'Invalid Date';
+    }
+
+    return dateToFormat.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric'
@@ -374,7 +391,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
+    if (!time) return '';
+    // Handle HH:MM:SS or HH:MM format
+    const timePart = time.split(':');
+    const hours = parseInt(timePart[0], 10);
+    const minutes = parseInt(timePart[1], 10);
+    if (isNaN(hours) || isNaN(minutes)) return time;
     const ampm = hours >= 12 ? 'PM' : 'AM';
     return `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
@@ -755,65 +777,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
                       </td>
                       <td className="actions-cell">
                         {(() => {
-                          // Check if appointment is in the past
-                          const aptDateTime = new Date(`${apt.appointment_date}T${apt.appointment_time}`);
-                          const now = new Date();
-                          const isPast = aptDateTime < now;
-
-                          if (apt.status === 'pending') {
-                            return (
-                              <>
-                                <button
-                                  className="btn-small success"
-                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'confirmed')}
-                                >
-                                  Confirm
-                                </button>
-                                <button
-                                  className="btn-small danger"
-                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
-                                >
-                                  Cancel
-                                </button>
-                                {/* No-Show only for past appointments */}
-                                {isPast && (
-                                  <button
-                                    className="btn-small warning"
-                                    onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
-                                  >
-                                    No-Show
-                                  </button>
-                                )}
-                              </>
-                            );
+                          // Check if appointment is in the future
+                          // Handle both Date object and string - use typeof since appointment_date is typed as string
+                          const dateVal = apt.appointment_date as unknown;
+                          let aptDate: string;
+                          if (typeof dateVal === 'object' && dateVal !== null && 'toISOString' in dateVal) {
+                            aptDate = (dateVal as Date).toISOString().split('T')[0];
+                          } else {
+                            aptDate = String(apt.appointment_date).split('T')[0];
                           }
+                          const aptDateTime = new Date(`${aptDate}T${apt.appointment_time}`);
+                          const now = new Date();
+                          const isFuture = aptDateTime > now;
 
-                          if (apt.status === 'confirmed') {
+                          // Only show actions for pending or confirmed appointments
+                          if (apt.status === 'pending' || apt.status === 'confirmed') {
                             return (
                               <>
-                                {/* Completed/No-Show only for past appointments */}
-                                {isPast && (
+                                {/* Future appointments: Only Cancel is available */}
+                                {isFuture ? (
+                                  <button
+                                    className="btn-small danger"
+                                    onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
+                                  >
+                                    Cancel
+                                  </button>
+                                ) : (
+                                  /* Past/current appointments: Confirm, No-Show, and Cancel */
                                   <>
+                                    {apt.status !== 'confirmed' && (
+                                      <button
+                                        className="btn-small success"
+                                        onClick={() => handleUpdateAppointmentStatus(apt.id, 'confirmed')}
+                                      >
+                                        Confirm
+                                      </button>
+                                    )}
                                     <button
-                                      className="btn-small success"
-                                      onClick={() => handleUpdateAppointmentStatus(apt.id, 'completed')}
+                                      className="btn-small danger"
+                                      onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
                                     >
-                                      Complete
+                                      Cancel
                                     </button>
                                     <button
                                       className="btn-small warning"
                                       onClick={() => handleUpdateAppointmentStatus(apt.id, 'no-show')}
                                     >
-                                      No-Show
+                                      No Show
                                     </button>
                                   </>
                                 )}
-                                <button
-                                  className="btn-small danger"
-                                  onClick={() => handleUpdateAppointmentStatus(apt.id, 'cancelled')}
-                                >
-                                  Cancel
-                                </button>
                               </>
                             );
                           }
