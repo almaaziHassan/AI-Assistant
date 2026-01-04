@@ -30,11 +30,23 @@ export function getCorsOriginChecker() {
     }
 
     return (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        if (!origin || (Array.isArray(allowedOrigins) && allowedOrigins.includes(origin))) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        if (Array.isArray(allowedOrigins)) {
+            // Check exact match
+            if (allowedOrigins.includes(origin)) return callback(null, true);
+
+            // Check with/without trailing slash
+            const originNoSlash = origin.replace(/\/$/, '');
+            const allowedNoSlash = allowedOrigins.map(o => o.replace(/\/$/, ''));
+
+            if (allowedNoSlash.includes(originNoSlash)) return callback(null, true);
+
+            console.error(`CORS Blocked Origin: ${origin}. Allowed: ${allowedOrigins.join(', ')}`);
         }
+
+        callback(new Error('Not allowed by CORS'));
     };
 }
 
