@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { formatAppointmentDate, formatAppointmentTime, getPreferredTimeLabel } from '../utils/dateFormatters';
 
 export interface ConfirmationData {
   serviceName: string;
@@ -131,17 +132,6 @@ export function useChat({ serverUrl }: UseChatOptions) {
         // Restore confirmation card data
         if (msg.messageType === 'confirmation' && msg.actionData?.bookingConfirmation) {
           const conf = msg.actionData.bookingConfirmation;
-          // Format date nicely
-          const dateStr = new Date(conf.date + 'T00:00:00').toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          });
-          // Format time
-          const [hours, minutes] = conf.time.split(':').map(Number);
-          const ampm = hours >= 12 ? 'PM' : 'AM';
-          const timeStr = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 
           return {
             id: generateId(),
@@ -152,8 +142,8 @@ export function useChat({ serverUrl }: UseChatOptions) {
             confirmation: {
               serviceName: conf.serviceName,
               staffName: conf.staffName,
-              date: dateStr,
-              time: timeStr,
+              date: formatAppointmentDate(conf.date),
+              time: formatAppointmentTime(conf.time),
               confirmationId: conf.id.substring(0, 8).toUpperCase(),
               email: conf.customerEmail
             },
@@ -164,12 +154,6 @@ export function useChat({ serverUrl }: UseChatOptions) {
         // Restore callback confirmation card data
         if (msg.messageType === 'callback_confirmation' && msg.actionData?.callbackConfirmation) {
           const conf = msg.actionData.callbackConfirmation;
-          const preferredTimeLabels: Record<string, string> = {
-            'morning': 'Morning (9am-12pm)',
-            'afternoon': 'Afternoon (12pm-5pm)',
-            'evening': 'Evening (5pm-8pm)',
-            'anytime': 'Anytime'
-          };
 
           return {
             id: generateId(),
@@ -180,7 +164,7 @@ export function useChat({ serverUrl }: UseChatOptions) {
             callbackConfirmation: {
               name: conf.customerName,
               phone: conf.customerPhone,
-              preferredTime: conf.preferredTime ? preferredTimeLabels[conf.preferredTime] || conf.preferredTime : 'Anytime',
+              preferredTime: conf.preferredTime ? getPreferredTimeLabel(conf.preferredTime) : 'Anytime',
               requestId: conf.id.substring(0, 8).toUpperCase()
             },
             action: { type: msg.actionType || 'callback_confirmed' }
@@ -225,17 +209,6 @@ export function useChat({ serverUrl }: UseChatOptions) {
       // Check if this is a booking confirmation from AI
       if (data.action?.type === 'booking_confirmed' && data.action.bookingConfirmation) {
         const conf = data.action.bookingConfirmation;
-        // Format date
-        const dateStr = new Date(conf.date + 'T00:00:00').toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
-        // Format time
-        const [hours, minutes] = conf.time.split(':').map(Number);
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        const timeStr = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 
         const newMessage: Message = {
           id: generateId(),
@@ -246,8 +219,8 @@ export function useChat({ serverUrl }: UseChatOptions) {
           confirmation: {
             serviceName: conf.serviceName,
             staffName: conf.staffName,
-            date: dateStr,
-            time: timeStr,
+            date: formatAppointmentDate(conf.date),
+            time: formatAppointmentTime(conf.time),
             confirmationId: conf.id.substring(0, 8).toUpperCase(),
             email: conf.customerEmail
           },
@@ -260,12 +233,6 @@ export function useChat({ serverUrl }: UseChatOptions) {
       // Check if this is a callback confirmation from AI
       if (data.action?.type === 'callback_confirmed' && data.action.callbackConfirmation) {
         const conf = data.action.callbackConfirmation;
-        const preferredTimeLabels: Record<string, string> = {
-          'morning': 'Morning (9am-12pm)',
-          'afternoon': 'Afternoon (12pm-5pm)',
-          'evening': 'Evening (5pm-8pm)',
-          'anytime': 'Anytime'
-        };
 
         const newMessage: Message = {
           id: generateId(),
@@ -276,7 +243,7 @@ export function useChat({ serverUrl }: UseChatOptions) {
           callbackConfirmation: {
             name: conf.customerName,
             phone: conf.customerPhone,
-            preferredTime: conf.preferredTime ? preferredTimeLabels[conf.preferredTime] || conf.preferredTime : 'Anytime',
+            preferredTime: conf.preferredTime ? getPreferredTimeLabel(conf.preferredTime) : 'Anytime',
             requestId: conf.id.substring(0, 8).toUpperCase()
           },
           action: data.action
