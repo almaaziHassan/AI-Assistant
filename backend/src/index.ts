@@ -16,9 +16,9 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 
-// Route factory imports
 import chatRoutes from './routes/chat';
 import { createAppointmentRouter } from './routes/appointments';
+import { createAppointmentRouterPrisma } from './routes/appointmentsPrisma';
 import { createServicesRouter } from './routes/services';
 import { createAdminRouter } from './routes/admin';
 import { createAdminRouterPrisma } from './routes/adminPrisma';
@@ -30,6 +30,7 @@ import authRoutes from './routes/auth';
 // Service imports
 import { ReceptionistService } from './services/receptionist';
 import { SchedulerService } from './services/scheduler';
+import { schedulerServicePrisma } from './services/schedulerPrisma';
 import { emailService } from './services/email';
 import { adminService } from './services/admin';
 import { adminServicePrisma } from './services/adminPrisma';
@@ -74,9 +75,9 @@ app.use('/api/auth', authRoutes);
 // Chat routes
 app.use('/api/chat', chatLimiter, chatRoutes); // Protect expensive AI calls
 
-// Appointment routes with injected dependencies
+// Appointment routes - using Prisma ORM
 app.post('/api/appointments', bookingLimiter); // Rate limit bookings
-app.use('/api/appointments', createAppointmentRouter(scheduler, emailService));
+app.use('/api/appointments', createAppointmentRouterPrisma(schedulerServicePrisma, emailService));
 
 // Public routes - using Prisma ORM
 app.use('/api/services', createServicesRouterPrisma(receptionist, adminServicePrisma));
