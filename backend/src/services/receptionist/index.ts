@@ -183,6 +183,37 @@ Would you like us to call you back instead? I can set that up for you!`;
 
         // No function call - AI chose to respond with just a message
         const aiResponse = response.content || '';
+
+        // FALLBACK: Check if AI outputted function call as text (e.g., <function(show_booking_form)>)
+        const functionCallMatch = aiResponse.match(/<function\((\w+)\)(\{.*?\})?>/);
+        if (functionCallMatch) {
+            const functionName = functionCallMatch[1];
+            let functionArgs: Record<string, string> = {};
+
+            if (functionCallMatch[2]) {
+                try {
+                    functionArgs = JSON.parse(functionCallMatch[2]);
+                } catch (e) {
+                    // Ignore parse errors
+                }
+            }
+
+            // Handle the function call
+            if (functionName === 'show_booking_form') {
+                return {
+                    message: functionArgs.message || "Here's our booking form.",
+                    action: { type: 'book_appointment' }
+                };
+            }
+
+            if (functionName === 'offer_callback_form' || functionName === 'provide_contact_info') {
+                return {
+                    message: functionArgs.message || "I'll help you get in touch with us!",
+                    action: { type: 'request_callback' }
+                };
+            }
+        }
+
         return {
             message: aiResponse || "I'm here to help! How can I assist you today?",
             action: { type: 'none' }
