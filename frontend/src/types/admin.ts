@@ -1,12 +1,12 @@
 export interface DashboardStats {
     todayAppointments: number;
-    weekAppointments: number;
-    monthAppointments: number;
+    weekAppointments: number;     // Confirmed only
+    monthAppointments: number;    // Confirmed only
     totalRevenue: number;
     cancelledCount: number;
     upcomingCount: number;
-    waitlistCount: number;
     pendingCallbacksCount: number;
+    noShowCount: number;          // No-shows this month
     topServices: { serviceId: string; serviceName: string; count: number }[];
 }
 

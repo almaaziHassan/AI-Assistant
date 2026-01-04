@@ -20,15 +20,15 @@ export const Overview: React.FC<OverviewProps> = ({ stats, appointmentStats, onR
             <div className="stats-grid">
                 <div className="stat-card">
                     <div className="stat-value">{stats.todayAppointments}</div>
-                    <div className="stat-label">Today's Appointments</div>
+                    <div className="stat-label">Today's Confirmed</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-value">{stats.weekAppointments}</div>
-                    <div className="stat-label">This Week</div>
+                    <div className="stat-label">This Week (Confirmed)</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-value">{stats.monthAppointments}</div>
-                    <div className="stat-label">This Month</div>
+                    <div className="stat-label">This Month (Confirmed)</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-value">{stats.upcomingCount}</div>
@@ -38,29 +38,21 @@ export const Overview: React.FC<OverviewProps> = ({ stats, appointmentStats, onR
                     <div className="stat-value">{stats.cancelledCount}</div>
                     <div className="stat-label">Cancelled (30d)</div>
                 </div>
-                <div className="stat-card info">
-                    <div className="stat-value">{stats.waitlistCount}</div>
-                    <div className="stat-label">On Waitlist</div>
+                <div className={`stat-card ${stats.noShowCount > 5 ? 'danger' : 'warning'}`}>
+                    <div className="stat-value">{stats.noShowCount}</div>
+                    <div className="stat-label">No-Shows (30d)</div>
                 </div>
                 <div className="stat-card highlight">
                     <div className="stat-value">{stats.pendingCallbacksCount}</div>
                     <div className="stat-label">Pending Callbacks</div>
                 </div>
 
-                {/* Appointment Status Stats */}
-                {appointmentStats && (
-                    <>
-                        {appointmentStats.pending > 0 && (
-                            <div className="stat-card highlight">
-                                <div className="stat-value">{appointmentStats.pending}</div>
-                                <div className="stat-label">Pending Confirmation</div>
-                            </div>
-                        )}
-                        <div className={`stat-card ${appointmentStats.noShowRate > 10 ? 'danger' : 'warning'}`}>
-                            <div className="stat-value">{appointmentStats.noShow}</div>
-                            <div className="stat-label">No-Shows (30d) - {appointmentStats.noShowRate}%</div>
-                        </div>
-                    </>
+                {/* Pending confirmation if any */}
+                {appointmentStats && appointmentStats.pending > 0 && (
+                    <div className="stat-card highlight">
+                        <div className="stat-value">{appointmentStats.pending}</div>
+                        <div className="stat-label">Pending Confirmation</div>
+                    </div>
                 )}
 
                 {stats.topServices.length > 0 && (

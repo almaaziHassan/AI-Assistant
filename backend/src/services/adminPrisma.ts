@@ -35,12 +35,13 @@ export interface WeeklySchedule {
 // Dashboard stats interface
 export interface DashboardStats {
     todayAppointments: number;
-    weekAppointments: number;
-    monthAppointments: number;
+    weekAppointments: number;      // Confirmed only
+    monthAppointments: number;     // Confirmed only
     totalRevenue: number;
     cancelledCount: number;
     upcomingCount: number;
     pendingCallbacksCount: number;
+    noShowCount: number;           // No-shows this month
     topServices: { serviceId: string; serviceName: string; count: number }[];
 }
 
@@ -294,33 +295,34 @@ export class AdminServicePrisma {
             cancelledCount,
             upcomingCount,
             pendingCallbacksCount,
+            noShowCount,
             topServicesRaw,
         ] = await Promise.all([
-            // Today's appointments
+            // Today's appointments (confirmed only)
             prisma.appointment.count({
                 where: {
                     appointmentDate: today,
-                    status: { in: ['confirmed', 'completed'] },
+                    status: 'confirmed',
                 },
             }),
 
-            // Week appointments
+            // Week appointments (confirmed only)
             prisma.appointment.count({
                 where: {
-                    appointmentDate: { gte: weekAgo },
-                    status: { in: ['confirmed', 'completed'] },
+                    appointmentDate: { gte: weekAgo, lte: today },
+                    status: 'confirmed',
                 },
             }),
 
-            // Month appointments
+            // Month appointments (confirmed only)
             prisma.appointment.count({
                 where: {
-                    appointmentDate: { gte: monthAgo },
-                    status: { in: ['confirmed', 'completed'] },
+                    appointmentDate: { gte: monthAgo, lte: today },
+                    status: 'confirmed',
                 },
             }),
 
-            // Cancelled count
+            // Cancelled count (this month)
             prisma.appointment.count({
                 where: {
                     appointmentDate: { gte: monthAgo },
@@ -339,6 +341,14 @@ export class AdminServicePrisma {
             // Pending callbacks
             prisma.callback.count({
                 where: { status: 'pending' },
+            }),
+
+            // No-shows this month
+            prisma.appointment.count({
+                where: {
+                    appointmentDate: { gte: monthAgo },
+                    status: 'no-show',
+                },
             }),
 
             // Top services (grouped)
@@ -365,6 +375,7 @@ export class AdminServicePrisma {
             cancelledCount,
             upcomingCount,
             pendingCallbacksCount,
+            noShowCount,
             topServices,
         };
     }
