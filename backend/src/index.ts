@@ -21,6 +21,7 @@ import chatRoutes from './routes/chat';
 import { createAppointmentRouter } from './routes/appointments';
 import { createServicesRouter } from './routes/services';
 import { createAdminRouter } from './routes/admin';
+import { createAdminRouterPrisma } from './routes/adminPrisma';
 import { createCallbacksRouter } from './routes/callbacks';
 import authRoutes from './routes/auth';
 
@@ -29,6 +30,7 @@ import { ReceptionistService } from './services/receptionist';
 import { SchedulerService } from './services/scheduler';
 import { emailService } from './services/email';
 import { adminService } from './services/admin';
+import { adminServicePrisma } from './services/adminPrisma';
 
 // Core imports
 import { initDatabase } from './db/database';
@@ -77,8 +79,9 @@ app.use('/api/appointments', createAppointmentRouter(scheduler, emailService));
 // Public routes with injected dependencies
 app.use('/api/services', createServicesRouter(receptionist, adminService));
 
-// Protected admin routes with injected dependencies
-app.use('/api/admin', adminAuthMiddleware, createAdminRouter(adminService, scheduler));
+// Protected admin routes - using Prisma ORM (Enterprise upgrade)
+// Old route: createAdminRouter(adminService, scheduler)
+app.use('/api/admin', adminAuthMiddleware, createAdminRouterPrisma(adminServicePrisma));
 
 // Callback routes
 app.use('/api/callbacks', createCallbacksRouter());
