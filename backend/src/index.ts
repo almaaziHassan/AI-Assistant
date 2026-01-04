@@ -129,7 +129,18 @@ app.get('/api', (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    env: {
+      node_env: process.env.NODE_ENV,
+      has_db_url: !!process.env.DATABASE_URL,
+      has_direct_url: !!process.env.DIRECT_URL,
+      db_url_starts_with: process.env.DATABASE_URL?.substring(0, 10),
+      // Do NOT expose full secrets
+      prisma_version: '6.x'
+    }
+  });
 });
 
 // ==================== Socket.IO ====================
