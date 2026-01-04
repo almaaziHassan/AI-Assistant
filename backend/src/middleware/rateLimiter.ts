@@ -1,13 +1,14 @@
 import rateLimit from 'express-rate-limit';
+import { RATE_LIMIT_WINDOWS, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_MESSAGES } from '../constants/rateLimits';
 
 /**
  * General API rate limiter
  * Allows 100 requests per 15 minutes per IP
  */
 export const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again later.',
+    windowMs: RATE_LIMIT_WINDOWS.GENERAL_API,
+    max: RATE_LIMIT_MAX_REQUESTS.GENERAL_API,
+    message: RATE_LIMIT_MESSAGES.GENERAL,
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
@@ -18,9 +19,9 @@ export const apiLimiter = rateLimit({
  * Protects the expensive Groq API calls
  */
 export const chatLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 30, // Limit each IP to 30 chat requests per windowMs
-    message: 'You are sending messages too quickly. Please wait a moment before trying again.',
+    windowMs: RATE_LIMIT_WINDOWS.CHAT,
+    max: RATE_LIMIT_MAX_REQUESTS.CHAT,
+    message: RATE_LIMIT_MESSAGES.CHAT,
     standardHeaders: true,
     legacyHeaders: false,
     // Skip rate limiting for localhost (development)
@@ -35,9 +36,9 @@ export const chatLimiter = rateLimit({
  * Prevents brute force attacks
  */
 export const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // Limit each IP to 5 login requests per windowMs
-    message: 'Too many login attempts, please try again later.',
+    windowMs: RATE_LIMIT_WINDOWS.LOGIN,
+    max: RATE_LIMIT_MAX_REQUESTS.LOGIN,
+    message: RATE_LIMIT_MESSAGES.LOGIN,
     standardHeaders: true,
     legacyHeaders: false,
 });
@@ -48,9 +49,9 @@ export const loginLimiter = rateLimit({
  * Prevents spam bookings
  */
 export const bookingLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 10, // Limit each IP to 10 bookings per hour
-    message: 'You have made too many booking requests. Please try again later.',
+    windowMs: RATE_LIMIT_WINDOWS.BOOKING,
+    max: RATE_LIMIT_MAX_REQUESTS.BOOKING,
+    message: RATE_LIMIT_MESSAGES.BOOKING,
     standardHeaders: true,
     legacyHeaders: false,
 });
