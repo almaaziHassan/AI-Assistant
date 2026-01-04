@@ -23,6 +23,8 @@ import { createServicesRouter } from './routes/services';
 import { createAdminRouter } from './routes/admin';
 import { createAdminRouterPrisma } from './routes/adminPrisma';
 import { createCallbacksRouter } from './routes/callbacks';
+import { createCallbacksRouterPrisma } from './routes/callbacksPrisma';
+import { createServicesRouterPrisma } from './routes/servicesPrisma';
 import authRoutes from './routes/auth';
 
 // Service imports
@@ -76,15 +78,15 @@ app.use('/api/chat', chatLimiter, chatRoutes); // Protect expensive AI calls
 app.post('/api/appointments', bookingLimiter); // Rate limit bookings
 app.use('/api/appointments', createAppointmentRouter(scheduler, emailService));
 
-// Public routes with injected dependencies
-app.use('/api/services', createServicesRouter(receptionist, adminService));
+// Public routes - using Prisma ORM
+app.use('/api/services', createServicesRouterPrisma(receptionist, adminServicePrisma));
 
 // Protected admin routes - using Prisma ORM (Enterprise upgrade)
 // Old route: createAdminRouter(adminService, scheduler)
 app.use('/api/admin', adminAuthMiddleware, createAdminRouterPrisma(adminServicePrisma));
 
-// Callback routes
-app.use('/api/callbacks', createCallbacksRouter());
+// Callback routes - using Prisma ORM
+app.use('/api/callbacks', createCallbacksRouterPrisma());
 
 // ==================== API Documentation ====================
 

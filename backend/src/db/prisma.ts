@@ -5,6 +5,9 @@
  * This file sets up the pg adapter with the correct configuration.
  */
 
+import dotenv from 'dotenv';
+dotenv.config(); // Load env vars before accessing DATABASE_URL
+
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
