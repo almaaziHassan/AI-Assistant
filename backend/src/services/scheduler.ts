@@ -1,7 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { runQuery, getOne, getAll } from '../db/database';
 import servicesConfig from '../config/services.json';
-import { adminService, WeeklySchedule } from './admin';
+import { adminService, AdminService, WeeklySchedule } from './admin';
+import { TIME_CONSTANTS, getDaysAgoISO, convertMinutesToMs } from '../constants/time';
+import { STATS_PERIODS } from '../constants/business';
 
 export interface Appointment {
   id: string;
@@ -41,7 +43,16 @@ export interface BookingRequest {
 const bookingLocks = new Map<string, boolean>();
 
 export class SchedulerService {
-  private config = servicesConfig;
+  private config: typeof servicesConfig;
+  private adminService: AdminService;
+
+  constructor(
+    config = servicesConfig,
+    adminSvc: AdminService = adminService
+  ) {
+    this.config = config;
+    this.adminService = adminSvc;
+  }
 
   // Validate date format (YYYY-MM-DD)
   private isValidDateFormat(date: string): boolean {
@@ -77,7 +88,7 @@ export class SchedulerService {
     if (timezoneOffset !== undefined) {
       // Client sends their offset (e.g., -300 means UTC-5)
       // We need to calculate what time it is for the client
-      const clientNow = new Date(now.getTime() - (timezoneOffset * 60 * 1000));
+      const clientNow = new Date(now.getTime() - convertMinutesToMs(timezoneOffset));
       const slotDateTime = new Date(`${date}T${time}:00`);
       // Adjust slot to compare in same reference
       const slotInClientTime = new Date(slotDateTime.getTime());
@@ -207,7 +218,7 @@ export class SchedulerService {
       return [];
     }
 
-    const service = adminService.getService(serviceId);
+    const service = this.adminService.getService(serviceId);
     if (!service) return [];
 
     // 2. Determine Business Open/Close (Outer Bounds)
@@ -215,7 +226,7 @@ export class SchedulerService {
     let businessClose = '';
 
     // Check Holiday
-    const holiday = adminService.getHolidayByDate(date);
+    const holiday = this.adminService.getHolidayByDate(date);
     if (holiday) {
       if (holiday.isClosed) return [];
       if (holiday.customHoursOpen && holiday.customHoursClose) {
@@ -240,11 +251,11 @@ export class SchedulerService {
     // 3. Get Relevant Staff
     let relevantStaff = [];
     if (staffId) {
-      const s = adminService.getStaff(staffId);
+      const s = this.adminService.getStaff(staffId);
       if (s) relevantStaff.push(s);
     } else {
       // Get all active staff who provide this service
-      relevantStaff = adminService.getAllStaff(true).filter(s =>
+      relevantStaff = this.adminService.getAllStaff(true).filter(s =>
         !s.services || s.services.length === 0 || s.services.includes(serviceId)
       );
     }
@@ -323,7 +334,7 @@ export class SchedulerService {
 
   // Generate slots for custom hours (holidays, special days)
   private generateSlotsForHours(date: string, serviceId: string, openTime: string, closeTime: string, staffId?: string): TimeSlot[] {
-    const service = adminService.getService(serviceId);
+    const service = this.adminService.getService(serviceId);
     if (!service) {
       return [];
     }
@@ -427,7 +438,7 @@ export class SchedulerService {
     }
 
     // Verify service exists in database
-    const service = adminService.getService(normalizedRequest.serviceId);
+    const service = this.adminService.getService(normalizedRequest.serviceId);
     if (!service) {
       throw new Error('Selected service not found');
     }
@@ -479,7 +490,7 @@ export class SchedulerService {
       // Get staff name if staffId provided
       let staffName: string | undefined;
       if (normalizedRequest.staffId) {
-        const staffMember = adminService.getAllStaff().find(s => s.id === normalizedRequest.staffId);
+        const staffMember = this.adminService.getAllStaff().find(s => s.id === normalizedRequest.staffId);
         staffName = staffMember?.name;
       }
 
@@ -608,7 +619,7 @@ export class SchedulerService {
 
       // Get current time in client's timezone
       const now = new Date();
-      const clientNow = new Date(now.getTime() - (tz * 60 * 1000));
+      const clientNow = new Date(now.getTime() - convertMinutesToMs(tz));
 
       // Parse appointment datetime - stored as local time strings (e.g., "2024-12-31" and "15:15")
       // Create appointment datetime as if it's in the same timezone reference
@@ -681,7 +692,7 @@ export class SchedulerService {
     ) as { total: number; pending: number; confirmed: number; completed: number; cancelled: number; no_show: number };
 
     // No-show rate for last 30 days only
-    const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const monthAgo = getDaysAgoISO(STATS_PERIODS.LAST_MONTH_DAYS);
     const monthStats = getOne(
       `SELECT
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
@@ -736,12 +747,12 @@ export class SchedulerService {
 
   private timeToMinutes(time: string): number {
     const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
+    return hours * TIME_CONSTANTS.MINUTES_PER_HOUR + minutes;
   }
 
   private minutesToTime(minutes: number): string {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const hours = Math.floor(minutes / TIME_CONSTANTS.MINUTES_PER_HOUR);
+    const mins = minutes % TIME_CONSTANTS.MINUTES_PER_HOUR;
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   }
 }

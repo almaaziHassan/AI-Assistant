@@ -1,5 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { runQuery, getOne, getAll, SqlValue } from '../db/database';
+import { TIME_CONSTANTS, getDaysAgoISO } from '../constants/time';
+import { STATS_PERIODS, TIMEZONE, PLACEHOLDER_VALUES } from '../constants/business';
 
 // Staff interfaces
 export interface DailySchedule {
@@ -84,8 +86,8 @@ export class AdminService {
     const now = new Date().toISOString();
 
     runQuery(
-      `INSERT INTO staff (id, name, email, phone, role, services, schedule, color, is_active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO staff(id, name, email, phone, role, services, schedule, color, is_active, created_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, data.name, data.email || null, data.phone || null, data.role,
         JSON.stringify(data.services), data.schedule ? JSON.stringify(data.schedule) : null,
         data.color || null, data.isActive ? 1 : 0, now]
@@ -124,7 +126,7 @@ export class AdminService {
 
     if (updates.length > 0) {
       values.push(id);
-      runQuery(`UPDATE staff SET ${updates.join(', ')} WHERE id = ?`, values);
+      runQuery(`UPDATE staff SET ${updates.join(', ')} WHERE id = ? `, values);
     }
 
     return this.getStaff(id);
@@ -186,8 +188,8 @@ export class AdminService {
     const now = new Date().toISOString();
 
     runQuery(
-      `INSERT INTO locations (id, name, address, phone, is_active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO locations(id, name, address, phone, is_active, created_at)
+VALUES(?, ?, ?, ?, ?, ?)`,
       [id, data.name, data.address || null, data.phone || null, data.isActive ? 1 : 0, now]
     );
 
@@ -220,7 +222,7 @@ export class AdminService {
 
     if (updates.length > 0) {
       values.push(id);
-      runQuery(`UPDATE locations SET ${updates.join(', ')} WHERE id = ?`, values);
+      runQuery(`UPDATE locations SET ${updates.join(', ')} WHERE id = ? `, values);
     }
 
     return this.getLocation(id);
@@ -255,8 +257,8 @@ export class AdminService {
     const nextOrder = ((maxOrderResult?.max_order as number) || 0) + 1;
 
     runQuery(
-      `INSERT INTO services (id, name, description, duration, price, is_active, display_order, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO services(id, name, description, duration, price, is_active, display_order, created_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, data.name, data.description || null, data.duration, data.price,
         data.isActive ? 1 : 0, data.displayOrder || nextOrder, now]
     );
@@ -292,7 +294,7 @@ export class AdminService {
 
     if (updates.length > 0) {
       values.push(id);
-      runQuery(`UPDATE services SET ${updates.join(', ')} WHERE id = ?`, values);
+      runQuery(`UPDATE services SET ${updates.join(', ')} WHERE id = ? `, values);
     }
 
     return this.getService(id);
@@ -325,8 +327,8 @@ export class AdminService {
     const now = new Date().toISOString();
 
     runQuery(
-      `INSERT INTO holidays (id, date, name, is_closed, custom_hours_open, custom_hours_close, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO holidays(id, date, name, is_closed, custom_hours_open, custom_hours_close, created_at)
+VALUES(?, ?, ?, ?, ?, ?, ?)`,
       [id, data.date, data.name, data.isClosed ? 1 : 0,
         data.customHoursOpen || null, data.customHoursClose || null, now]
     );
@@ -368,7 +370,7 @@ export class AdminService {
 
     if (updates.length > 0) {
       values.push(id);
-      runQuery(`UPDATE holidays SET ${updates.join(', ')} WHERE id = ?`, values);
+      runQuery(`UPDATE holidays SET ${updates.join(', ')} WHERE id = ? `, values);
     }
 
     return this.getHoliday(id);
@@ -404,21 +406,21 @@ export class AdminService {
 
     // Today's appointments (confirmed + completed)
     const todayResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date = ? AND status IN ('confirmed', 'completed')`,
+      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date = ? AND status IN('confirmed', 'completed')`,
       [today]
     );
     const todayAppointments = (todayResult?.count as number) || 0;
 
     // Week appointments (confirmed + completed)
     const weekResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN ('confirmed', 'completed')`,
+      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN('confirmed', 'completed')`,
       [weekAgo]
     );
     const weekAppointments = (weekResult?.count as number) || 0;
 
     // Month appointments (confirmed + completed)
     const monthResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN ('confirmed', 'completed')`,
+      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN('confirmed', 'completed')`,
       [monthAgo]
     );
     const monthAppointments = (monthResult?.count as number) || 0;
@@ -440,8 +442,8 @@ export class AdminService {
 
     const upcomingResult = getOne(
       `SELECT COUNT(*) as count FROM appointments 
-       WHERE status IN ('pending', 'confirmed') 
-       AND (appointment_date > ? OR (appointment_date = ? AND appointment_time > ?))`,
+       WHERE status IN('pending', 'confirmed')
+AND(appointment_date > ? OR(appointment_date = ? AND appointment_time > ?))`,
       [businessDate, businessDate, currentTime]
     );
     const upcomingCount = (upcomingResult?.count as number) || 0;
@@ -459,7 +461,7 @@ export class AdminService {
       `SELECT service_id, service_name, COUNT(*) as count
        FROM appointments
        WHERE appointment_date >= ?
-       GROUP BY service_id, service_name
+  GROUP BY service_id, service_name
        ORDER BY count DESC
        LIMIT 5`,
       [monthAgo]
@@ -491,7 +493,7 @@ export class AdminService {
     return getAll(
       `SELECT * FROM appointments
        WHERE appointment_date >= ? AND appointment_date <= ?
-       ORDER BY appointment_date, appointment_time`,
+  ORDER BY appointment_date, appointment_time`,
       [startDate, endDate]
     );
   }

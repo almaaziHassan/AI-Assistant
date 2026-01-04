@@ -1,0 +1,203 @@
+/**
+ * Main Receptionist Service
+ * Orchestrates AI-powered chat interactions for the virtual receptionist
+ * 
+ * This refactored version is much cleaner - large functions have been
+ * extracted into separate modules for better maintainability
+ */
+
+import { GroqService, ChatMessage } from '../groq';
+import servicesConfig from '../../config/services.json';
+import { adminService, AdminService } from '../admin';
+import { getTools } from './tools';
+import { buildSystemPrompt } from './promptBuilder';
+import { executeBooking, executeCallbackRequest } from './handlers';
+import {
+    ReceptionistResponse,
+    ConversationMessage,
+    FAQ,
+    BookingConfirmation,
+    CallbackConfirmation
+} from './types';
+
+// Re-export types for backward compatibility
+export type {
+    BookingConfirmation,
+    CallbackConfirmation,
+    ReceptionistResponse
+};
+
+export class ReceptionistService {
+    private groq: GroqService;
+    private config: typeof servicesConfig;
+    private adminService: AdminService;
+
+    constructor(
+        groq: GroqService = new GroqService(),
+        config = servicesConfig,
+        adminSvc: AdminService = adminService
+    ) {
+        this.groq = groq;
+        this.config = config;
+        this.adminService = adminSvc;
+    }
+
+    getConfig() {
+        return this.config;
+    }
+
+    /**
+     * Find relevant FAQs based on user message keywords
+     */
+    private findRelevantFAQs(message: string): FAQ[] {
+        const lowerMessage = message.toLowerCase();
+        const faqs = (this.config as { faqs?: FAQ[] }).faqs || [];
+
+        return faqs.filter(faq =>
+            faq.keywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()))
+        );
+    }
+
+    /**
+     * Main chat method - handles conversation with AI
+     */
+    async chat(
+        userMessage: string,
+        history: ConversationMessage[]
+    ): Promise<ReceptionistResponse> {
+        // Find relevant FAQs for this message
+        const relevantFAQs = this.findRelevantFAQs(userMessage);
+
+        // Get services from database
+        const dbServices = this.adminService.getAllServices(true); // only active services
+        const servicesList = dbServices.map(s => ({
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            duration: s.duration,
+            price: s.price
+        }));
+
+        // Get staff from database
+        const dbStaff = this.adminService.getAllStaff(true); // only active staff
+        const staffList = dbStaff.map(s => {
+            // Map service IDs to names for AI context
+            const serviceNames = (s.services || []).map(sid => {
+                const service = dbServices.find(dS => dS.id === sid);
+                return service ? service.name : null;
+            }).filter((n): n is string => n !== null);
+
+            return {
+                id: s.id,
+                name: s.name,
+                role: s.role,
+                services: serviceNames // Send Names instead of IDs
+            };
+        });
+
+        const systemPrompt = buildSystemPrompt(relevantFAQs, staffList, servicesList);
+
+        // Build messages array for Groq
+        const messages: ChatMessage[] = [
+            { role: 'system', content: systemPrompt },
+            ...history.map(msg => ({
+                role: msg.role as 'user' | 'assistant',
+                content: msg.content
+            }))
+        ];
+
+        // Don't add user message again if it's already in history
+        if (history.length === 0 || history[history.length - 1].content !== userMessage) {
+            messages.push({ role: 'user', content: userMessage });
+        }
+
+        // Get tools for function calling
+        const tools = getTools();
+
+        // Get AI response with function calling
+        const response = await this.groq.chatWithFunctions(messages, tools);
+
+        // Check if AI wants to call a function
+        if (response.toolCalls && response.toolCalls.length > 0) {
+            const toolCall = response.toolCalls[0];
+            const functionName = toolCall.function.name;
+            const functionArgs = JSON.parse(toolCall.function.arguments);
+
+            // Handle show_booking_form - AI detected booking intent
+            if (functionName === 'show_booking_form') {
+                return {
+                    message: functionArgs.message || "Here's our booking form.",
+                    action: { type: 'book_appointment' }
+                };
+            }
+
+            // Handle provide_contact_info - AI detected user wants direct contact
+            if (functionName === 'provide_contact_info') {
+                const { business } = this.config;
+                const contactMessage = `Here's how you can reach us directly:
+
+• **Phone:** ${business.phone}
+• **Email:** ${business.email}
+• **Address:** ${business.address}
+
+Would you like us to call you back instead? I can set that up for you!`;
+
+                return {
+                    message: contactMessage,
+                    action: { type: 'offer_callback', data: { reason: functionArgs.reason } }
+                };
+            }
+
+            // Handle offer_callback_form - User agreed to get a callback
+            if (functionName === 'offer_callback_form') {
+                return {
+                    message: functionArgs.message || "I'll get that set up for you!",
+                    action: { type: 'request_callback' }
+                };
+            }
+
+            // Handle callback request
+            if (functionName === 'request_callback') {
+                const result = executeCallbackRequest(functionArgs);
+
+                if (result.success && result.confirmation) {
+                    const confirmationMessage = `I've submitted your callback request. Our wellness team will reach out to you at ${result.confirmation.customerPhone} ` +
+                        (result.confirmation.preferredTime ? `during the ${result.confirmation.preferredTime}` : 'as soon as possible') +
+                        `. We look forward to speaking with you, ${result.confirmation.customerName}!`;
+
+                    return {
+                        message: confirmationMessage,
+                        action: {
+                            type: 'callback_confirmed',
+                            callbackConfirmation: result.confirmation
+                        }
+                    };
+                } else {
+                    return {
+                        message: `I apologize, but I couldn't submit the callback request: ${result.error}. Please try again or call us directly.`,
+                        action: { type: 'none' }
+                    };
+                }
+            }
+        }
+
+        // No function call - AI chose to respond with just a message
+        const aiResponse = response.content || '';
+        return {
+            message: aiResponse || "I'm here to help! How can I assist you today?",
+            action: { type: 'none' }
+        };
+    }
+
+    getServices() {
+        return this.adminService.getAllServices(true);
+    }
+
+    getBusinessHours() {
+        return this.config.hours;
+    }
+
+    getBusinessInfo() {
+        return this.config.business;
+    }
+}
