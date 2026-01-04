@@ -1,0 +1,11 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+
+if [ "$branch" = "main" ]; then
+  echo "🔴 Error: Direct commits to 'main' are disabled."
+  echo "Please create a feature branch:"
+  echo "  git checkout -b feature/my-feature"
+  exit 1
+fi
