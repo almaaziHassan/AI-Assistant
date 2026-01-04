@@ -50,10 +50,22 @@ export function getExpressCorsConfig() {
 
 /**
  * Get CORS configuration for Socket.IO
+ * Socket.IO needs special handling - use true for all origins, not '*'
  */
 export function getSocketCorsConfig() {
+    const allowedOrigins = getAllowedOrigins();
+
+    // For Socket.IO, use true to allow all origins (not the string '*')
+    if (allowedOrigins === '*') {
+        return {
+            origin: true,
+            methods: ['GET', 'POST'],
+            credentials: true
+        };
+    }
+
     return {
-        origin: getCorsOriginChecker(),
+        origin: allowedOrigins,
         methods: ['GET', 'POST'],
         credentials: true
     };
