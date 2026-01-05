@@ -40,14 +40,34 @@ export const formatDate = (dateStr: string | Date | unknown): string => {
     });
 };
 
-export const formatTime = (time: string): string => {
+export const formatTime = (time: string | unknown): string => {
     if (!time) return '';
-    const timePart = time.split(':');
-    const hours = parseInt(timePart[0], 10);
-    const minutes = parseInt(timePart[1], 10);
-    if (isNaN(hours) || isNaN(minutes)) return time;
+
+    let timeStr = String(time);
+
+    // Handle ISO date strings like "1970-01-01T09:00:00.000Z"
+    // Extract the time portion after 'T'
+    if (timeStr.includes('T')) {
+        const timePart = timeStr.split('T')[1];
+        if (timePart) {
+            // Get "09:00" from "09:00:00.000Z"
+            timeStr = timePart.substring(0, 5);
+        }
+    }
+
+    // Now parse HH:MM format
+    const parts = timeStr.split(':');
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+
+    if (isNaN(hours) || isNaN(minutes)) {
+        console.warn('formatTime: Could not parse time:', time);
+        return String(time);
+    }
+
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    return `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 };
 
 export const formatDateTime = (dateStr: string): string => {
