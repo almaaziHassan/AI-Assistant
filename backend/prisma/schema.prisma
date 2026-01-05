@@ -23,6 +23,7 @@ model Staff {
   staff_services staff_services[]
   waitlist       Waitlist[]
 
+  @@index([isActive], map: "idx_staff_active")
   @@map("staff")
 }
 
@@ -37,6 +38,7 @@ model Service {
   createdAt      DateTime?        @default(now()) @map("created_at") @db.Timestamptz(6)
   staff_services staff_services[]
 
+  @@index([isActive], map: "idx_services_active")
   @@map("services")
 }
 
@@ -49,6 +51,7 @@ model Location {
   createdAt    DateTime?     @default(now()) @map("created_at") @db.Timestamptz(6)
   appointments Appointment[]
 
+  @@index([isActive], map: "idx_locations_active")
   @@map("locations")
 }
 
