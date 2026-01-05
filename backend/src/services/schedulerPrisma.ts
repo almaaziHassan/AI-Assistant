@@ -167,13 +167,22 @@ export class SchedulerServicePrisma {
         const closeMinutes = this.timeToMinutes(hours.close);
 
         // Get existing appointments for this date
+        // Use date range to handle timezone differences
+        const startOfDay = new Date(`${date}T00:00:00.000Z`);
+        const endOfDay = new Date(`${date}T23:59:59.999Z`);
+
         const existingAppointments = await prisma.appointment.findMany({
             where: {
-                appointmentDate: new Date(date),
+                appointmentDate: {
+                    gte: startOfDay,
+                    lte: endOfDay,
+                },
                 status: { notIn: ['cancelled'] },
                 ...(staffId && { staffId }),
             },
         });
+
+        console.log(`[getAvailableSlots] Date: ${date}, Staff: ${staffId}, Found ${existingAppointments.length} existing appointments`);
 
         // Get staff working hours if staffId provided
         let staffSchedule: WeeklySchedule | null = null;
