@@ -1,82 +1,50 @@
-# Performance Optimization Plan
+# Performance Optimization Plan - Phase 2
 
-## Current Analysis
+## Backend Bottlenecks Identified
 
-### Frontend Bundle Size
-- **Main JS**: 488 KB (gzipped: ~152 KB)
-- **Main CSS**: 53 KB (gzipped: ~10 KB)
+### 1. Dashboard Stats - 7 Sequential DB Queries
+`getDashboardStats()` makes 7 separate database queries:
+- Today appointments
+- Week appointments  
+- Month appointments
+- Cancelled count
+- Upcoming count
+- Pending callbacks
+- Top services
 
-### Identified Issues
+**Solution:** Combine into a single query with conditional aggregation
 
-#### 1. **Frontend - Excessive Re-renders**
-The AdminDashboard updates every second due to the clock:
-```typescript
-setInterval(() => {
-  setCurrentDateTime(new Date());
-}, 1000);
-```
-This causes the entire component tree to re-render every second!
+### 2. Chat Service - Synchronous DB Calls
+Every chat message triggers:
+- `getAllServices(true)` - DB query
+- `getAllStaff(true)` - DB query
 
-#### 2. **Frontend - No Code Splitting**
-All code is bundled into a single JS file (488KB). Heavy libraries like:
-- `react-big-calendar` 
-- `moment.js`
-Are loaded even when not needed.
+**Solution:** Cache services/staff with TTL (they rarely change)
 
-#### 3. **Frontend - No Lazy Loading**
-AdminDashboard is loaded even when user is on landing page.
+### 3. Admin Dashboard API Calls
+Each tab switch triggers fresh API calls with no caching.
 
-#### 4. **Backend - Synchronous DB Cache Pattern**
-The database uses a sync cache lookup that can be inefficient for complex queries.
-
-#### 5. **Console.log Statements in Production**
-Debug logging (calendar events logging) adds overhead.
+**Solution:** Add client-side caching with SWR or React Query pattern
 
 ---
 
-## Optimization Tasks
+## Implementation Priority
 
-### HIGH PRIORITY
+### HIGH IMPACT (Backend)
 
-#### 1. Fix Clock Re-render Issue
-Isolate the clock into its own `React.memo` component to prevent parent re-renders.
+1. **Optimize getDashboardStats** - Single query optimization
+2. **Cache services/staff in ReceptionistService** - Reduce DB calls
+3. **Add response caching headers** for static/semi-static data
 
-#### 2. Add Code Splitting
-Use `React.lazy` and `Suspense` to lazy-load:
-- AdminDashboard
-- Calendar component (react-big-calendar)
+### MEDIUM IMPACT (Frontend)  
 
-#### 3. Remove Debug Console Logs
-Remove the debug console.log statements we added to the calendar.
-
-### MEDIUM PRIORITY
-
-#### 4. Optimize Bundle Size
-- Replace `moment.js` with `date-fns` (smaller)
-- Or configure webpack/vite to tree-shake moment locales
-
-#### 5. Add React.memo to List Components
-Memoize appointment list items, staff items, etc.
-
-#### 6. Debounce Filter Changes
-Add debouncing to filter changes to prevent rapid API calls.
-
-### LOW PRIORITY
-
-#### 7. Add Service Worker / PWA Caching
-Cache static assets for faster subsequent loads.
-
-#### 8. Optimize Images
-Ensure any images are properly sized and compressed.
+4. **Add data caching between tab switches** - Prevent redundant API calls
+5. **Implement skeleton loading** - Better perceived performance
 
 ---
 
-## Implementation Order
+## Quick Wins to Implement Now
 
-1. ✅ Fix clock re-render (HIGH - biggest impact)
-2. ✅ Remove debug logs (HIGH - quick win)
-3. ✅ Add code splitting for AdminDashboard (HIGH)
-4. ⬜ Lazy load Calendar component (MEDIUM)
-5. ⬜ Add React.memo optimizations (MEDIUM)
-6. ⬜ Consider moment.js replacement (LOW - breaking change risk)
-
+1. Optimize getDashboardStats() with combined query
+2. Add in-memory cache for services/staff (5 min TTL)
+3. Add HTTP caching headers for /api/services endpoint

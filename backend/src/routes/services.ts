@@ -2,12 +2,18 @@ import { Router, Request, Response } from 'express';
 import { ReceptionistService } from '../services/receptionist';
 import { adminService, AdminService } from '../services/admin';
 
-// Helper to set no-cache headers
+// Helper to set no-cache headers (for dynamic data)
 const noCache = (res: Response) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
 };
+
+// Helper to set short-lived cache headers (for semi-static data like services/staff)
+const shortCache = (res: Response, seconds: number = 60) => {
+  res.set('Cache-Control', `public, max-age=${seconds}, stale-while-revalidate=${seconds * 2}`);
+};
+
 
 export function createServicesRouter(
   receptionist: ReceptionistService = new ReceptionistService(),
@@ -18,7 +24,7 @@ export function createServicesRouter(
   // GET /api/services - Get all services (from database)
   router.get('/', (req: Request, res: Response) => {
     try {
-      noCache(res);
+      shortCache(res, 60); // Cache for 60 seconds - services rarely change
       // Get active services from database
       const services = adminSvc.getAllServices(true);
       res.json(services);
@@ -33,10 +39,8 @@ export function createServicesRouter(
   // GET /api/services/staff - Get active staff members (public endpoint for booking)
   router.get('/staff', (req: Request, res: Response) => {
     try {
-      noCache(res);
-      console.log('[services/staff] Fetching active staff');
+      shortCache(res, 60); // Cache for 60 seconds - staff rarely changes
       const staff = adminSvc.getAllStaff(true);
-      console.log(`[services/staff] Returning ${staff.length} staff members`);
       res.json(staff);
     } catch (error) {
       console.error('Get staff error:', error);

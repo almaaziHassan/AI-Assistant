@@ -27,10 +27,22 @@ export type {
     ReceptionistResponse
 };
 
+// Cache for services and staff to avoid DB calls on every chat message
+interface CacheEntry<T> {
+    data: T;
+    timestamp: number;
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 export class ReceptionistService {
     private groq: GroqService;
     private config: typeof servicesConfig;
     private adminService: AdminService;
+
+    // In-memory cache for frequently accessed data
+    private servicesCache: CacheEntry<ReturnType<AdminService['getAllServices']>> | null = null;
+    private staffCache: CacheEntry<ReturnType<AdminService['getAllStaff']>> | null = null;
 
     constructor(
         groq: GroqService = new GroqService(),
@@ -40,6 +52,40 @@ export class ReceptionistService {
         this.groq = groq;
         this.config = config;
         this.adminService = adminSvc;
+    }
+
+    /**
+     * Get cached services or fetch from DB if cache expired
+     */
+    private getCachedServices() {
+        const now = Date.now();
+        if (this.servicesCache && (now - this.servicesCache.timestamp) < CACHE_TTL_MS) {
+            return this.servicesCache.data;
+        }
+        const services = this.adminService.getAllServices(true);
+        this.servicesCache = { data: services, timestamp: now };
+        return services;
+    }
+
+    /**
+     * Get cached staff or fetch from DB if cache expired
+     */
+    private getCachedStaff() {
+        const now = Date.now();
+        if (this.staffCache && (now - this.staffCache.timestamp) < CACHE_TTL_MS) {
+            return this.staffCache.data;
+        }
+        const staff = this.adminService.getAllStaff(true);
+        this.staffCache = { data: staff, timestamp: now };
+        return staff;
+    }
+
+    /**
+     * Invalidate cache (call when services/staff are updated)
+     */
+    invalidateCache() {
+        this.servicesCache = null;
+        this.staffCache = null;
     }
 
     getConfig() {
@@ -68,8 +114,8 @@ export class ReceptionistService {
         // Find relevant FAQs for this message
         const relevantFAQs = this.findRelevantFAQs(userMessage);
 
-        // Get services from database
-        const dbServices = this.adminService.getAllServices(true); // only active services
+        // Get services from cache (avoids DB call on every message)
+        const dbServices = this.getCachedServices();
         const servicesList = dbServices.map(s => ({
             id: s.id,
             name: s.name,
@@ -78,8 +124,8 @@ export class ReceptionistService {
             price: s.price
         }));
 
-        // Get staff from database
-        const dbStaff = this.adminService.getAllStaff(true); // only active staff
+        // Get staff from cache (avoids DB call on every message)
+        const dbStaff = this.getCachedStaff();
         const staffList = dbStaff.map(s => {
             // Map service IDs to names for AI context
             const serviceNames = (s.services || []).map(sid => {

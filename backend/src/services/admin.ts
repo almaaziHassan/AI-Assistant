@@ -404,64 +404,43 @@ VALUES(?, ?, ?, ?, ?, ?, ?)`,
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Today's appointments (confirmed + completed)
-    const todayResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date = ? AND status IN('confirmed', 'completed')`,
-      [today]
-    );
-    const todayAppointments = (todayResult?.count as number) || 0;
-
-    // Week appointments (confirmed + completed)
-    const weekResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN('confirmed', 'completed')`,
-      [weekAgo]
-    );
-    const weekAppointments = (weekResult?.count as number) || 0;
-
-    // Month appointments (confirmed + completed)
-    const monthResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status IN('confirmed', 'completed')`,
-      [monthAgo]
-    );
-    const monthAppointments = (monthResult?.count as number) || 0;
-
-    // Cancelled count (last 30 days)
-    const cancelledResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments WHERE appointment_date >= ? AND status = 'cancelled'`,
-      [monthAgo]
-    );
-    const cancelledCount = (cancelledResult?.count as number) || 0;
-
-    // Upcoming appointments - truly in the future (date > today, OR date = today AND time > now)
-    // Use business timezone (UTC+5 for PKT) to correctly compare times
+    // Business timezone for upcoming calculations
     const nowUTC = new Date();
     const businessOffset = 5 * 60; // PKT is UTC+5 (in minutes)
     const businessTime = new Date(nowUTC.getTime() + businessOffset * 60 * 1000);
     const businessDate = businessTime.toISOString().split('T')[0];
-    const currentTime = businessTime.toTimeString().slice(0, 5); // HH:MM format in business timezone
+    const currentTime = businessTime.toTimeString().slice(0, 5);
 
-    const upcomingResult = getOne(
-      `SELECT COUNT(*) as count FROM appointments 
-       WHERE status IN('pending', 'confirmed')
-AND(appointment_date > ? OR(appointment_date = ? AND appointment_time > ?))`,
-      [businessDate, businessDate, currentTime]
+    // OPTIMIZED: Single combined query for all appointment stats
+    const statsResult = getOne(
+      `SELECT 
+        SUM(CASE WHEN appointment_date = ? AND status IN('confirmed', 'completed') THEN 1 ELSE 0 END) as today_count,
+        SUM(CASE WHEN appointment_date >= ? AND status IN('confirmed', 'completed') THEN 1 ELSE 0 END) as week_count,
+        SUM(CASE WHEN appointment_date >= ? AND status IN('confirmed', 'completed') THEN 1 ELSE 0 END) as month_count,
+        SUM(CASE WHEN appointment_date >= ? AND status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count,
+        SUM(CASE WHEN status IN('pending', 'confirmed') AND (appointment_date > ? OR (appointment_date = ? AND appointment_time > ?)) THEN 1 ELSE 0 END) as upcoming_count
+      FROM appointments`,
+      [today, weekAgo, monthAgo, monthAgo, businessDate, businessDate, currentTime]
     );
-    const upcomingCount = (upcomingResult?.count as number) || 0;
 
+    const todayAppointments = Number(statsResult?.today_count) || 0;
+    const weekAppointments = Number(statsResult?.week_count) || 0;
+    const monthAppointments = Number(statsResult?.month_count) || 0;
+    const cancelledCount = Number(statsResult?.cancelled_count) || 0;
+    const upcomingCount = Number(statsResult?.upcoming_count) || 0;
 
-
-    // Pending callbacks count
+    // Pending callbacks count - separate query (different table)
     const callbacksResult = getOne(
       `SELECT COUNT(*) as count FROM callbacks WHERE status = 'pending'`
     );
     const pendingCallbacksCount = (callbacksResult?.count as number) || 0;
 
-    // Top services
+    // Top services - separate query (requires GROUP BY)
     const topServicesRows = getAll(
       `SELECT service_id, service_name, COUNT(*) as count
        FROM appointments
        WHERE appointment_date >= ?
-  GROUP BY service_id, service_name
+       GROUP BY service_id, service_name
        ORDER BY count DESC
        LIMIT 5`,
       [monthAgo]
@@ -473,7 +452,6 @@ AND(appointment_date > ? OR(appointment_date = ? AND appointment_time > ?))`,
     }));
 
     // Total revenue (simplified - just count * average price)
-    // In production, you'd want to store actual prices in appointments
     const totalRevenue = monthAppointments * 100; // Placeholder
 
     return {
@@ -483,7 +461,6 @@ AND(appointment_date > ? OR(appointment_date = ? AND appointment_time > ?))`,
       totalRevenue,
       cancelledCount,
       upcomingCount,
-
       pendingCallbacksCount,
       topServices
     };
