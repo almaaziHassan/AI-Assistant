@@ -32,20 +32,41 @@ export function createAdminRouterPrisma(
         try {
             const { status, limit, offset, startDate, endDate } = req.query;
 
+            let appointments;
             if (startDate && endDate) {
-                const appointments = await adminSvc.getAppointmentsForDateRange(
+                appointments = await adminSvc.getAppointmentsForDateRange(
                     new Date(startDate as string),
                     new Date(endDate as string)
                 );
-                return res.json(appointments);
+            } else {
+                appointments = await adminSvc.getAllAppointments({
+                    status: status as string,
+                    limit: limit ? parseInt(limit as string) : undefined,
+                    offset: offset ? parseInt(offset as string) : undefined
+                });
             }
 
-            const appointments = await adminSvc.getAllAppointments({
-                status: status as string,
-                limit: limit ? parseInt(limit as string) : undefined,
-                offset: offset ? parseInt(offset as string) : undefined
-            });
-            res.json(appointments);
+            // Transform to snake_case for frontend compatibility
+            const transformed = appointments.map(apt => ({
+                id: apt.id,
+                customer_name: apt.customerName,
+                customer_email: apt.customerEmail,
+                customer_phone: apt.customerPhone,
+                service_id: apt.serviceId,
+                service_name: apt.serviceName,
+                staff_id: apt.staffId,
+                staff_name: apt.staffName,
+                appointment_date: apt.appointmentDate,
+                appointment_time: apt.appointmentTime,
+                duration: apt.duration,
+                status: apt.status,
+                location_id: apt.locationId,
+                notes: apt.notes,
+                created_at: apt.createdAt,
+                updated_at: apt.updatedAt,
+            }));
+
+            res.json(transformed);
         } catch (error) {
             console.error('Get appointments error:', error);
             res.status(500).json({ error: 'Failed to get appointments' });
