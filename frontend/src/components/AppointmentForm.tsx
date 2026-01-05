@@ -5,13 +5,15 @@ import PhoneInput from './PhoneInput';
 // Build version - increment to force cache invalidation
 export const BUILD_VERSION = '2024123103';
 
-interface Service {
+// Export Service type for prefetching
+export interface Service {
   id: string;
   name: string;
   description: string;
   duration: number;
   price: number;
 }
+
 
 interface Staff {
   id: string;
@@ -29,6 +31,7 @@ interface AppointmentFormProps {
   serverUrl: string;
   onSubmit: (booking: BookingData) => void;
   onCancel: () => void;
+  prefetchedServices?: Service[]; // If provided, skip initial services fetch
 }
 
 interface BookingData {
@@ -47,12 +50,12 @@ interface ValidationErrors {
   customerPhone?: string;
 }
 
-const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, onCancel }) => {
+const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, onCancel, prefetchedServices }) => {
   const [step, setStep] = useState(1);
-  const [services, setServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<Service[]>(prefetchedServices || []);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!prefetchedServices); // No loading if prefetched
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
@@ -115,8 +118,15 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
     }
   };
 
-  // Fetch services on mount - uses server-side cache (60s TTL)
+  // Fetch services on mount - skip if prefetched
   useEffect(() => {
+    // If we already have prefetched services, skip the fetch
+    if (prefetchedServices && prefetchedServices.length > 0) {
+      setServices(prefetchedServices);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     fetch(`${serverUrl}/api/services`)
       .then(res => {
@@ -131,7 +141,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
         setError('Failed to load services. Please try again.');
         setLoading(false);
       });
-  }, [serverUrl]);
+  }, [serverUrl, prefetchedServices]);
 
   // Fetch staff when service is selected - uses server-side cache
   useEffect(() => {

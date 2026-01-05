@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from '../hooks/useChat';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
-import AppointmentForm from './AppointmentForm';
+import AppointmentForm, { Service } from './AppointmentForm';
 import CallbackForm from './CallbackForm';
 
 interface ChatWidgetProps {
@@ -28,11 +28,30 @@ interface CallbackData {
   concerns: string;
 }
 
+// Cache for prefetched data - persists across renders
+interface PrefetchCache {
+  services: Service[] | null;
+  staff: Record<string, unknown[]>; // keyed by serviceId
+  timestamp: number;
+}
+
+const prefetchCache: PrefetchCache = {
+  services: null,
+  staff: {},
+  timestamp: 0
+};
+
+const PREFETCH_TTL = 60 * 1000; // 60 seconds
+
 const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false, onClose }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [showCallbackForm, setShowCallbackForm] = useState(false);
+  const [prefetchedServices, setPrefetchedServices] = useState<Service[] | null>(null);
   const { messages, isConnected, isTyping, error, sendMessage, addLocalMessage, startNewConversation, saveConfirmationToServer } = useChat({ serverUrl });
+
+  // Track if we've already triggered prefetch
+  const hasPrefetched = useRef(false);
 
   // Open chat when defaultOpen changes to true
   useEffect(() => {
@@ -40,6 +59,30 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
       setIsOpen(true);
     }
   }, [defaultOpen]);
+
+  // Prefetch services when chat widget opens - makes booking form instant!
+  useEffect(() => {
+    if (isOpen && !hasPrefetched.current) {
+      hasPrefetched.current = true;
+
+      // Check if cache is still valid
+      const now = Date.now();
+      if (prefetchCache.services && (now - prefetchCache.timestamp) < PREFETCH_TTL) {
+        setPrefetchedServices(prefetchCache.services);
+        return; // Use cached data
+      }
+
+      // Prefetch services in background (non-blocking)
+      fetch(`${serverUrl}/api/services`)
+        .then(res => res.ok ? res.json() : [])
+        .then((data: Service[]) => {
+          prefetchCache.services = data;
+          prefetchCache.timestamp = Date.now();
+          setPrefetchedServices(data);
+        })
+        .catch(() => { }); // Fail silently - form will retry if needed
+    }
+  }, [isOpen, serverUrl]);
 
   // Forms are now shown only when user clicks the button
   // No auto-show - user controls when to open the form
@@ -257,6 +300,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
                 serverUrl={serverUrl}
                 onSubmit={handleBookingSubmit}
                 onCancel={() => setShowBookingForm(false)}
+                prefetchedServices={prefetchedServices || undefined}
               />
             ) : showCallbackForm ? (
               <CallbackForm
