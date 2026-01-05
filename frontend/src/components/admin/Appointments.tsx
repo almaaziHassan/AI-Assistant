@@ -83,9 +83,17 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                             dateStr = String(dateVal).split('T')[0];
                         }
 
-                        // Parse time - handle HH:MM:SS or HH:MM format
+                        // Parse time - handle multiple formats:
+                        // 1. HH:MM (e.g., "09:00")
+                        // 2. HH:MM:SS (e.g., "09:00:00")
+                        // 3. Full ISO date (e.g., "1970-01-01T09:00:00.000Z") - extract time portion
                         let timeStr = String(apt.appointment_time || '00:00');
-                        if (timeStr.length > 5) {
+
+                        // If it contains 'T', it's an ISO date string - extract time after T
+                        if (timeStr.includes('T')) {
+                            const timePart = timeStr.split('T')[1]; // Gets "09:00:00.000Z"
+                            timeStr = timePart ? timePart.substring(0, 5) : '00:00'; // Gets "09:00"
+                        } else if (timeStr.length > 5) {
                             timeStr = timeStr.substring(0, 5); // Get HH:MM from HH:MM:SS
                         }
 
