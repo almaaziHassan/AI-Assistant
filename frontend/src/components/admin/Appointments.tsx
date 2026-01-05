@@ -7,6 +7,16 @@ import { formatDate, formatTime } from '../../utils/admin';
 
 const localizer = momentLocalizer(moment);
 
+// Define the event type for the calendar
+interface CalendarEvent {
+    id: string;
+    title: string;
+    start: Date;
+    end: Date;
+    resource: Appointment;
+    status: string;
+}
+
 interface AppointmentsProps {
     appointments: Appointment[];
     viewMode: 'table' | 'calendar';
@@ -55,64 +65,71 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                 </div>
             </div>
 
-            {viewMode === 'calendar' ? (
-                <div style={{ height: '700px', background: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                    <Calendar
-                        localizer={localizer}
-                        events={appointments.map(apt => {
-                            // Parse date - handle both ISO string and Date objects
-                            let dateStr: string;
-                            const dateVal = apt.appointment_date as unknown;
-                            if (typeof dateVal === 'string') {
-                                dateStr = dateVal.split('T')[0];
-                            } else if (dateVal instanceof Date) {
-                                dateStr = dateVal.toISOString().split('T')[0];
-                            } else {
-                                dateStr = String(dateVal).split('T')[0];
-                            }
+            {viewMode === 'calendar' ? (() => {
+                // Build typed events array outside JSX to fix TypeScript errors
+                const calendarEvents: CalendarEvent[] = appointments
+                    .map(apt => {
+                        // Parse date - handle both ISO string and Date objects
+                        let dateStr: string;
+                        const dateVal = apt.appointment_date as unknown;
+                        if (typeof dateVal === 'string') {
+                            dateStr = dateVal.split('T')[0];
+                        } else if (dateVal instanceof Date) {
+                            dateStr = dateVal.toISOString().split('T')[0];
+                        } else {
+                            dateStr = String(dateVal).split('T')[0];
+                        }
 
-                            // Parse time - handle HH:MM:SS or HH:MM format
-                            let timeStr = String(apt.appointment_time || '00:00');
-                            if (timeStr.length > 5) {
-                                timeStr = timeStr.substring(0, 5); // Get HH:MM from HH:MM:SS
-                            }
+                        // Parse time - handle HH:MM:SS or HH:MM format
+                        let timeStr = String(apt.appointment_time || '00:00');
+                        if (timeStr.length > 5) {
+                            timeStr = timeStr.substring(0, 5); // Get HH:MM from HH:MM:SS
+                        }
 
-                            const start = new Date(`${dateStr}T${timeStr}:00`);
-                            const duration = Number(apt.duration) || 30;
-                            const end = new Date(start.getTime() + duration * 60000);
+                        const start = new Date(`${dateStr}T${timeStr}:00`);
+                        const duration = Number(apt.duration) || 30;
+                        const end = new Date(start.getTime() + duration * 60000);
 
-                            // Skip invalid dates
-                            if (isNaN(start.getTime())) {
-                                console.warn('Invalid appointment date/time:', apt.appointment_date, apt.appointment_time);
-                                return null;
-                            }
+                        // Skip invalid dates
+                        if (isNaN(start.getTime())) {
+                            console.warn('Invalid appointment date/time:', apt.appointment_date, apt.appointment_time);
+                            return null;
+                        }
 
-                            return {
-                                id: apt.id,
-                                title: `${apt.customer_name} (${apt.service_name})`,
-                                start,
-                                end,
-                                resource: apt,
-                                status: apt.status
-                            };
-                        }).filter(Boolean)}
-                        startAccessor="start"
-                        endAccessor="end"
-                        style={{ height: '100%' }}
-                        eventPropGetter={(event) => {
-                            let backgroundColor = '#3174ad'; // confirmed/default
-                            if (event.status === 'cancelled') backgroundColor = '#e74c3c';
-                            if (event.status === 'pending') backgroundColor = '#f39c12';
-                            if (event.status === 'completed') backgroundColor = '#27ae60';
-                            if (event.status === 'no-show') backgroundColor = '#7f8c8d';
-                            return { style: { backgroundColor } };
-                        }}
-                        onSelectEvent={(event) => {
-                            alert(`Appointment Details:\n\nCustomer: ${event.resource.customer_name}\nService: ${event.resource.service_name}\nStaff: ${event.resource.staff_name || 'Unassigned'}\nTime: ${moment(event.start).format('h:mm A')} - ${moment(event.end).format('h:mm A')}\nStatus: ${event.status}`);
-                        }}
-                    />
-                </div>
-            ) : appointments.length === 0 ? (
+                        return {
+                            id: apt.id,
+                            title: `${apt.customer_name} (${apt.service_name})`,
+                            start,
+                            end,
+                            resource: apt,
+                            status: apt.status
+                        };
+                    })
+                    .filter((event): event is CalendarEvent => event !== null);
+
+                return (
+                    <div style={{ height: '700px', background: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                        <Calendar<CalendarEvent>
+                            localizer={localizer}
+                            events={calendarEvents}
+                            startAccessor={(event) => event.start}
+                            endAccessor={(event) => event.end}
+                            style={{ height: '100%' }}
+                            eventPropGetter={(event: CalendarEvent) => {
+                                let backgroundColor = '#3174ad'; // confirmed/default
+                                if (event.status === 'cancelled') backgroundColor = '#e74c3c';
+                                if (event.status === 'pending') backgroundColor = '#f39c12';
+                                if (event.status === 'completed') backgroundColor = '#27ae60';
+                                if (event.status === 'no-show') backgroundColor = '#7f8c8d';
+                                return { style: { backgroundColor } };
+                            }}
+                            onSelectEvent={(event: CalendarEvent) => {
+                                alert(`Appointment Details:\n\nCustomer: ${event.resource.customer_name}\nService: ${event.resource.service_name}\nStaff: ${event.resource.staff_name || 'Unassigned'}\nTime: ${moment(event.start).format('h:mm A')} - ${moment(event.end).format('h:mm A')}\nStatus: ${event.status}`);
+                            }}
+                        />
+                    </div>
+                );
+            })() : appointments.length === 0 ? (
                 <p className="no-data">No appointments found</p>
             ) : (
                 <table className="admin-table">
