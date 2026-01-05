@@ -393,7 +393,10 @@ export class SchedulerService {
   }
 
   async bookAppointment(request: BookingRequest): Promise<Appointment> {
-    // Trim and normalize input
+    // Note: Basic validation is already done by middleware (validateBookingRequest)
+    // Here we only do business-logic validation that middleware can't do
+
+    // Normalize input (middleware sanitizes, we just trim here)
     const normalizedRequest = {
       ...request,
       customerName: request.customerName.trim(),
@@ -403,25 +406,7 @@ export class SchedulerService {
       time: request.time.trim()
     };
 
-    // Validate required fields
-    if (!normalizedRequest.customerName || normalizedRequest.customerName.length < 2) {
-      throw new Error('Please provide a valid name (at least 2 characters)');
-    }
-
-    if (!this.isValidEmail(normalizedRequest.customerEmail)) {
-      throw new Error('Please provide a valid email address');
-    }
-
-    const phoneValidation = this.isValidPhone(normalizedRequest.customerPhone);
-    if (!phoneValidation.valid) {
-      throw new Error(phoneValidation.error || 'Please provide a valid phone number with country code');
-    }
-
-    // Validate date
-    if (!this.isValidDateFormat(normalizedRequest.date)) {
-      throw new Error('Invalid date format. Please use YYYY-MM-DD');
-    }
-
+    // Quick validations (no DB calls)
     if (this.isDateInPast(normalizedRequest.date)) {
       throw new Error('Cannot book appointments in the past');
     }
@@ -430,51 +415,61 @@ export class SchedulerService {
       throw new Error(`Cannot book more than ${this.config.appointmentSettings.maxAdvanceBookingDays} days in advance`);
     }
 
-    // Check for closed days
+    // Check for closed days (no DB call - uses config)
     const dayOfWeek = this.getDayOfWeek(normalizedRequest.date);
     const hours = this.config.hours[dayOfWeek as keyof typeof this.config.hours];
     if (!hours.open || !hours.close) {
       throw new Error(`Sorry, we are closed on ${dayOfWeek}s`);
     }
 
-    // Verify service exists in database
+    // Verify service exists (single DB call)
     const service = this.adminService.getService(normalizedRequest.serviceId);
     if (!service) {
       throw new Error('Selected service not found');
     }
 
-    // Verify staff member is selected
+    // Verify staff member exists (single DB call - not getAllStaff!)
     if (!normalizedRequest.staffId) {
       throw new Error('Please select a staff member');
     }
-
-    // Check for duplicate booking (same email, date, service, time, AND staff)
-    if (this.hasDuplicateBooking(normalizedRequest.customerEmail, normalizedRequest.date, normalizedRequest.serviceId, normalizedRequest.time, normalizedRequest.staffId)) {
-      throw new Error('You already have this exact booking with this staff member');
+    const staffMember = this.adminService.getStaff(normalizedRequest.staffId);
+    if (!staffMember) {
+      throw new Error('Selected staff member not found');
     }
 
-    // Create lock key for this specific slot
-    const lockKey = `${normalizedRequest.date}-${normalizedRequest.time}`;
+    // Create lock key for race condition protection
+    const lockKey = `${normalizedRequest.date}-${normalizedRequest.time}-${normalizedRequest.staffId}`;
 
-    // Check if slot is being booked (race condition protection)
     if (bookingLocks.get(lockKey)) {
       throw new Error('This time slot is currently being booked. Please try again.');
     }
 
-    // Acquire lock
     bookingLocks.set(lockKey, true);
 
     try {
-      // Re-check availability (double-check after acquiring lock)
-      // Pass staffId to check availability for the specific staff member
-      const slots = this.getAvailableSlots(normalizedRequest.date, normalizedRequest.serviceId, normalizedRequest.staffId);
-      const slot = slots.find(s => s.time === normalizedRequest.time);
+      // OPTIMIZED: Direct conflict check instead of generating all slots
+      // Check if this specific staff member has a conflicting appointment
+      const conflictCheck = getOne(
+        `SELECT id FROM appointments 
+         WHERE staff_id = ? 
+         AND appointment_date = ? 
+         AND status IN ('pending', 'confirmed')
+         AND (
+           (appointment_time <= ? AND time(appointment_time, '+' || duration || ' minutes') > ?)
+           OR (appointment_time < time(?, '+' || ? || ' minutes') AND appointment_time >= ?)
+         )`,
+        [
+          normalizedRequest.staffId,
+          normalizedRequest.date,
+          normalizedRequest.time,
+          normalizedRequest.time,
+          normalizedRequest.time,
+          service.duration,
+          normalizedRequest.time
+        ]
+      );
 
-      if (!slot) {
-        throw new Error('Selected time slot is not valid for this date');
-      }
-
-      if (!slot.available) {
+      if (conflictCheck) {
         throw new Error('Sorry, this time slot was just booked. Please select another time.');
       }
 
@@ -487,13 +482,6 @@ export class SchedulerService {
       const id = uuidv4();
       const now = new Date().toISOString();
 
-      // Get staff name if staffId provided
-      let staffName: string | undefined;
-      if (normalizedRequest.staffId) {
-        const staffMember = this.adminService.getAllStaff().find(s => s.id === normalizedRequest.staffId);
-        staffName = staffMember?.name;
-      }
-
       const appointment: Appointment = {
         id,
         customerName: normalizedRequest.customerName,
@@ -502,7 +490,7 @@ export class SchedulerService {
         serviceId: normalizedRequest.serviceId,
         serviceName: service.name,
         staffId: normalizedRequest.staffId,
-        staffName,
+        staffName: staffMember.name,
         appointmentDate: normalizedRequest.date,
         appointmentTime: normalizedRequest.time,
         duration: service.duration,
@@ -540,7 +528,6 @@ export class SchedulerService {
 
       return appointment;
     } finally {
-      // Release lock
       bookingLocks.delete(lockKey);
     }
   }
