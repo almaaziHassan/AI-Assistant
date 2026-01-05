@@ -75,9 +75,8 @@ export function createServicesRouter(
   // GET /api/services/staff/:serviceId - Get staff members for a specific service
   router.get('/staff/:serviceId', (req: Request, res: Response) => {
     try {
-      noCache(res);
+      shortCache(res, 60); // Cache for 60 seconds - staff assignments rarely change
       const { serviceId } = req.params;
-      console.log(`[services/staff/:serviceId] Fetching staff for service: ${serviceId}`);
 
       // Get all active staff
       const allStaff = adminSvc.getAllStaff(true);
@@ -94,7 +93,6 @@ export function createServicesRouter(
         return s.services.includes(serviceId);
       });
 
-      console.log(`[services/staff/:serviceId] Found ${filteredStaff.length} staff for service ${serviceId}`);
       res.json(filteredStaff);
     } catch (error) {
       console.error('Get staff by service error:', error);

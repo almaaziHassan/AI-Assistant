@@ -115,13 +115,10 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
     }
   };
 
-  // Fetch services on mount
+  // Fetch services on mount - uses server-side cache (60s TTL)
   useEffect(() => {
     setLoading(true);
-    const timestamp = Date.now();
-    fetch(`${serverUrl}/api/services?_t=${timestamp}`, {
-      headers: { 'Cache-Control': 'no-cache' }
-    })
+    fetch(`${serverUrl}/api/services`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to load services');
         return res.json();
@@ -136,17 +133,14 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
       });
   }, [serverUrl]);
 
-  // Fetch staff when service is selected (filtered by service)
+  // Fetch staff when service is selected - uses server-side cache
   useEffect(() => {
     if (!formData.serviceId) {
       setStaff([]);
       return;
     }
 
-    const timestamp = Date.now();
-    fetch(`${serverUrl}/api/services/staff/${formData.serviceId}?_t=${timestamp}`, {
-      headers: { 'Cache-Control': 'no-cache' }
-    })
+    fetch(`${serverUrl}/api/services/staff/${formData.serviceId}`)
       .then(res => {
         if (!res.ok) return [];
         return res.json();
@@ -190,7 +184,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
       return;
     }
 
-    // Debounce: wait 400ms before making the request to avoid rapid-fire during typing
+    // Debounce: wait 150ms before making the request to avoid rapid-fire during typing
     timeoutId = setTimeout(() => {
       setLoading(true);
       setSlots([]);
@@ -200,7 +194,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
       // Build URL with optional staffId for staff-specific availability
       // Include timezone offset so backend can correctly filter past slots
       const tzOffset = new Date().getTimezoneOffset(); // Negative for east of UTC, positive for west
-      let url = `${serverUrl}/api/appointments/slots?date=${requestDate}&serviceId=${requestServiceId}&tz=${tzOffset}&_t=${Date.now()}`;
+      let url = `${serverUrl}/api/appointments/slots?date=${requestDate}&serviceId=${requestServiceId}&tz=${tzOffset}`;
       if (requestStaffId) {
         url += `&staffId=${requestStaffId}`;
       }
@@ -252,7 +246,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
           setSlots([]);
           setLoading(false);
         });
-    }, 400); // 400ms debounce (slightly longer for slower typers)
+    }, 150); // 150ms debounce - quick response while still preventing rapid-fire
 
     // ALWAYS return cleanup to prevent stale responses
     return () => {

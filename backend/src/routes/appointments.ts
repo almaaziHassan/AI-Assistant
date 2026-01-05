@@ -12,13 +12,10 @@ export function createAppointmentRouter(
   // GET /api/appointments/slots - Get available time slots
   router.get('/slots', (req: Request, res: Response) => {
     try {
-      // Prevent caching
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.set('Pragma', 'no-cache');
-      res.set('Expires', '0');
+      // Allow short 30-second cache to handle rapid re-requests
+      res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
 
       const { date, serviceId, staffId } = req.query;
-      console.log(`[slots] Request: date=${date}, serviceId=${serviceId}, staffId=${staffId}`);
 
       if (!date || typeof date !== 'string') {
         return res.status(400).json({ error: 'Date is required (YYYY-MM-DD format)' });
@@ -41,7 +38,6 @@ export function createAppointmentRouter(
       const timezoneOffset = req.query.tz ? parseInt(req.query.tz as string, 10) : undefined;
 
       const slots = scheduler.getAvailableSlots(date, serviceId, staffIdStr, timezoneOffset);
-      console.log(`[slots] Returning ${slots.length} slots for ${date} (tz offset: ${timezoneOffset ?? 'server'})`);
       res.json({ date, serviceId, staffId: staffIdStr, slots });
     } catch (error) {
       console.error('Get slots error:', error);
