@@ -66,9 +66,6 @@ export const Appointments: React.FC<AppointmentsProps> = ({
             </div>
 
             {viewMode === 'calendar' ? (() => {
-                // Debug: log incoming appointments
-                console.log('Calendar view - appointments received:', appointments.length, appointments);
-
                 // Build typed events array outside JSX to fix TypeScript errors
                 const calendarEvents: CalendarEvent[] = appointments
                     .map(apt => {
@@ -101,16 +98,7 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                         const duration = Number(apt.duration) || 30;
                         const end = new Date(start.getTime() + duration * 60000);
 
-                        // Debug: log date parsing
-                        console.log('Parsing appointment:', {
-                            id: apt.id,
-                            dateVal: apt.appointment_date,
-                            timeVal: apt.appointment_time,
-                            dateStr,
-                            timeStr,
-                            start,
-                            isValid: !isNaN(start.getTime())
-                        });
+
 
                         // Skip invalid dates
                         if (isNaN(start.getTime())) {
@@ -128,8 +116,6 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                         };
                     })
                     .filter((event): event is CalendarEvent => event !== null);
-
-                console.log('Calendar events after filtering:', calendarEvents.length, calendarEvents);
 
                 return (
                     <div style={{ height: '700px', background: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>

@@ -7,6 +7,7 @@ import { StaffManager } from './admin/StaffManager';
 import { ServicesManager } from './admin/ServicesManager';
 import { HolidaysManager } from './admin/HolidaysManager';
 import { CallbacksManager } from './admin/CallbacksManager';
+import Clock from './admin/Clock';
 import {
   DashboardStats,
   AppointmentStats,
@@ -48,7 +49,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   const [availableServices, setAvailableServices] = useState<Service[]>([]);
   const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -66,17 +66,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
     return () => clearInterval(interval);
   }, [isAuthenticated, activeTab]);
-
-  // Update current date/time every second
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const clockInterval = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(clockInterval);
-  }, [isAuthenticated]);
 
   // Refresh only overview stats (without loading state)
   const refreshOverviewStats = async () => {
@@ -245,24 +234,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
             <h1>Admin Dashboard</h1>
             <p>Manage appointments, staff, and settings</p>
           </div>
-          <div className="header-datetime">
-            <div className="datetime-date">
-              {currentDateTime.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
-            </div>
-            <div className="datetime-time">
-              {currentDateTime.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-              })}
-            </div>
-          </div>
+          <Clock />
           <button className="btn-logout" onClick={handleLogout}>
             Logout
           </button>
