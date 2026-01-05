@@ -116,7 +116,7 @@ export class SchedulerServicePrisma {
         return { valid: true };
     }
 
-    // Check for duplicate booking
+    // Check for duplicate booking (same email + date + time + service + staff)
     private async hasDuplicateBooking(
         email: string,
         date: string,
@@ -124,16 +124,34 @@ export class SchedulerServicePrisma {
         time: string,
         staffId: string
     ): Promise<boolean> {
+        // Use date range for timezone safety
+        const startOfDay = new Date(`${date}T00:00:00.000Z`);
+        const endOfDay = new Date(`${date}T23:59:59.999Z`);
+
         const existing = await prisma.appointment.findFirst({
             where: {
                 customerEmail: email.toLowerCase(),
-                appointmentDate: new Date(date),
+                appointmentDate: {
+                    gte: startOfDay,
+                    lte: endOfDay,
+                },
                 serviceId,
                 staffId,
                 status: { notIn: ['cancelled'] },
             },
         });
-        return !!existing;
+
+        if (!existing) return false;
+
+        // Also check if the time matches
+        const existingTime = existing.appointmentTime as unknown as Date;
+        const existingTimeStr = existingTime instanceof Date
+            ? `${existingTime.getHours().toString().padStart(2, '0')}:${existingTime.getMinutes().toString().padStart(2, '0')}`
+            : String(existingTime).substring(0, 5);
+
+        console.log(`[hasDuplicateBooking] Checking: ${email} on ${date} at ${time}. Found: ${existingTimeStr}`);
+
+        return existingTimeStr === time;
     }
 
     // Get available time slots
