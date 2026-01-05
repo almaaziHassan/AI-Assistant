@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { AdminLogin } from './admin/Login';
 import { Overview } from './admin/Overview';
@@ -8,6 +8,7 @@ import { ServicesManager } from './admin/ServicesManager';
 import { HolidaysManager } from './admin/HolidaysManager';
 import { CallbacksManager } from './admin/CallbacksManager';
 import Clock from './admin/Clock';
+import { TableSkeleton, StatsSkeleton } from './admin/Skeleton';
 import {
   DashboardStats,
   AppointmentStats,
@@ -21,6 +22,16 @@ import {
 interface AdminDashboardProps {
   serverUrl: string;
 }
+
+// Cache TTL in milliseconds (2 minutes for most data, 30 seconds for dynamic data)
+const CACHE_TTL = {
+  overview: 30 * 1000,      // 30 seconds - dynamic stats
+  appointments: 60 * 1000,  // 1 minute
+  callbacks: 60 * 1000,     // 1 minute
+  staff: 2 * 60 * 1000,     // 2 minutes - rarely changes
+  services: 2 * 60 * 1000,  // 2 minutes - rarely changes
+  holidays: 2 * 60 * 1000   // 2 minutes - rarely changes
+};
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const {
@@ -50,9 +61,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const [availableServices, setAvailableServices] = useState<Service[]>([]);
   const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
 
+  // Cache timestamps to avoid redundant API calls
+  const cacheTimestamps = useRef<Record<string, number>>({});
+
+  // Check if cache is still valid
+  const isCacheValid = useCallback((tab: string) => {
+    const timestamp = cacheTimestamps.current[tab];
+    if (!timestamp) return false;
+    const ttl = CACHE_TTL[tab as keyof typeof CACHE_TTL] || 60000;
+    return Date.now() - timestamp < ttl;
+  }, []);
+
+  // Mark cache as updated
+  const updateCacheTimestamp = useCallback((tab: string) => {
+    cacheTimestamps.current[tab] = Date.now();
+  }, []);
+
+  // Invalidate cache for a specific tab (call after mutations)
+  const invalidateCache = useCallback((tab: string) => {
+    cacheTimestamps.current[tab] = 0;
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
-      fetchData();
+      // Only fetch if cache is invalid
+      if (!isCacheValid(activeTab)) {
+        fetchData();
+      }
     }
   }, [activeTab, isAuthenticated]);
 
@@ -98,6 +133,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
           if (statsRes.status === 401) { handleLogout(); return; }
           if (statsRes.ok) setStats(await statsRes.json());
           if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
+          updateCacheTimestamp('overview');
           break;
         case 'appointments':
           const dateRange = getDateRange(appointmentFilter);
@@ -108,6 +144,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
           const aptsRes = await fetch(aptsUrl, { headers });
           if (aptsRes.status === 401) { handleLogout(); return; }
           if (aptsRes.ok) setAppointments(await aptsRes.json());
+          updateCacheTimestamp('appointments');
           break;
         case 'staff':
           const [staffRes, servicesRes] = await Promise.all([
@@ -117,21 +154,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
           if (staffRes.status === 401) { handleLogout(); return; }
           if (staffRes.ok) setStaff(await staffRes.json());
           if (servicesRes.ok) setAvailableServices(await servicesRes.json());
+          updateCacheTimestamp('staff');
           break;
         case 'services':
           const svcsRes = await fetch(`${serverUrl}/api/admin/services`, { headers });
           if (svcsRes.status === 401) { handleLogout(); return; }
           if (svcsRes.ok) setAvailableServices(await svcsRes.json());
+          updateCacheTimestamp('services');
           break;
         case 'holidays':
           const holidaysRes = await fetch(`${serverUrl}/api/admin/holidays`, { headers });
           if (holidaysRes.status === 401) { handleLogout(); return; }
           if (holidaysRes.ok) setHolidays(await holidaysRes.json());
+          updateCacheTimestamp('holidays');
           break;
         case 'callbacks':
           const callbacksRes = await fetch(`${serverUrl}/api/callbacks`, { headers });
           if (callbacksRes.status === 401) { handleLogout(); return; }
           if (callbacksRes.ok) setCallbacks(await callbacksRes.json());
+          updateCacheTimestamp('callbacks');
           break;
       }
     } catch (err) {
@@ -194,6 +235,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         setAppointments(prev => prev.map(apt =>
           apt.id === id ? { ...apt, status } : apt
         ));
+        // Invalidate overview cache since stats changed
+        invalidateCache('overview');
         refreshOverviewStats();
       } else {
         const err = await res.json();
@@ -257,8 +300,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       </nav>
 
       <main className="admin-content">
-        {dataLoading && <div className="admin-loading">Loading data...</div>}
         {error && <div className="admin-error">{error}</div>}
+
+        {/* Show skeleton loaders based on active tab */}
+        {dataLoading && activeTab === 'overview' && <StatsSkeleton />}
+        {dataLoading && activeTab !== 'overview' && <TableSkeleton rows={6} cols={5} />}
 
         {/* Overview Tab */}
         {activeTab === 'overview' && stats && !dataLoading && (
