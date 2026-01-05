@@ -1,16 +1,35 @@
-export const formatDate = (dateStr: string | Date): string => {
+export const formatDate = (dateStr: string | Date | unknown): string => {
+    if (!dateStr) return 'Invalid Date';
+
     let dateToFormat: Date;
+
+    // Handle Date objects directly
     if (dateStr instanceof Date) {
         dateToFormat = dateStr;
-    } else if (typeof dateStr === 'string') {
-        dateToFormat = dateStr.includes('T')
-            ? new Date(dateStr)
-            : new Date(dateStr + 'T00:00:00');
-    } else {
+    }
+    // Handle string dates
+    else if (typeof dateStr === 'string') {
+        // PostgreSQL sometimes returns dates like "2026-01-05" without time
+        // or with full ISO format "2026-01-05T00:00:00.000Z"
+        const cleaned = dateStr.split('T')[0]; // Get just the date part
+        dateToFormat = new Date(cleaned + 'T12:00:00'); // Use noon to avoid timezone issues
+    }
+    // Handle objects with toISOString (Date-like objects from JSON)
+    else if (typeof dateStr === 'object' && dateStr !== null) {
+        const obj = dateStr as Record<string, unknown>;
+        if ('toISOString' in obj && typeof obj.toISOString === 'function') {
+            dateToFormat = new Date(String(obj.toISOString()));
+        } else {
+            // Try to convert to string
+            dateToFormat = new Date(String(dateStr));
+        }
+    }
+    else {
         return 'Invalid Date';
     }
 
     if (isNaN(dateToFormat.getTime())) {
+        console.warn('formatDate: Invalid date input:', dateStr);
         return 'Invalid Date';
     }
 
