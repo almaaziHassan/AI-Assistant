@@ -11,9 +11,14 @@
     "build": "prisma generate && tsc",
     "postinstall": "prisma generate",
     "start": "node dist/index.js",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:stress": "jest --testPathPattern=stress --testTimeout=60000",
+    "test:security": "jest --testPathPattern=security",
+    "test:all": "jest --coverage --testTimeout=60000"
   },
   "dependencies": {
     "@getbrevo/brevo": "^3.0.1",
