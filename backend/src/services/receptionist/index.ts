@@ -184,8 +184,9 @@ Would you like us to call you back instead? I can set that up for you!`;
         // No function call - AI chose to respond with just a message
         const aiResponse = response.content || '';
 
-        // FALLBACK: Check if AI outputted function call as text (e.g., <function(show_booking_form)>)
-        const functionCallMatch = aiResponse.match(/<function\((\w+)\)(\{.*?\})?>/);
+        // FALLBACK: Check if AI outputted function call as text
+        // Handles: <function(name){...}> OR <function(name){...}</function>
+        const functionCallMatch = aiResponse.match(/<function\((\w+)\)(\{.*?\})?(?:>|<\/function>)/);
         if (functionCallMatch) {
             const functionName = functionCallMatch[1];
             let functionArgs: Record<string, string> = {};
