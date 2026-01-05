@@ -60,11 +60,33 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                     <Calendar
                         localizer={localizer}
                         events={appointments.map(apt => {
-                            const dateStr = String(apt.appointment_date).split('T')[0];
-                            const start = new Date(`${dateStr}T${apt.appointment_time}`);
-                            // Ensure duration is treated as number
+                            // Parse date - handle both ISO string and Date objects
+                            let dateStr: string;
+                            const dateVal = apt.appointment_date as unknown;
+                            if (typeof dateVal === 'string') {
+                                dateStr = dateVal.split('T')[0];
+                            } else if (dateVal instanceof Date) {
+                                dateStr = dateVal.toISOString().split('T')[0];
+                            } else {
+                                dateStr = String(dateVal).split('T')[0];
+                            }
+
+                            // Parse time - handle HH:MM:SS or HH:MM format
+                            let timeStr = String(apt.appointment_time || '00:00');
+                            if (timeStr.length > 5) {
+                                timeStr = timeStr.substring(0, 5); // Get HH:MM from HH:MM:SS
+                            }
+
+                            const start = new Date(`${dateStr}T${timeStr}:00`);
                             const duration = Number(apt.duration) || 30;
                             const end = new Date(start.getTime() + duration * 60000);
+
+                            // Skip invalid dates
+                            if (isNaN(start.getTime())) {
+                                console.warn('Invalid appointment date/time:', apt.appointment_date, apt.appointment_time);
+                                return null;
+                            }
+
                             return {
                                 id: apt.id,
                                 title: `${apt.customer_name} (${apt.service_name})`,
@@ -73,7 +95,7 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                                 resource: apt,
                                 status: apt.status
                             };
-                        })}
+                        }).filter(Boolean)}
                         startAccessor="start"
                         endAccessor="end"
                         style={{ height: '100%' }}
