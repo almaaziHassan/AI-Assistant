@@ -8,6 +8,37 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// User roles for access control
+enum UserRole {
+  customer
+  staff
+  admin
+}
+
+// User model for authentication
+model User {
+  id                   String        @id @default(uuid())
+  email                String        @unique
+  passwordHash         String        @map("password_hash")
+  name                 String
+  phone                String?
+  role                 UserRole      @default(customer)
+  emailVerified        Boolean       @default(false) @map("email_verified")
+  verificationToken    String?       @unique @map("verification_token")
+  verificationExpires  DateTime?     @map("verification_expires") @db.Timestamptz(6)
+  resetToken           String?       @unique @map("reset_token")
+  resetTokenExpires    DateTime?     @map("reset_token_expires") @db.Timestamptz(6)
+  lastLogin            DateTime?     @map("last_login") @db.Timestamptz(6)
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  appointments         Appointment[]
+
+  @@index([email], map: "idx_users_email")
+  @@index([verificationToken], map: "idx_users_verification_token")
+  @@index([resetToken], map: "idx_users_reset_token")
+  @@map("users")
+}
+
 model Staff {
   id             String           @id @default(uuid())
   name           String
@@ -81,17 +112,20 @@ model Appointment {
   duration        Int
   status          String?   @default("confirmed")
   locationId      String?   @map("location_id")
+  userId          String?   @map("user_id")
   notes           String?
   createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   location        Location? @relation(fields: [locationId], references: [id], onUpdate: NoAction)
   staff           Staff?    @relation(fields: [staffId], references: [id], onUpdate: NoAction)
+  user            User?     @relation(fields: [userId], references: [id], onUpdate: NoAction)
 
   @@index([appointmentDate], map: "idx_appointments_date")
   @@index([appointmentDate, staffId, status], map: "idx_appointments_date_staff_status")
   @@index([customerEmail], map: "idx_appointments_email")
   @@index([staffId], map: "idx_appointments_staff")
   @@index([status, appointmentDate], map: "idx_appointments_status_date")
+  @@index([userId], map: "idx_appointments_user")
   @@map("appointments")
 }
 

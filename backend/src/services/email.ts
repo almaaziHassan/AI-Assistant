@@ -315,6 +315,67 @@ ${business.phone} | ${business.email}
 
     return false;
   }
+
+  /**
+   * Send a generic email
+   * Used for verification emails, password reset, etc.
+   */
+  async sendEmail(options: { to: string; subject: string; html: string; text?: string }): Promise<boolean> {
+    const { to, subject, html, text } = options;
+    const fromEmail = process.env.BREVO_FROM_EMAIL || process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com';
+    const fromName = process.env.BREVO_FROM_NAME || this.config.business.name;
+
+    if (!this.isConfigured) {
+      // Log email preview to console when not configured
+      console.log('\n========== EMAIL PREVIEW ==========');
+      console.log(`To: ${to}`);
+      console.log(`Subject: ${subject}`);
+      console.log('---');
+      console.log(text || 'HTML email - see html content');
+      console.log('====================================\n');
+      return true;
+    }
+
+    // Use Brevo API if available
+    if (this.useBrevoApi && this.brevoApi) {
+      try {
+        const sendSmtpEmail = new brevo.SendSmtpEmail();
+        sendSmtpEmail.subject = subject;
+        sendSmtpEmail.htmlContent = html;
+        if (text) sendSmtpEmail.textContent = text;
+        sendSmtpEmail.sender = { name: fromName, email: fromEmail };
+        sendSmtpEmail.to = [{ email: to }];
+
+        await this.brevoApi.sendTransacEmail(sendSmtpEmail);
+        console.log(`Email sent via Brevo API to ${to}`);
+        return true;
+      } catch (error) {
+        console.error('Failed to send email via Brevo API:', error);
+        return false;
+      }
+    }
+
+    // Fallback to SMTP
+    if (this.transporter) {
+      try {
+        await this.transporter.sendMail({
+          from: `"${fromName}" <${fromEmail}>`,
+          to,
+          subject,
+          text: text || '',
+          html
+        });
+
+        console.log(`Email sent via SMTP to ${to}`);
+        return true;
+      } catch (error) {
+        console.error('Failed to send email via SMTP:', error);
+        return false;
+      }
+    }
+
+    return false;
+  }
 }
 
 export const emailService = new EmailService();

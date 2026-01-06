@@ -26,6 +26,8 @@ import { createCallbacksRouter } from './routes/callbacks';
 import { createCallbacksRouterPrisma } from './routes/callbacksPrisma';
 import { createServicesRouterPrisma } from './routes/servicesPrisma';
 import authRoutes from './routes/auth';
+import userAuthRoutes from './routes/userAuth';
+import usersRoutes from './routes/users';
 
 // Service imports
 import { ReceptionistService } from './services/receptionist';
@@ -88,6 +90,12 @@ app.use('/api/admin', adminAuthMiddleware, createAdminRouterPrisma(adminServiceP
 
 // Callback routes - using Prisma ORM
 app.use('/api/callbacks', createCallbacksRouterPrisma());
+
+// User authentication routes
+app.use('/api/user-auth', userAuthRoutes);
+
+// User routes (requires user auth)
+app.use('/api/users', usersRoutes);
 
 // ==================== API Documentation ====================
 
