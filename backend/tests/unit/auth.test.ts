@@ -1,10 +1,12 @@
 /**
  * Authentication Tests
  * Tests for admin authentication middleware and functions
+ * 
+ * Note: This uses JWT-based authentication which is STATELESS.
+ * Sessions are not tracked server-side - tokens are self-validating.
  */
 
 import {
-  generateSessionToken,
   verifyAdminPassword,
   createSession,
   validateSession,
@@ -19,21 +21,24 @@ describe('Admin Authentication', () => {
     clearAllSessions();
   });
 
-  describe('generateSessionToken', () => {
-    it('should generate a hex string token', () => {
-      const token = generateSessionToken();
-      expect(token).toMatch(/^[a-f0-9]+$/);
-    });
-
-    it('should generate tokens of 64 characters (32 bytes as hex)', () => {
-      const token = generateSessionToken();
-      expect(token.length).toBe(64);
+  describe('createSession (JWT Generation)', () => {
+    it('should generate a JWT token', () => {
+      const token = createSession();
+      expect(token).toBeTruthy();
+      expect(typeof token).toBe('string');
+      // JWT format: header.payload.signature
+      expect(token.split('.')).toHaveLength(3);
     });
 
     it('should generate unique tokens each time', () => {
-      const token1 = generateSessionToken();
-      const token2 = generateSessionToken();
+      const token1 = createSession();
+      const token2 = createSession();
       expect(token1).not.toBe(token2);
+    });
+
+    it('should create valid sessions', () => {
+      const token = createSession();
+      expect(validateSession(token)).toBe(true);
     });
   });
 
@@ -57,27 +62,6 @@ describe('Admin Authentication', () => {
     });
   });
 
-  describe('createSession', () => {
-    it('should create a session and return a token', () => {
-      const token = createSession();
-      expect(token).toBeTruthy();
-      expect(typeof token).toBe('string');
-    });
-
-    it('should increment session count', () => {
-      expect(getSessionCount()).toBe(0);
-      createSession();
-      expect(getSessionCount()).toBe(1);
-      createSession();
-      expect(getSessionCount()).toBe(2);
-    });
-
-    it('should create valid sessions', () => {
-      const token = createSession();
-      expect(validateSession(token)).toBe(true);
-    });
-  });
-
   describe('validateSession', () => {
     it('should validate existing session', () => {
       const token = createSession();
@@ -93,26 +77,21 @@ describe('Admin Authentication', () => {
     });
 
     it('should reject random token', () => {
-      expect(validateSession(generateSessionToken())).toBe(false);
+      expect(validateSession('randomtoken123456789')).toBe(false);
+    });
+
+    it('should reject malformed JWT', () => {
+      expect(validateSession('not.a.valid.jwt.token')).toBe(false);
     });
   });
 
   describe('destroySession', () => {
-    it('should invalidate a session', () => {
-      const token = createSession();
-      expect(validateSession(token)).toBe(true);
-      destroySession(token);
-      expect(validateSession(token)).toBe(false);
-    });
+    // Note: JWT is stateless - destroySession is a no-op in this implementation.
+    // Client-side token removal is the standard approach for JWT.
 
-    it('should decrement session count', () => {
-      const token1 = createSession();
-      const token2 = createSession();
-      expect(getSessionCount()).toBe(2);
-      destroySession(token1);
-      expect(getSessionCount()).toBe(1);
-      destroySession(token2);
-      expect(getSessionCount()).toBe(0);
+    it('should handle destroying any token without throwing', () => {
+      const token = createSession();
+      expect(() => destroySession(token)).not.toThrow();
     });
 
     it('should handle destroying non-existent token', () => {
@@ -120,12 +99,19 @@ describe('Admin Authentication', () => {
     });
   });
 
-  describe('clearAllSessions', () => {
-    it('should remove all sessions', () => {
+  describe('Session Count (JWT mode)', () => {
+    // Note: JWT is stateless - session counting returns 0 in this implementation.
+
+    it('should return 0 for session count (JWT is stateless)', () => {
       createSession();
       createSession();
       createSession();
-      expect(getSessionCount()).toBe(3);
+      // JWT doesn't track sessions server-side
+      expect(getSessionCount()).toBe(0);
+    });
+
+    it('should remain 0 after clearAllSessions (JWT is stateless)', () => {
+      createSession();
       clearAllSessions();
       expect(getSessionCount()).toBe(0);
     });
@@ -148,7 +134,7 @@ describe('Multiple Sessions', () => {
     clearAllSessions();
   });
 
-  it('should support multiple concurrent sessions', () => {
+  it('should support multiple concurrent tokens', () => {
     const tokens = [
       createSession(),
       createSession(),
@@ -160,15 +146,14 @@ describe('Multiple Sessions', () => {
     });
   });
 
-  it('should allow destroying one session without affecting others', () => {
+  it('should validate all tokens independently', () => {
     const token1 = createSession();
     const token2 = createSession();
     const token3 = createSession();
 
-    destroySession(token2);
-
+    // All tokens should be valid (JWT is stateless)
     expect(validateSession(token1)).toBe(true);
-    expect(validateSession(token2)).toBe(false);
+    expect(validateSession(token2)).toBe(true);
     expect(validateSession(token3)).toBe(true);
   });
 });

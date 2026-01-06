@@ -35,7 +35,8 @@ export function validateEmail(email: string): { valid: boolean; sanitized: strin
  * Validate phone number (flexible international format)
  */
 export function validatePhone(phone: string): { valid: boolean; sanitized: string; error?: string } {
-    const sanitized = phone.replace(/[^\d+\-() ]/g, '').trim();
+    // Remove all non-digit characters except + at the start
+    const sanitized = phone.replace(/[^\d+]/g, '').trim();
 
     if (sanitized.length < 10 || sanitized.length > 20) {
         return { valid: false, sanitized, error: 'Phone number must be 10-20 characters' };
@@ -54,8 +55,14 @@ export function validateDate(date: string): { valid: boolean; error?: string } {
         return { valid: false, error: 'Invalid date format. Use YYYY-MM-DD' };
     }
 
-    const parsedDate = new Date(date);
-    if (isNaN(parsedDate.getTime())) {
+    // Parse and validate the date properly (catches invalid dates like Feb 30)
+    const [year, month, day] = date.split('-').map(Number);
+    const parsedDate = new Date(year, month - 1, day);
+
+    if (isNaN(parsedDate.getTime()) ||
+        parsedDate.getFullYear() !== year ||
+        parsedDate.getMonth() !== month - 1 ||
+        parsedDate.getDate() !== day) {
         return { valid: false, error: 'Invalid date' };
     }
 

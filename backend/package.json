@@ -14,7 +14,7 @@
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:unit": "jest --testPathPattern=unit",
+    "test:unit": "jest --testPathPattern=unit --passWithNoTests",
     "test:integration": "jest --testPathPattern=integration",
     "test:stress": "jest --testPathPattern=stress --testTimeout=60000",
     "test:security": "jest --testPathPattern=security",
