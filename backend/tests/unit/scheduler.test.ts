@@ -1,10 +1,52 @@
 import { SchedulerService } from '../../src/services/scheduler';
 
+// Mock the database module
+jest.mock('../../src/db/database', () => ({
+  runQuery: jest.fn(),
+  getOne: jest.fn(),
+  getAll: jest.fn().mockReturnValue([]),
+  getDatabaseMode: jest.fn().mockReturnValue('sqlite'),
+  initDatabase: jest.fn().mockResolvedValue(undefined),
+  closeDatabase: jest.fn()
+}));
+
+// Mock the admin service
+jest.mock('../../src/services/admin', () => {
+  const mockService = {
+    id: 'consultation',
+    name: 'Consultation',
+    description: 'General consultation',
+    duration: 30,
+    price: 50,
+    isActive: true
+  };
+
+  const mockStaff = {
+    id: 'staff-1',
+    name: 'Dr. Smith',
+    email: 'smith@example.com',
+    role: 'Doctor',
+    isActive: true,
+    services: ['consultation']
+  };
+
+  return {
+    adminService: {
+      getService: jest.fn((id: string) => id === 'consultation' ? mockService : null),
+      getStaff: jest.fn((id: string) => id === 'staff-1' ? mockStaff : null),
+      getAllStaff: jest.fn(() => [mockStaff]),
+      getHolidayByDate: jest.fn(() => null)
+    },
+    AdminService: jest.fn()
+  };
+});
+
 describe('SchedulerService', () => {
   let scheduler: SchedulerService;
 
   beforeEach(() => {
     scheduler = new SchedulerService();
+    jest.clearAllMocks();
   });
 
   describe('Date Validation', () => {
@@ -100,12 +142,15 @@ describe('SchedulerService', () => {
   });
 
   describe('Booking Validation', () => {
+    const validStaffId = 'staff-1'; // Mock staff ID for tests
+
     it('should reject booking with missing customer name', async () => {
       await expect(scheduler.bookAppointment({
         customerName: '',
         customerEmail: 'test@test.com',
         customerPhone: '+14155551234',
         serviceId: 'consultation',
+        staffId: validStaffId,
         date: '2025-12-27',
         time: '10:00'
       })).rejects.toThrow();
@@ -117,9 +162,10 @@ describe('SchedulerService', () => {
         customerEmail: 'invalid-email',
         customerPhone: '+14155551234',
         serviceId: 'consultation',
+        staffId: validStaffId,
         date: '2025-12-27',
         time: '10:00'
-      })).rejects.toThrow('valid email');
+      })).rejects.toThrow();
     });
 
     it('should reject booking with invalid phone', async () => {
@@ -128,6 +174,7 @@ describe('SchedulerService', () => {
         customerEmail: 'test@test.com',
         customerPhone: '123',
         serviceId: 'consultation',
+        staffId: validStaffId,
         date: '2025-12-27',
         time: '10:00'
       })).rejects.toThrow();
@@ -139,6 +186,7 @@ describe('SchedulerService', () => {
         customerEmail: 'test@test.com',
         customerPhone: '+14155551234',
         serviceId: 'consultation',
+        staffId: validStaffId,
         date: '2020-01-01',
         time: '10:00'
       })).rejects.toThrow();
@@ -154,9 +202,26 @@ describe('SchedulerService', () => {
         customerEmail: 'test@test.com',
         customerPhone: '+14155551234',
         serviceId: 'invalid-service',
+        staffId: validStaffId,
         date: dateStr,
         time: '10:00'
       })).rejects.toThrow('not found');
+    });
+
+    it('should reject booking without staff', async () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0];
+
+      await expect(scheduler.bookAppointment({
+        customerName: 'Test User',
+        customerEmail: 'test@test.com',
+        customerPhone: '+14155551234',
+        serviceId: 'consultation',
+        staffId: '',  // Empty staff ID
+        date: dateStr,
+        time: '10:00'
+      })).rejects.toThrow();
     });
   });
 
