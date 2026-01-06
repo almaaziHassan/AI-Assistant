@@ -1,6 +1,11 @@
 import rateLimit from 'express-rate-limit';
 import { RATE_LIMIT_WINDOWS, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_MESSAGES } from '../constants/rateLimits';
 
+// Helper to skip rate limiting for localhost (development/testing)
+const skipLocalhost = (req: { ip?: string }) => {
+    return req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+};
+
 /**
  * General API rate limiter
  * Allows 100 requests per 15 minutes per IP
@@ -11,6 +16,7 @@ export const apiLimiter = rateLimit({
     message: RATE_LIMIT_MESSAGES.GENERAL,
     standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    skip: skipLocalhost,
 });
 
 /**
@@ -24,10 +30,7 @@ export const chatLimiter = rateLimit({
     message: RATE_LIMIT_MESSAGES.CHAT,
     standardHeaders: true,
     legacyHeaders: false,
-    // Skip rate limiting for localhost (development)
-    skip: (req) => {
-        return req.ip === '127.0.0.1' || req.ip === '::1';
-    }
+    skip: skipLocalhost,
 });
 
 /**
@@ -41,6 +44,7 @@ export const loginLimiter = rateLimit({
     message: RATE_LIMIT_MESSAGES.LOGIN,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: skipLocalhost,
 });
 
 /**
@@ -54,4 +58,5 @@ export const bookingLimiter = rateLimit({
     message: RATE_LIMIT_MESSAGES.BOOKING,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: skipLocalhost,
 });

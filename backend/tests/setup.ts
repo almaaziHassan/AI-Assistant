@@ -10,6 +10,35 @@ process.env.NODE_ENV = 'test';
 // Increase timeout for async operations
 jest.setTimeout(30000);
 
-// Note: Database initialization is done per-test-suite as needed.
-// Unit tests mock the database, integration tests use real database.
-// This setup file only configures the test environment.
+// Database initialization for integration tests
+let dbInitialized = false;
+
+beforeAll(async () => {
+    // Check if this is a unit test (they mock the database)
+    const testPath = expect.getState().testPath || '';
+    const isUnitTest = testPath.includes('/unit/') || testPath.includes('\\unit\\');
+
+    if (!isUnitTest) {
+        try {
+            // Dynamic import to avoid issues with unit tests
+            const { initDatabase } = await import('../src/db/database');
+            await initDatabase();
+            dbInitialized = true;
+            console.log('Database initialized for integration tests');
+        } catch (error) {
+            console.warn('Database initialization failed:', (error as Error).message);
+        }
+    }
+});
+
+afterAll(async () => {
+    if (dbInitialized) {
+        try {
+            const { closeDatabase } = await import('../src/db/database');
+            closeDatabase();
+            console.log('Database closed');
+        } catch {
+            // Ignore cleanup errors
+        }
+    }
+});
