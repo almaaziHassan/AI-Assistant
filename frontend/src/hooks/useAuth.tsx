@@ -115,15 +115,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             `width=${width},height=${height},left=${left},top=${top}`
         );
 
-        // Listen for OAuth callback
+        // Check if popup was blocked
+        if (!popup || popup.closed) {
+            // Fallback: redirect in same window
+            window.location.href = `${API_URL}/api/user-auth/google`;
+            return;
+        }
+
+        // Listen for OAuth callback message
         const handleMessage = (event: MessageEvent) => {
-            if (event.origin === API_URL && event.data.type === 'oauth-success') {
+            // Check for oauth-success message (origin varies between local/production)
+            if (event.data && event.data.type === 'oauth-success') {
                 const { token: authToken, user: authUser } = event.data;
-                setToken(authToken);
-                setUser(authUser);
-                localStorage.setItem(TOKEN_KEY, authToken);
-                localStorage.setItem(USER_KEY, JSON.stringify(authUser));
-                popup?.close();
+                if (authToken && authUser) {
+                    setToken(authToken);
+                    setUser(authUser);
+                    localStorage.setItem(TOKEN_KEY, authToken);
+                    localStorage.setItem(USER_KEY, JSON.stringify(authUser));
+                    popup?.close();
+                    window.removeEventListener('message', handleMessage);
+                    // Reload to update chat with user session
+                    window.location.reload();
+                }
             }
         };
 

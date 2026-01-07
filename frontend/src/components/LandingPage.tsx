@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface User {
   id: string;
@@ -87,6 +87,24 @@ const LandingPage: React.FC<LandingPageProps> = ({
   onLogout
 }) => {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserMenu]);
 
   return (
     <div className="landing-page">
@@ -108,7 +126,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
             <a href="#/admin" className="nav-btn-outline">Admin</a>
 
             {isAuthenticated && user ? (
-              <div className="user-menu-wrapper">
+              <div className="user-menu-wrapper" ref={userMenuRef}>
                 <button
                   className="user-menu-trigger"
                   onClick={() => setShowUserMenu(!showUserMenu)}
