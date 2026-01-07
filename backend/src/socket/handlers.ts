@@ -4,6 +4,7 @@
  */
 
 import { Socket } from 'socket.io';
+import jwt from 'jsonwebtoken';
 import { ReceptionistService } from '../services/receptionist';
 import { chatHistoryService } from '../services/chatHistory';
 import {
@@ -14,6 +15,26 @@ import {
     saveConversationHistory,
     cleanupSocket
 } from './sessionManager';
+
+// JWT payload type
+interface JWTPayload {
+    userId: string;
+    email: string;
+    role: string;
+}
+
+/**
+ * Verify JWT token and extract user info
+ */
+function verifyAuthToken(token: string): JWTPayload | null {
+    try {
+        const secret = process.env.JWT_SECRET || 'default-secret';
+        const payload = jwt.verify(token, secret) as JWTPayload;
+        return payload;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Create socket handlers with injectable dependencies
@@ -42,10 +63,25 @@ export function createSocketHandlers(
 
     /**
      * Handle session initialization
+     * If authToken is provided and valid, use user ID as session ID
      */
     function handleInit(socket: Socket) {
-        return (data: { sessionId?: string }) => {
-            const { sessionId, isNewSession, history, fullHistory } = initializeSession(data.sessionId);
+        return (data: { sessionId?: string; authToken?: string }) => {
+            let effectiveSessionId: string | undefined = data.sessionId;
+            let isUserSession = false;
+
+            // Check for authenticated user
+            if (data.authToken) {
+                const user = verifyAuthToken(data.authToken);
+                if (user) {
+                    // Use "user-{userId}" as session ID for authenticated users
+                    effectiveSessionId = `user-${user.userId}`;
+                    isUserSession = true;
+                    console.log(`Authenticated user chat session: ${user.email}`);
+                }
+            }
+
+            const { sessionId, isNewSession, history, fullHistory } = initializeSession(effectiveSessionId);
 
             // Map socket to session
             mapSocketToSession(socket.id, sessionId);
@@ -53,8 +89,8 @@ export function createSocketHandlers(
             // Save history in memory
             saveConversationHistory(sessionId, history);
 
-            // Send session ID to client
-            socket.emit('session', { sessionId });
+            // Send session ID to client (for guests, they store it; for users, it's permanent)
+            socket.emit('session', { sessionId, isUserSession });
 
             // Send chat history to client with full message data
             if (fullHistory.length > 0) {

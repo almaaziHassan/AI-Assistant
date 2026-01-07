@@ -34,11 +34,12 @@ export interface Message {
 
 interface UseChatOptions {
   serverUrl: string;
+  authToken?: string | null; // User's JWT token for authenticated chat
 }
 
 const SESSION_STORAGE_KEY = 'ai-receptionist-session';
 
-export function useChat({ serverUrl }: UseChatOptions) {
+export function useChat({ serverUrl, authToken }: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -52,8 +53,9 @@ export function useChat({ serverUrl }: UseChatOptions) {
     return `msg-${Date.now()}-${messageIdCounter.current}`;
   };
 
-  // Get stored session ID from localStorage
+  // Get stored session ID from localStorage (only for guests)
   const getStoredSessionId = (): string | null => {
+    if (authToken) return null; // Use auth token instead of session for logged-in users
     try {
       return localStorage.getItem(SESSION_STORAGE_KEY);
     } catch {
@@ -72,7 +74,8 @@ export function useChat({ serverUrl }: UseChatOptions) {
 
   useEffect(() => {
     const socket = io(serverUrl, {
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      auth: authToken ? { token: authToken } : undefined
     });
 
     socketRef.current = socket;
@@ -81,9 +84,12 @@ export function useChat({ serverUrl }: UseChatOptions) {
       setIsConnected(true);
       setError(null);
 
-      // Send init event with stored session ID
+      // Send init event with session ID or auth token
       const storedSessionId = getStoredSessionId();
-      socket.emit('init', { sessionId: storedSessionId });
+      socket.emit('init', {
+        sessionId: storedSessionId,
+        authToken: authToken // Pass auth token for user-specific history
+      });
     });
 
     socket.on('disconnect', () => {
@@ -98,7 +104,9 @@ export function useChat({ serverUrl }: UseChatOptions) {
     // Handle session ID from server
     socket.on('session', (data: { sessionId: string }) => {
       setSessionId(data.sessionId);
-      storeSessionId(data.sessionId);
+      if (!authToken) {
+        storeSessionId(data.sessionId); // Only store session for guests
+      }
     });
 
     // Handle chat history from server (with full message data including types and actions)

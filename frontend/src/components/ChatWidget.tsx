@@ -48,7 +48,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [showCallbackForm, setShowCallbackForm] = useState(false);
   const [prefetchedServices, setPrefetchedServices] = useState<Service[] | null>(null);
-  const { messages, isConnected, isTyping, error, sendMessage, addLocalMessage, startNewConversation, saveConfirmationToServer } = useChat({ serverUrl });
+
+  // Get auth token for user-specific conversation history
+  const authToken = localStorage.getItem('auth_token');
+
+  const { messages, isConnected, isTyping, error, sendMessage, addLocalMessage, startNewConversation, saveConfirmationToServer } = useChat({ serverUrl, authToken });
 
   // Track if we've already triggered prefetch
   const hasPrefetched = useRef(false);
