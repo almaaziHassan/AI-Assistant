@@ -254,9 +254,35 @@ Would you like us to call you back instead? I can set that up for you!`;
 
                 // Format appointments for display
                 const aptList = result.appointments.map((apt, i) => {
-                    const date = new Date(apt.date + 'T' + apt.time);
-                    const formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                    const formattedTime = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    // Debug: log raw values
+                    console.log(`[format] Apt ${i + 1}: date=${apt.date}, time=${apt.time}`);
+
+                    // Handle different date formats
+                    let formattedDate = apt.date;
+                    let formattedTime = apt.time;
+
+                    try {
+                        // Try to parse and format the date
+                        if (apt.date) {
+                            const dateObj = new Date(apt.date + 'T12:00:00'); // Use noon to avoid timezone issues
+                            if (!isNaN(dateObj.getTime())) {
+                                formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                            }
+                        }
+
+                        // Try to format the time
+                        if (apt.time) {
+                            const [hours, minutes] = apt.time.split(':').map(Number);
+                            if (!isNaN(hours) && !isNaN(minutes)) {
+                                const ampm = hours >= 12 ? 'PM' : 'AM';
+                                const displayHours = hours % 12 || 12;
+                                formattedTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`[format] Error formatting apt ${i + 1}:`, e);
+                    }
+
                     return `${i + 1}. **${apt.serviceName}** on ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
                 }).join('\n');
 
@@ -285,9 +311,29 @@ Would you like us to call you back instead? I can set that up for you!`;
 
                 if (result.cancelledAppointment) {
                     const apt = result.cancelledAppointment;
-                    const date = new Date(apt.date + 'T' + apt.time);
-                    const formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                    const formattedTime = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+                    // Format date safely
+                    let formattedDate = apt.date;
+                    let formattedTime = apt.time;
+
+                    try {
+                        if (apt.date) {
+                            const dateObj = new Date(apt.date + 'T12:00:00');
+                            if (!isNaN(dateObj.getTime())) {
+                                formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                            }
+                        }
+                        if (apt.time) {
+                            const [hours, minutes] = apt.time.split(':').map(Number);
+                            if (!isNaN(hours) && !isNaN(minutes)) {
+                                const ampm = hours >= 12 ? 'PM' : 'AM';
+                                const displayHours = hours % 12 || 12;
+                                formattedTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[cancel] Error formatting date:', e);
+                    }
 
                     return {
                         message: `✅ I've cancelled your **${apt.serviceName}** appointment on ${formattedDate} at ${formattedTime}. You'll receive a confirmation email shortly.\n\nWould you like to book a new appointment?`,
