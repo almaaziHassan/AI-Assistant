@@ -253,24 +253,27 @@ Would you like us to call you back instead? I can set that up for you!`;
                 }
 
                 // Format appointments for display
-                const aptList = result.appointments.map((apt, i) => {
-                    // Debug: log raw values
-                    console.log(`[format] Apt ${i + 1}: date=${apt.date}, time=${apt.time}`);
+                const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+                const aptList = result.appointments.map((apt, i) => {
                     // Handle different date formats
                     let formattedDate = apt.date;
                     let formattedTime = apt.time;
 
                     try {
-                        // Try to parse and format the date
+                        // Format date manually (toLocaleDateString unreliable on servers)
                         if (apt.date) {
-                            const dateObj = new Date(apt.date + 'T12:00:00'); // Use noon to avoid timezone issues
+                            const [year, month, day] = apt.date.split('-').map(Number);
+                            const dateObj = new Date(year, month - 1, day); // month is 0-indexed
                             if (!isNaN(dateObj.getTime())) {
-                                formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                                const weekday = WEEKDAYS[dateObj.getDay()];
+                                const monthName = MONTHS[dateObj.getMonth()];
+                                formattedDate = `${weekday}, ${monthName} ${day}`;
                             }
                         }
 
-                        // Try to format the time
+                        // Format time manually (12-hour with AM/PM)
                         if (apt.time) {
                             const [hours, minutes] = apt.time.split(':').map(Number);
                             if (!isNaN(hours) && !isNaN(minutes)) {
@@ -316,11 +319,18 @@ Would you like us to call you back instead? I can set that up for you!`;
                     let formattedDate = apt.date;
                     let formattedTime = apt.time;
 
+                    // Manual date formatting (same as lookup)
+                    const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
                     try {
                         if (apt.date) {
-                            const dateObj = new Date(apt.date + 'T12:00:00');
+                            const [year, month, day] = apt.date.split('-').map(Number);
+                            const dateObj = new Date(year, month - 1, day);
                             if (!isNaN(dateObj.getTime())) {
-                                formattedDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                                const weekday = WEEKDAYS[dateObj.getDay()];
+                                const monthName = MONTHS[dateObj.getMonth()];
+                                formattedDate = `${weekday}, ${monthName} ${day}`;
                             }
                         }
                         if (apt.time) {
