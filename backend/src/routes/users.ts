@@ -144,19 +144,37 @@ router.get('/appointments/:id', requireUserAuth, async (req: Request, res: Respo
 router.put('/appointments/:id/cancel', requireUserAuth, async (req: Request, res: Response) => {
     try {
         const userId = req.user!.id;
+        const userEmail = req.user!.email;
         const { id } = req.params;
 
-        // Find appointment and verify ownership
+        // Find appointment and verify ownership (by userId OR email)
         const appointment = await prisma.appointment.findFirst({
-            where: { id, userId }
+            where: {
+                id,
+                OR: [
+                    { userId },
+                    { customerEmail: userEmail.toLowerCase() }
+                ]
+            }
         });
 
         if (!appointment) {
             return res.status(404).json({ error: 'Appointment not found' });
         }
 
-        // Check if appointment is in the future
-        const appointmentDateTime = new Date(appointment.appointmentDate);
+        // Check if appointment is in the future (combine date and time)
+        const appointmentDate = new Date(appointment.appointmentDate);
+        const appointmentTime = new Date(appointment.appointmentTime);
+
+        // Combine date and time into a single datetime
+        const appointmentDateTime = new Date(
+            appointmentDate.getFullYear(),
+            appointmentDate.getMonth(),
+            appointmentDate.getDate(),
+            appointmentTime.getUTCHours(),
+            appointmentTime.getUTCMinutes()
+        );
+
         if (appointmentDateTime < new Date()) {
             return res.status(400).json({ error: 'Cannot cancel past appointments' });
         }
