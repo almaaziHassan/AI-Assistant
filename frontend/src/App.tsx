@@ -40,10 +40,14 @@ interface AppContentProps {
   serverUrl: string;
 }
 
+// Lazy load user pages
+const UserAccountPage = lazy(() => import('./components/UserAccountPage'));
+const UserAppointmentsPage = lazy(() => import('./components/UserAppointmentsPage'));
+
 // Main App content with auth context
 const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
   const { isAuthenticated, user, logout } = useAuth();
-  const [currentPage, setCurrentPage] = useState<'landing' | 'admin' | 'login' | 'register' | 'verify-email' | 'reset-password'>('landing');
+  const [currentPage, setCurrentPage] = useState<'landing' | 'admin' | 'account' | 'appointments' | 'verify-email' | 'reset-password'>('landing');
   const [chatOpen, setChatOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalView, setAuthModalView] = useState<'login' | 'register'>('login');
@@ -56,12 +60,18 @@ const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
 
       if (hash === '#/admin' || pathname === '/admin') {
         setCurrentPage('admin');
+      } else if (hash === '#/account' || pathname === '/account') {
+        setCurrentPage('account');
+      } else if (hash === '#/appointments' || pathname === '/appointments') {
+        setCurrentPage('appointments');
       } else if (hash === '#/login' || pathname === '/login') {
         setAuthModalOpen(true);
         setAuthModalView('login');
+        setCurrentPage('landing');
       } else if (hash === '#/register' || pathname === '/register') {
         setAuthModalOpen(true);
         setAuthModalView('register');
+        setCurrentPage('landing');
       } else if (hash.startsWith('#/verify-email') || pathname === '/verify-email') {
         setCurrentPage('verify-email');
       } else if (hash.startsWith('#/reset-password') || pathname === '/reset-password') {
@@ -88,6 +98,11 @@ const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
     };
   }, []);
 
+  const goToLanding = () => {
+    window.location.hash = '';
+    setCurrentPage('landing');
+  };
+
   // Handle verify email page
   if (currentPage === 'verify-email') {
     return <VerifyEmailPage />;
@@ -96,6 +111,24 @@ const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
   // Handle reset password page
   if (currentPage === 'reset-password') {
     return <ResetPasswordPage />;
+  }
+
+  // Handle account page
+  if (currentPage === 'account') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <UserAccountPage onBack={goToLanding} />
+      </Suspense>
+    );
+  }
+
+  // Handle appointments page
+  if (currentPage === 'appointments') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <UserAppointmentsPage onBack={goToLanding} />
+      </Suspense>
+    );
   }
 
   if (currentPage === 'admin') {
