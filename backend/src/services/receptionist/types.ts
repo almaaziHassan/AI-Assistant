@@ -22,7 +22,24 @@ export interface CallbackConfirmation {
 export interface ReceptionistResponse {
     message: string;
     action?: {
-        type: 'book_appointment' | 'show_services' | 'show_hours' | 'escalate' | 'request_callback' | 'offer_callback' | 'booking_confirmed' | 'callback_confirmed' | 'none';
+        type:
+        // Booking actions
+        | 'book_appointment'
+        | 'show_services'
+        | 'show_hours'
+        | 'booking_confirmed'
+        // Contact actions
+        | 'escalate'
+        | 'request_callback'
+        | 'offer_callback'
+        | 'callback_confirmed'
+        // Appointment management actions (new)
+        | 'appointments_found'
+        | 'no_appointments_found'
+        | 'appointment_cancelled'
+        | 'reschedule_appointment'
+        // Fallback
+        | 'none';
         data?: Record<string, unknown>;
         bookingConfirmation?: BookingConfirmation;
         callbackConfirmation?: CallbackConfirmation;

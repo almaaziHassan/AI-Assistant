@@ -32,6 +32,11 @@ interface AppointmentFormProps {
   onSubmit: (booking: BookingData) => void;
   onCancel: () => void;
   prefetchedServices?: Service[]; // If provided, skip initial services fetch
+  // Rescheduling support - pre-fill customer info
+  initialCustomerName?: string;
+  initialCustomerEmail?: string;
+  initialServiceId?: string;
+  isRescheduling?: boolean;
 }
 
 interface BookingData {
@@ -50,7 +55,16 @@ interface ValidationErrors {
   customerPhone?: string;
 }
 
-const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, onCancel, prefetchedServices }) => {
+const AppointmentForm: React.FC<AppointmentFormProps> = ({
+  serverUrl,
+  onSubmit,
+  onCancel,
+  prefetchedServices,
+  initialCustomerName,
+  initialCustomerEmail,
+  initialServiceId,
+  isRescheduling: _isRescheduling // Reserved for future UI improvements (e.g., different header text)
+}) => {
   const [step, setStep] = useState(1);
   const [services, setServices] = useState<Service[]>(prefetchedServices || []);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -61,11 +75,12 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({ serverUrl, onSubmit, 
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [closedDayMessage, setClosedDayMessage] = useState<string | null>(null);
 
+  // Pre-fill form data when rescheduling
   const [formData, setFormData] = useState<BookingData>({
-    customerName: '',
-    customerEmail: '',
+    customerName: initialCustomerName || '',
+    customerEmail: initialCustomerEmail || '',
     customerPhone: '',
-    serviceId: '',
+    serviceId: initialServiceId || '',
     staffId: '',
     date: '',
     time: ''

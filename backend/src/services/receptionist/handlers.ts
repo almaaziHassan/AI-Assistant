@@ -104,3 +104,184 @@ export function executeCallbackRequest(args: {
         };
     }
 }
+
+// ========== APPOINTMENT MANAGEMENT HANDLERS ==========
+
+/**
+ * Appointment info returned from lookup
+ */
+export interface AppointmentInfo {
+    id: string;
+    serviceName: string;
+    staffName?: string;
+    date: string;
+    time: string;
+    status: string;
+    customerName: string;
+    customerEmail: string;
+}
+
+/**
+ * Look up appointments by customer email
+ * 
+ * Why email-based: Email is unique identifier for appointments
+ * Allows matching even if customer wasn't logged in when booking
+ */
+export function lookupAppointments(email: string): {
+    success: boolean;
+    appointments?: AppointmentInfo[];
+    error?: string
+} {
+    try {
+        const appointments = scheduler.getAppointmentsByEmail(email.toLowerCase());
+
+        // Filter to only upcoming appointments (not past, not cancelled)
+        const now = new Date();
+        const upcoming = appointments.filter(apt => {
+            if (apt.status === 'cancelled' || apt.status === 'completed' || apt.status === 'no-show') {
+                return false;
+            }
+            const aptDate = new Date(apt.appointmentDate + 'T' + apt.appointmentTime);
+            return aptDate > now;
+        });
+
+        if (upcoming.length === 0) {
+            return {
+                success: true,
+                appointments: [],
+            };
+        }
+
+        return {
+            success: true,
+            appointments: upcoming.map(apt => ({
+                id: apt.id,
+                serviceName: apt.serviceName,
+                staffName: apt.staffName,
+                date: apt.appointmentDate,
+                time: apt.appointmentTime,
+                status: apt.status,
+                customerName: apt.customerName,
+                customerEmail: apt.customerEmail
+            }))
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to look up appointments'
+        };
+    }
+}
+
+/**
+ * Cancel an appointment by ID
+ * 
+ * Why separate from lookup: Customer must confirm which appointment
+ * This prevents accidental cancellations
+ */
+export function cancelAppointment(appointmentId: string, reason?: string): {
+    success: boolean;
+    cancelledAppointment?: AppointmentInfo;
+    error?: string;
+} {
+    try {
+        // Get appointment details first
+        const appointment = scheduler.getAppointment(appointmentId);
+
+        if (!appointment) {
+            return { success: false, error: 'Appointment not found' };
+        }
+
+        // Check if appointment is in the past
+        const now = new Date();
+        const aptDateTime = new Date(appointment.appointmentDate + 'T' + appointment.appointmentTime);
+        if (aptDateTime < now) {
+            return { success: false, error: 'Cannot cancel past appointments' };
+        }
+
+        // Check if already cancelled
+        if (appointment.status === 'cancelled') {
+            return { success: false, error: 'This appointment is already cancelled' };
+        }
+
+        // Cancel the appointment
+        const success = scheduler.cancelAppointment(appointmentId);
+
+        if (!success) {
+            return { success: false, error: 'Failed to cancel appointment' };
+        }
+
+        return {
+            success: true,
+            cancelledAppointment: {
+                id: appointment.id,
+                serviceName: appointment.serviceName,
+                staffName: appointment.staffName,
+                date: appointment.appointmentDate,
+                time: appointment.appointmentTime,
+                status: 'cancelled',
+                customerName: appointment.customerName,
+                customerEmail: appointment.customerEmail
+            }
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Cancellation failed'
+        };
+    }
+}
+
+/**
+ * Get appointment details for rescheduling
+ * 
+ * Why return appointment details: Frontend needs service info to pre-fill form
+ * Original appointment is cancelled only after new booking is confirmed
+ */
+export function getAppointmentForReschedule(appointmentId: string): {
+    success: boolean;
+    appointment?: AppointmentInfo & { serviceId: string; staffId?: string };
+    error?: string;
+} {
+    try {
+        const appointment = scheduler.getAppointment(appointmentId);
+
+        if (!appointment) {
+            return { success: false, error: 'Appointment not found' };
+        }
+
+        // Check if appointment is in the past
+        const now = new Date();
+        const aptDateTime = new Date(appointment.appointmentDate + 'T' + appointment.appointmentTime);
+        if (aptDateTime < now) {
+            return { success: false, error: 'Cannot reschedule past appointments' };
+        }
+
+        // Check if already cancelled
+        if (appointment.status === 'cancelled') {
+            return { success: false, error: 'Cannot reschedule a cancelled appointment' };
+        }
+
+        return {
+            success: true,
+            appointment: {
+                id: appointment.id,
+                serviceName: appointment.serviceName,
+                staffName: appointment.staffName,
+                date: appointment.appointmentDate,
+                time: appointment.appointmentTime,
+                status: appointment.status,
+                customerName: appointment.customerName,
+                customerEmail: appointment.customerEmail,
+                serviceId: appointment.serviceId,
+                staffId: appointment.staffId
+            }
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get appointment'
+        };
+    }
+}
+

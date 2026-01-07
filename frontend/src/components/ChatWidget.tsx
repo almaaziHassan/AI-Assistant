@@ -49,6 +49,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
   const [showCallbackForm, setShowCallbackForm] = useState(false);
   const [prefetchedServices, setPrefetchedServices] = useState<Service[] | null>(null);
 
+  // Rescheduling state - tracks appointment being rescheduled
+  const [rescheduleData, setRescheduleData] = useState<{
+    originalAppointmentId: string;
+    serviceId: string;
+    staffId?: string;
+    serviceName: string;
+    customerName: string;
+    customerEmail: string;
+  } | null>(null);
+
   // Get auth token for user-specific conversation history
   const authToken = localStorage.getItem('auth_token');
 
@@ -63,6 +73,24 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
       setIsOpen(true);
     }
   }, [defaultOpen]);
+
+  // Handle reschedule_appointment action from AI
+  // When AI triggers rescheduling, open booking form with pre-filled data
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.action?.type === 'reschedule_appointment' && lastMessage.action.data) {
+      const data = lastMessage.action.data as {
+        originalAppointmentId: string;
+        serviceId: string;
+        staffId?: string;
+        serviceName: string;
+        customerName: string;
+        customerEmail: string;
+      };
+      setRescheduleData(data);
+      setShowBookingForm(true);
+    }
+  }, [messages]);
 
   // Prefetch services when chat widget opens - makes booking form instant!
   useEffect(() => {
@@ -108,6 +136,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
 
   const handleBookingSubmit = async (booking: BookingData) => {
     try {
+      // If this is a reschedule, cancel the original appointment first
+      if (rescheduleData?.originalAppointmentId) {
+        await fetch(`${serverUrl}/api/appointments/${rescheduleData.originalAppointmentId}`, {
+          method: 'DELETE'
+        });
+        // Note: We don't block on cancel errors - continue with new booking
+      }
+
       const response = await fetch(`${serverUrl}/api/appointments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,6 +153,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
       if (response.ok) {
         const appointment = await response.json();
         setShowBookingForm(false);
+        setRescheduleData(null); // Clear reschedule data
 
         const confirmationData = {
           serviceName: appointment.serviceName,
@@ -175,6 +212,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
 
   const handleShowBookingForm = () => {
     setShowBookingForm(true);
+  };
+
+  const handleCloseBookingForm = () => {
+    setShowBookingForm(false);
+    setRescheduleData(null); // Clear reschedule data when closing form
   };
 
   const handleShowCallbackForm = () => {
@@ -303,8 +345,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
               <AppointmentForm
                 serverUrl={serverUrl}
                 onSubmit={handleBookingSubmit}
-                onCancel={() => setShowBookingForm(false)}
+                onCancel={handleCloseBookingForm}
                 prefetchedServices={prefetchedServices || undefined}
+                // Pre-fill customer info when rescheduling
+                initialCustomerName={rescheduleData?.customerName}
+                initialCustomerEmail={rescheduleData?.customerEmail}
+                initialServiceId={rescheduleData?.serviceId}
+                isRescheduling={!!rescheduleData}
               />
             ) : showCallbackForm ? (
               <CallbackForm

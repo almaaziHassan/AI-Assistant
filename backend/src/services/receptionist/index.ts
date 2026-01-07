@@ -11,7 +11,13 @@ import servicesConfig from '../../config/services.json';
 import { adminService, AdminService } from '../admin';
 import { getTools } from './tools';
 import { buildSystemPrompt } from './promptBuilder';
-import { executeBooking, executeCallbackRequest } from './handlers';
+import {
+    executeBooking,
+    executeCallbackRequest,
+    lookupAppointments,
+    cancelAppointment as cancelAppointmentHandler,
+    getAppointmentForReschedule
+} from './handlers';
 import {
     ReceptionistResponse,
     ConversationMessage,
@@ -224,6 +230,108 @@ Would you like us to call you back instead? I can set that up for you!`;
                         action: { type: 'none' }
                     };
                 }
+            }
+
+            // ========== APPOINTMENT MANAGEMENT HANDLERS ==========
+
+            // Handle lookup_appointments - Find customer's appointments by email
+            if (functionName === 'lookup_appointments') {
+                const result = lookupAppointments(functionArgs.customerEmail);
+
+                if (!result.success) {
+                    return {
+                        message: `I couldn't look up your appointments: ${result.error}. Please try again.`,
+                        action: { type: 'none' }
+                    };
+                }
+
+                if (!result.appointments || result.appointments.length === 0) {
+                    return {
+                        message: `I don't see any upcoming appointments for ${functionArgs.customerEmail}. Would you like to book a new appointment?`,
+                        action: { type: 'no_appointments_found', data: { email: functionArgs.customerEmail } }
+                    };
+                }
+
+                // Format appointments for display
+                const aptList = result.appointments.map((apt, i) => {
+                    const date = new Date(apt.date + 'T' + apt.time);
+                    const formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                    const formattedTime = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    return `${i + 1}. **${apt.serviceName}** on ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+                }).join('\n');
+
+                return {
+                    message: `I found ${result.appointments.length} upcoming appointment(s):\n\n${aptList}\n\nWould you like to cancel or reschedule any of these?`,
+                    action: {
+                        type: 'appointments_found',
+                        data: {
+                            appointments: result.appointments,
+                            email: functionArgs.customerEmail
+                        }
+                    }
+                };
+            }
+
+            // Handle cancel_appointment - Cancel a specific appointment
+            if (functionName === 'cancel_appointment') {
+                const result = cancelAppointmentHandler(functionArgs.appointmentId, functionArgs.reason);
+
+                if (!result.success) {
+                    return {
+                        message: `I couldn't cancel that appointment: ${result.error}`,
+                        action: { type: 'none' }
+                    };
+                }
+
+                if (result.cancelledAppointment) {
+                    const apt = result.cancelledAppointment;
+                    const date = new Date(apt.date + 'T' + apt.time);
+                    const formattedDate = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                    const formattedTime = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+                    return {
+                        message: `✅ I've cancelled your **${apt.serviceName}** appointment on ${formattedDate} at ${formattedTime}. You'll receive a confirmation email shortly.\n\nWould you like to book a new appointment?`,
+                        action: {
+                            type: 'appointment_cancelled',
+                            data: { appointment: apt }
+                        }
+                    };
+                }
+
+                return {
+                    message: 'The appointment has been cancelled.',
+                    action: { type: 'appointment_cancelled' }
+                };
+            }
+
+            // Handle start_reschedule - Begin rescheduling process
+            if (functionName === 'start_reschedule') {
+                const result = getAppointmentForReschedule(functionArgs.appointmentId);
+
+                if (!result.success || !result.appointment) {
+                    return {
+                        message: `I couldn't start the rescheduling process: ${result.error}`,
+                        action: { type: 'none' }
+                    };
+                }
+
+                const apt = result.appointment;
+
+                return {
+                    message: functionArgs.message || `Let's pick a new date and time for your ${apt.serviceName} appointment.`,
+                    action: {
+                        type: 'reschedule_appointment',
+                        data: {
+                            originalAppointmentId: apt.id,
+                            serviceId: apt.serviceId,
+                            staffId: apt.staffId,
+                            serviceName: apt.serviceName,
+                            staffName: apt.staffName,
+                            customerName: apt.customerName,
+                            customerEmail: apt.customerEmail
+                        }
+                    }
+                };
             }
         }
 
