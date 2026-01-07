@@ -97,7 +97,10 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isTyping }) => {
   }, [messages, isTyping]);
 
   const formatTime = (timestamp: string) => {
+    if (!timestamp) return '';
     const date = new Date(timestamp);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return '';
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 

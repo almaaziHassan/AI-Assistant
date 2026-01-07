@@ -213,11 +213,22 @@ export function cancelAppointment(appointmentId: string, reason?: string): {
     error?: string;
 } {
     try {
+        // Validate appointment ID - must be UUID format (from lookup_appointments)
+        if (!appointmentId || typeof appointmentId !== 'string') {
+            return { success: false, error: 'Please provide your email first so I can look up your appointments.' };
+        }
+
+        // UUID format check - prevents AI from making up IDs
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(appointmentId.trim())) {
+            return { success: false, error: 'Please provide your email first so I can look up your appointments.' };
+        }
+
         // Get appointment details first
         const appointment = scheduler.getAppointment(appointmentId);
 
         if (!appointment) {
-            return { success: false, error: 'Appointment not found' };
+            return { success: false, error: 'Appointment not found. Please provide your email so I can look up your appointments.' };
         }
 
         // Check if appointment is in the past
@@ -272,10 +283,21 @@ export function getAppointmentForReschedule(appointmentId: string): {
     error?: string;
 } {
     try {
+        // Validate appointment ID - must be UUID format (from lookup_appointments)
+        if (!appointmentId || typeof appointmentId !== 'string') {
+            return { success: false, error: 'Please provide your email first so I can look up your appointments.' };
+        }
+
+        // UUID format check - prevents AI from making up IDs
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(appointmentId.trim())) {
+            return { success: false, error: 'Please provide your email first so I can look up your appointments.' };
+        }
+
         const appointment = scheduler.getAppointment(appointmentId);
 
         if (!appointment) {
-            return { success: false, error: 'Appointment not found' };
+            return { success: false, error: 'Appointment not found. Please provide your email so I can look up your appointments.' };
         }
 
         // Check if appointment is in the past
