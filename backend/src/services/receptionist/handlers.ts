@@ -163,15 +163,36 @@ export function lookupAppointments(email: string): {
 
         const appointments = scheduler.getAppointmentsByEmail(emailLower);
 
+        // Debug logging to understand appointment lookup
+        console.log(`[lookupAppointments] Email: ${emailLower}`);
+        console.log(`[lookupAppointments] Found ${appointments.length} total appointments`);
+        if (appointments.length > 0) {
+            console.log(`[lookupAppointments] Appointments:`, appointments.map(a => ({
+                id: a.id.substring(0, 8),
+                date: a.appointmentDate,
+                time: a.appointmentTime,
+                status: a.status
+            })));
+        }
+
         // Filter to only upcoming appointments (not past, not cancelled)
         const now = new Date();
+        console.log(`[lookupAppointments] Current time (server): ${now.toISOString()}`);
+
         const upcoming = appointments.filter(apt => {
             if (apt.status === 'cancelled' || apt.status === 'completed' || apt.status === 'no-show') {
+                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: status=${apt.status}`);
                 return false;
             }
             const aptDate = new Date(apt.appointmentDate + 'T' + apt.appointmentTime);
-            return aptDate > now;
+            const isPast = aptDate <= now;
+            if (isPast) {
+                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: past (apt=${aptDate.toISOString()}, now=${now.toISOString()})`);
+            }
+            return !isPast;
         });
+
+        console.log(`[lookupAppointments] ${upcoming.length} upcoming appointments after filtering`);
 
         if (upcoming.length === 0) {
             return {
