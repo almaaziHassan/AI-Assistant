@@ -4,7 +4,7 @@
  */
 
 import { Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '../utils/jwt';
 import { ReceptionistService } from '../services/receptionist';
 import { chatHistoryService } from '../services/chatHistory';
 import {
@@ -15,26 +15,6 @@ import {
     saveConversationHistory,
     cleanupSocket
 } from './sessionManager';
-
-// JWT payload type
-interface JWTPayload {
-    userId: string;
-    email: string;
-    role: string;
-}
-
-/**
- * Verify JWT token and extract user info
- */
-function verifyAuthToken(token: string): JWTPayload | null {
-    try {
-        const secret = process.env.JWT_SECRET || 'default-secret';
-        const payload = jwt.verify(token, secret) as JWTPayload;
-        return payload;
-    } catch {
-        return null;
-    }
-}
 
 /**
  * Create socket handlers with injectable dependencies
@@ -72,7 +52,7 @@ export function createSocketHandlers(
 
             // Check for authenticated user
             if (data.authToken) {
-                const user = verifyAuthToken(data.authToken);
+                const user = verifyToken(data.authToken);
                 if (user) {
                     // Use "user-{userId}" as session ID for authenticated users
                     effectiveSessionId = `user-${user.userId}`;
