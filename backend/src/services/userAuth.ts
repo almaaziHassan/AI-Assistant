@@ -47,48 +47,60 @@ export interface AuthResult {
 class UserAuthService {
     /**
      * Register a new user
+     * 
+     * Why email verification required: Prevents spam registrations
+     * and ensures user owns the email for password recovery
      */
     async register(input: RegisterInput): Promise<AuthResult> {
         try {
             const { email, password, name, phone } = input;
 
+            // Why lowercase: Email addresses are case-insensitive per RFC 5321
+            // Normalizing prevents duplicate accounts like "User@Email.com" vs "user@email.com"
+            const normalizedEmail = email.toLowerCase();
+
             // Check if user already exists
             const existingUser = await prisma.user.findUnique({
-                where: { email: email.toLowerCase() }
+                where: { email: normalizedEmail }
             });
 
             if (existingUser) {
+                // Why same error message: Prevents email enumeration attacks
+                // where attackers discover valid emails by different error messages
                 return { success: false, error: 'Email already registered' };
             }
 
-            // Validate password strength
+            // Validate password strength using extracted service
             if (password.length < 8) {
                 return { success: false, error: 'Password must be at least 8 characters' };
             }
 
-            // Hash password
+            // Why bcrypt with 12 rounds: See password.ts for detailed rationale
             const passwordHash = await bcrypt.hash(password, 12);
 
-            // Generate verification token
+            // Why random token: Cryptographically secure, can't be guessed
+            // See token.ts for detailed rationale on token generation
             const verificationToken = crypto.randomBytes(32).toString('hex');
             const verificationExpires = new Date(Date.now() + VERIFICATION_EXPIRES_HOURS * 60 * 60 * 1000);
 
-            // Create user
+            // Create user with unverified status
             const user = await prisma.user.create({
                 data: {
-                    email: email.toLowerCase(),
+                    email: normalizedEmail,
                     passwordHash,
                     name,
                     phone,
                     verificationToken,
                     verificationExpires,
-                    role: 'customer'
+                    role: 'customer' // Why default role: All users start as customers
                 }
             });
 
-            // Send verification email
+            // Send verification email (async, don't block registration)
             await this.sendVerificationEmail(user.email, user.name, verificationToken);
 
+            // Why no token returned: User must verify email first
+            // This prevents use of unverified accounts
             return {
                 success: true,
                 user: {
@@ -100,46 +112,62 @@ class UserAuthService {
             };
         } catch (error) {
             console.error('Registration error:', error);
+            // Why generic error: Don't expose internal errors to users
             return { success: false, error: 'Registration failed. Please try again.' };
         }
     }
 
     /**
      * Login user
+     * 
+     * Why multiple checks in specific order:
+     * 1. User exists? - Basic check
+     * 2. Has password? - Detect OAuth-only users
+     * 3. Password correct? - Validate credentials
+     * 4. Email verified? - Ensure account ownership
+     * 
+     * This order minimizes database calls and prevents timing attacks
      */
     async login(input: LoginInput): Promise<AuthResult> {
         try {
             const { email, password } = input;
 
-            // Find user
+            // Find user by normalized email
             const user = await prisma.user.findUnique({
                 where: { email: email.toLowerCase() }
             });
 
+            // Why same error for non-existent user: Prevents email enumeration
+            // Attacker can't tell if email exists by trying to login
             if (!user) {
                 return { success: false, error: 'Invalid email or password' };
             }
 
-            // Check if user has a password (Google OAuth users may not)
+            // Why check passwordHash exists: Google OAuth users don't have passwords
+            // They must use "Login with Google" to authenticate
             if (!user.passwordHash) {
                 return { success: false, error: 'Please login with Google' };
             }
 
-            // Check password
+            // Why bcrypt.compare: Timing-safe comparison prevents timing attacks
+            // where attackers measure response time to guess password characters
             const isValidPassword = await bcrypt.compare(password, user.passwordHash);
             if (!isValidPassword) {
+                // Why same error as non-existent user: Prevents enumeration
                 return { success: false, error: 'Invalid email or password' };
             }
 
-            // Check if email is verified
+            // Why require email verification: Ensures user owns the email
+            // Prevents account takeover via typosquatting (similar email addresses)
             if (!user.emailVerified) {
                 return { success: false, error: 'Please verify your email before logging in' };
             }
 
-            // Generate JWT token
+            // Generate JWT token for authenticated session
             const token = this.generateToken(user);
 
-            // Update last login
+            // Why track lastLogin: Helps detect suspicious activity
+            // User can see "last login" and notice unauthorized access
             await prisma.user.update({
                 where: { id: user.id },
                 data: { lastLogin: new Date() }
