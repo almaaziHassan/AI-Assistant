@@ -129,22 +129,28 @@ Examples that MUST trigger this:
             type: 'function',
             function: {
                 name: 'lookup_appointments',
-                description: `Look up customer's appointments by email. Call when customer:
-- Asks about their appointments ("my appointments", "my bookings")
-- Wants to cancel or reschedule (need to find the appointment first)
-- Provides email and asks about existing bookings
+                description: `Look up customer's appointments by email.
 
-ALWAYS ask for email first if not provided.
-Examples:
-- "I want to cancel my appointment" → Ask for email, then call this
-- "What appointments do I have?" → Ask for email, then call this
-- Customer provides: "test@example.com" → Call with that email`,
+⚠️ CRITICAL: You MUST have a real email address before calling this!
+- If customer says "cancel/reschedule my appointment" but hasn't given email → ASK for email first, DO NOT call this
+- Only call this when customer has provided an actual email like "john@example.com"
+
+WRONG: Calling with "please provide your email" or "unknown" 
+RIGHT: Ask "What email did you use when booking?" then wait for response
+
+Good trigger examples:
+- Customer says: "My email is john@example.com" → Call with "john@example.com"
+- Customer says: "test@gmail.com" → Call with "test@gmail.com"
+
+Bad trigger examples (DO NOT CALL):
+- Customer says: "Cancel my appointment" → ASK for email first
+- Customer says: "What appointments do I have?" → ASK for email first`,
                 parameters: {
                     type: 'object',
                     properties: {
                         customerEmail: {
                             type: 'string',
-                            description: 'Customer email address to look up appointments'
+                            description: 'Actual customer email address (must be a real email, not placeholder text)'
                         }
                     },
                     required: ['customerEmail']
@@ -155,26 +161,26 @@ Examples:
             type: 'function',
             function: {
                 name: 'cancel_appointment',
-                description: `Cancel a specific appointment. Call ONLY after:
-1. You've looked up appointments and shown them to customer
-2. Customer clearly specifies which appointment to cancel
-3. Customer confirms they want to cancel
+                description: `Cancel a specific appointment by ID.
 
-NEVER call without customer confirmation.
-Example flow:
-- Customer: "Cancel my massage appointment"
-- AI: Uses lookup_appointments first
-- AI: Shows appointments, asks which one
-- Customer: "The one on January 15"
-- AI: "Are you sure you want to cancel your Deep Tissue Massage on Jan 15 at 2:00 PM?"
-- Customer: "Yes, cancel it"
-- AI: Calls cancel_appointment`,
+⚠️ CRITICAL: The appointmentId MUST come from a previous lookup_appointments result!
+- You cannot guess or make up appointment IDs
+- You MUST have called lookup_appointments first and received the ID in the response
+
+Required flow:
+1. Customer asks to cancel → You ask for email
+2. Customer gives email → You call lookup_appointments
+3. lookup_appointments returns list with IDs → You show list to customer
+4. Customer picks one → You confirm with them
+5. Customer confirms → You call cancel_appointment with the exact ID from step 3
+
+⚠️ NEVER call this if you haven't called lookup_appointments first!`,
                 parameters: {
                     type: 'object',
                     properties: {
                         appointmentId: {
                             type: 'string',
-                            description: 'Unique appointment ID to cancel'
+                            description: 'Exact appointment ID from lookup_appointments response (UUID format like "abc123-def456")'
                         },
                         reason: {
                             type: 'string',
@@ -189,26 +195,25 @@ Example flow:
             type: 'function',
             function: {
                 name: 'start_reschedule',
-                description: `Start the rescheduling process. Call when customer wants to change appointment time/date.
-This will:
-1. Mark the selected appointment for rescheduling
-2. Show the booking form pre-filled with service info
-3. Allow customer to pick new date/time
+                description: `Start rescheduling an appointment.
 
-Call ONLY after:
-1. You've looked up appointments
-2. Customer specifies which appointment to reschedule
-3. Customer confirms they want to reschedule
+⚠️ CRITICAL: The appointmentId MUST come from a previous lookup_appointments result!
+- You cannot guess or make up appointment IDs
 
-Example:
-- "I want to move my appointment to next week"
-- After confirmation → Call start_reschedule with the appointment ID`,
+Required flow:
+1. Customer asks to reschedule → You ask for email
+2. Customer gives email → You call lookup_appointments  
+3. lookup_appointments returns list with IDs → You show list to customer
+4. Customer picks one → You confirm they want to reschedule
+5. Customer confirms → You call start_reschedule with the exact ID from step 3
+
+This will open the booking form pre-filled with customer info.`,
                 parameters: {
                     type: 'object',
                     properties: {
                         appointmentId: {
                             type: 'string',
-                            description: 'Appointment ID to reschedule'
+                            description: 'Exact appointment ID from lookup_appointments response (UUID format)'
                         },
                         message: {
                             type: 'string',

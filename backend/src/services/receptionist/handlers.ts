@@ -133,7 +133,35 @@ export function lookupAppointments(email: string): {
     error?: string
 } {
     try {
-        const appointments = scheduler.getAppointmentsByEmail(email.toLowerCase());
+        // Validate email - AI sometimes calls with placeholder text
+        if (!email || typeof email !== 'string') {
+            return { success: false, error: 'Please provide your email address to look up appointments.' };
+        }
+
+        const emailLower = email.toLowerCase().trim();
+
+        // Check for placeholder text the AI might incorrectly provide
+        const invalidPatterns = [
+            'please provide',
+            'your email',
+            'unknown',
+            'not provided',
+            'n/a',
+            'none',
+            'email address'
+        ];
+
+        if (invalidPatterns.some(p => emailLower.includes(p)) || emailLower.length < 5) {
+            return { success: false, error: 'Please provide your email address to look up appointments.' };
+        }
+
+        // Basic email format check
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailLower)) {
+            return { success: false, error: 'Please provide a valid email address (e.g., john@example.com).' };
+        }
+
+        const appointments = scheduler.getAppointmentsByEmail(emailLower);
 
         // Filter to only upcoming appointments (not past, not cancelled)
         const now = new Date();
