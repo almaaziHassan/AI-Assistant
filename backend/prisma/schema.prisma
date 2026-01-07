@@ -19,10 +19,11 @@ enum UserRole {
 model User {
   id                   String        @id @default(uuid())
   email                String        @unique
-  passwordHash         String        @map("password_hash")
+  passwordHash         String?       @map("password_hash")
   name                 String
   phone                String?
   role                 UserRole      @default(customer)
+  googleId             String?       @unique @map("google_id")
   emailVerified        Boolean       @default(false) @map("email_verified")
   verificationToken    String?       @unique @map("verification_token")
   verificationExpires  DateTime?     @map("verification_expires") @db.Timestamptz(6)
@@ -34,6 +35,7 @@ model User {
   appointments         Appointment[]
 
   @@index([email], map: "idx_users_email")
+  @@index([googleId], map: "idx_users_google_id")
   @@index([verificationToken], map: "idx_users_verification_token")
   @@index([resetToken], map: "idx_users_reset_token")
   @@map("users")

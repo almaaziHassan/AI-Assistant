@@ -120,6 +120,11 @@ class UserAuthService {
                 return { success: false, error: 'Invalid email or password' };
             }
 
+            // Check if user has a password (Google OAuth users may not)
+            if (!user.passwordHash) {
+                return { success: false, error: 'Please login with Google' };
+            }
+
             // Check password
             const isValidPassword = await bcrypt.compare(password, user.passwordHash);
             if (!isValidPassword) {
@@ -341,6 +346,11 @@ class UserAuthService {
                 return { success: false, error: 'User not found' };
             }
 
+            // Check if user has a password (Google OAuth users may not)
+            if (!user.passwordHash) {
+                return { success: false, error: 'Cannot change password for Google login accounts' };
+            }
+
             // Verify current password
             const isValidPassword = await bcrypt.compare(currentPassword, user.passwordHash);
             if (!isValidPassword) {
@@ -410,6 +420,72 @@ class UserAuthService {
         } catch (error) {
             console.error('Resend verification error:', error);
             return { success: false, error: 'Failed to resend verification email' };
+        }
+    }
+
+    /**
+     * Login or create user with Google OAuth
+     */
+    async loginOrCreateWithGoogle(input: { email: string; name: string; googleId: string }): Promise<AuthResult> {
+        try {
+            const { email, name, googleId } = input;
+
+            // First, check if user exists by googleId
+            let user = await prisma.user.findUnique({
+                where: { googleId }
+            });
+
+            if (!user) {
+                // Check if user exists by email
+                user = await prisma.user.findUnique({
+                    where: { email: email.toLowerCase() }
+                });
+
+                if (user) {
+                    // Link Google account to existing user
+                    user = await prisma.user.update({
+                        where: { id: user.id },
+                        data: {
+                            googleId,
+                            emailVerified: true // Google verifies email
+                        }
+                    });
+                } else {
+                    // Create new user
+                    user = await prisma.user.create({
+                        data: {
+                            email: email.toLowerCase(),
+                            name,
+                            googleId,
+                            emailVerified: true, // Google verifies email
+                            role: 'customer'
+                        }
+                    });
+                }
+            }
+
+            // Generate JWT token
+            const token = this.generateToken(user);
+
+            // Update last login
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { lastLogin: new Date() }
+            });
+
+            return {
+                success: true,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    role: user.role
+                },
+                token
+            };
+        } catch (error) {
+            console.error('Google login error:', error);
+            return { success: false, error: 'Google login failed. Please try again.' };
         }
     }
 

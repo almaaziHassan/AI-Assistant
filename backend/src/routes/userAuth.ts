@@ -273,4 +273,136 @@ router.post('/logout', (req: Request, res: Response) => {
     res.json({ success: true, message: 'Logged out successfully' });
 });
 
+// ==================== Google OAuth ====================
+
+/**
+ * GET /api/user-auth/google
+ * Initiate Google OAuth flow
+ */
+router.get('/google', (req: Request, res: Response) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+
+    if (!clientId) {
+        return res.status(500).json({ error: 'Google OAuth not configured' });
+    }
+
+    const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/user-auth/google/callback`;
+    const scope = encodeURIComponent('openid email profile');
+    const state = Buffer.from(JSON.stringify({ timestamp: Date.now() })).toString('base64');
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${clientId}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&response_type=code` +
+        `&scope=${scope}` +
+        `&state=${state}` +
+        `&access_type=offline` +
+        `&prompt=consent`;
+
+    res.redirect(authUrl);
+});
+
+/**
+ * GET /api/user-auth/google/callback
+ * Handle Google OAuth callback
+ */
+router.get('/google/callback', async (req: Request, res: Response) => {
+    try {
+        const { code, error: oauthError } = req.query;
+
+        if (oauthError) {
+            console.error('Google OAuth error:', oauthError);
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}?auth_error=google_denied`);
+        }
+
+        if (!code || typeof code !== 'string') {
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}?auth_error=missing_code`);
+        }
+
+        const clientId = process.env.GOOGLE_CLIENT_ID;
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+        const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/user-auth/google/callback`;
+
+        if (!clientId || !clientSecret) {
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}?auth_error=not_configured`);
+        }
+
+        // Exchange code for tokens
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                code,
+                client_id: clientId,
+                client_secret: clientSecret,
+                redirect_uri: redirectUri,
+                grant_type: 'authorization_code'
+            })
+        });
+
+        const tokenData = await tokenResponse.json() as { access_token?: string; error?: string };
+
+        if (!tokenData.access_token) {
+            console.error('Failed to get tokens:', tokenData);
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}?auth_error=token_failed`);
+        }
+
+        // Get user info from Google
+        const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        });
+
+        const googleUser = await userInfoResponse.json() as {
+            id: string;
+            email: string;
+            name: string;
+            picture?: string
+        };
+
+        if (!googleUser.email) {
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}?auth_error=no_email`);
+        }
+
+        // Create or login user
+        const result = await userAuthService.loginOrCreateWithGoogle({
+            email: googleUser.email,
+            name: googleUser.name || googleUser.email.split('@')[0],
+            googleId: googleUser.id
+        });
+
+        if (!result.success || !result.token) {
+            return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}?auth_error=login_failed`);
+        }
+
+        // Return HTML that posts message to opener window
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>Login Successful</title></head>
+            <body>
+                <script>
+                    if (window.opener) {
+                        window.opener.postMessage({
+                            type: 'oauth-success',
+                            token: '${result.token}',
+                            user: ${JSON.stringify(result.user)}
+                        }, '${frontendUrl}');
+                        window.close();
+                    } else {
+                        // Fallback: redirect with token in URL
+                        window.location.href = '${frontendUrl}?auth_token=${result.token}';
+                    }
+                </script>
+                <p>Login successful! You can close this window.</p>
+            </body>
+            </html>
+        `);
+    } catch (error) {
+        console.error('Google callback error:', error);
+        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}?auth_error=server_error`);
+    }
+});
+
 export default router;
+

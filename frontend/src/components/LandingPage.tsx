@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
 
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
 interface LandingPageProps {
   onOpenChat: () => void;
+  onLoginClick?: () => void;
+  onRegisterClick?: () => void;
+  isAuthenticated?: boolean;
+  user?: User | null;
+  onLogout?: () => void;
 }
 
 interface FAQItem {
@@ -66,7 +78,16 @@ const FAQAccordion: React.FC = () => {
   );
 };
 
-const LandingPage: React.FC<LandingPageProps> = ({ onOpenChat }) => {
+const LandingPage: React.FC<LandingPageProps> = ({
+  onOpenChat,
+  onLoginClick,
+  onRegisterClick,
+  isAuthenticated,
+  user,
+  onLogout
+}) => {
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
   return (
     <div className="landing-page">
       {/* Navigation */}
@@ -85,8 +106,40 @@ const LandingPage: React.FC<LandingPageProps> = ({ onOpenChat }) => {
             <a href="#faq">FAQ</a>
             <a href="#how-it-works">How It Works</a>
             <a href="#/admin" className="nav-btn-outline">Admin</a>
-            <button className="nav-btn-primary" onClick={onOpenChat}>
-              Start Chat
+
+            {isAuthenticated && user ? (
+              <div className="user-menu-wrapper">
+                <button
+                  className="user-menu-trigger"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                >
+                  <span className="user-avatar">{user.name.charAt(0).toUpperCase()}</span>
+                  <span className="user-name">{user.name}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                {showUserMenu && (
+                  <div className="user-dropdown">
+                    <a href="#/account">My Account</a>
+                    <a href="#/appointments">My Appointments</a>
+                    <button onClick={onLogout}>Logout</button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <button className="nav-btn-outline" onClick={onLoginClick}>
+                  Login
+                </button>
+                <button className="nav-btn-primary" onClick={onRegisterClick}>
+                  Sign Up
+                </button>
+              </>
+            )}
+
+            <button className="nav-btn-chat" onClick={onOpenChat}>
+              💬 Chat
             </button>
           </div>
         </div>
@@ -119,7 +172,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onOpenChat }) => {
               <a href="#features" className="btn-secondary-large">
                 Explore Features
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M7 17l9.2-9.2M17 17V7H7"/>
+                  <path d="M7 17l9.2-9.2M17 17V7H7" />
                 </svg>
               </a>
             </div>
@@ -321,7 +374,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onOpenChat }) => {
 
             <div className="step-connector">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
+                <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </div>
 
@@ -340,7 +393,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onOpenChat }) => {
 
             <div className="step-connector">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
+                <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </div>
 
