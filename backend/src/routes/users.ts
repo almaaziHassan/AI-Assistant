@@ -17,25 +17,32 @@ const prisma = new PrismaClient();
 router.get('/appointments', requireUserAuth, async (req: Request, res: Response) => {
     try {
         const userId = req.user!.id;
+        const userEmail = req.user!.email;
         const { status, upcoming } = req.query;
 
-        // Build where clause
-        const where: {
-            userId: string;
+        // Build where clause - match by userId OR email
+        const baseWhere: {
             status?: string;
             appointmentDate?: { gte: Date };
-        } = { userId };
+        } = {};
 
         if (status && typeof status === 'string') {
-            where.status = status;
+            baseWhere.status = status;
         }
 
         if (upcoming === 'true') {
-            where.appointmentDate = { gte: new Date() };
+            baseWhere.appointmentDate = { gte: new Date() };
         }
 
+        // Find appointments by userId OR email
         const appointments = await prisma.appointment.findMany({
-            where,
+            where: {
+                OR: [
+                    { userId },
+                    { customerEmail: userEmail.toLowerCase() }
+                ],
+                ...baseWhere
+            },
             orderBy: [
                 { appointmentDate: 'asc' },
                 { appointmentTime: 'asc' }
@@ -49,6 +56,18 @@ router.get('/appointments', requireUserAuth, async (req: Request, res: Response)
                 }
             }
         });
+
+        // Link any unlinked appointments to this user
+        const unlinkedIds = appointments
+            .filter(apt => !apt.userId && apt.customerEmail?.toLowerCase() === userEmail.toLowerCase())
+            .map(apt => apt.id);
+
+        if (unlinkedIds.length > 0) {
+            await prisma.appointment.updateMany({
+                where: { id: { in: unlinkedIds } },
+                data: { userId }
+            });
+        }
 
         // Format appointments for response
         const formattedAppointments = appointments.map(apt => ({
