@@ -241,16 +241,40 @@ export class ReceptionistService {
             };
         }
 
-        if (!result.appointments || result.appointments.length === 0) {
+        // DEFENSIVE: Filter out past appointments here too (in case handlers.ts didn't)
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0]; // UTC date YYYY-MM-DD
+        const currentTimeStr = now.toISOString().split('T')[1].substring(0, 5); // HH:MM
+
+        const futureAppointments = (result.appointments || []).filter(apt => {
+            const aptDateStr = String(apt.date).includes('-') ? apt.date : new Date(apt.date).toISOString().split('T')[0];
+            const aptTimeStr = String(apt.time).substring(0, 5);
+
+            // Filter out past dates
+            if (aptDateStr < todayStr) {
+                console.log(`[doAppointmentLookup] Filtering past: ${aptDateStr} < ${todayStr}`);
+                return false;
+            }
+            // Filter out past times today
+            if (aptDateStr === todayStr && aptTimeStr <= currentTimeStr) {
+                console.log(`[doAppointmentLookup] Filtering past time: ${aptTimeStr} <= ${currentTimeStr}`);
+                return false;
+            }
+            return true;
+        });
+
+        console.log(`[doAppointmentLookup] ${result.appointments?.length || 0} total, ${futureAppointments.length} future`);
+
+        if (futureAppointments.length === 0) {
             return {
                 message: `📋 No upcoming appointments found for **${email}**\n\nWould you like to **book a new appointment**? 📅`,
                 action: { type: 'no_appointments_found', data: { email } }
             };
         }
 
-        // Store in context
+        // Store in context (only future appointments)
         this.appointmentContext.set(email, {
-            appointments: result.appointments.map(apt => ({
+            appointments: futureAppointments.map(apt => ({
                 id: apt.id,
                 serviceName: apt.serviceName,
                 date: apt.date,
@@ -259,7 +283,7 @@ export class ReceptionistService {
             timestamp: Date.now()
         });
 
-        return this.formatAppointmentList(result.appointments, email, 'both');
+        return this.formatAppointmentList(futureAppointments, email, 'both');
     }
 
     /**
