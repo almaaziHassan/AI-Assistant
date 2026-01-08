@@ -247,7 +247,7 @@ Would you like us to call you back instead? I can set that up for you!`;
 
                 if (!result.appointments || result.appointments.length === 0) {
                     return {
-                        message: `I don't see any upcoming appointments for ${functionArgs.customerEmail}. Would you like to book a new appointment?`,
+                        message: `📋 No upcoming appointments found for **${functionArgs.customerEmail}**\n\nWould you like to **book a new appointment**? 📅`,
                         action: { type: 'no_appointments_found', data: { email: functionArgs.customerEmail } }
                     };
                 }
@@ -286,11 +286,11 @@ Would you like us to call you back instead? I can set that up for you!`;
                         console.error(`[format] Error formatting apt ${i + 1}:`, e);
                     }
 
-                    return `${i + 1}. **${apt.serviceName}** on ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+                    return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
                 }).join('\n');
 
                 return {
-                    message: `I found ${result.appointments.length} upcoming appointment(s):\n\n${aptList}\n\nWould you like to cancel or reschedule any of these?`,
+                    message: `Here are your upcoming appointments:\n\n${aptList}\n\nWould you like to **cancel** or **reschedule** any of these? ✨`,
                     action: {
                         type: 'appointments_found',
                         data: {
@@ -346,7 +346,7 @@ Would you like us to call you back instead? I can set that up for you!`;
                     }
 
                     return {
-                        message: `✅ I've cancelled your **${apt.serviceName}** appointment on ${formattedDate} at ${formattedTime}. You'll receive a confirmation email shortly.\n\nWould you like to book a new appointment?`,
+                        message: `✅ **Appointment Cancelled**\n\n📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}\n\n📧 A confirmation email is on its way!\n\nWould you like to **book a new appointment**? 💆`,
                         action: {
                             type: 'appointment_cancelled',
                             data: { appointment: apt }
