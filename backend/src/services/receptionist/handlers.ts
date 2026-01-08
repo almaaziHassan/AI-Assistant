@@ -177,10 +177,9 @@ export function lookupAppointments(email: string): {
 
         // Filter to only upcoming appointments (not past, not cancelled)
         const now = new Date();
-        // Also get current date string in YYYY-MM-DD format for date-only comparison
-        const todayStr = now.toISOString().split('T')[0]; // UTC date
-        const currentTimeStr = now.toISOString().split('T')[1].substring(0, 5); // HH:MM in UTC
-        console.log(`[lookupAppointments] Current: ${todayStr} ${currentTimeStr} UTC`);
+        // Get current UTC date for comparison (only compare dates, not times, due to timezone issues)
+        const todayStr = now.toISOString().split('T')[0]; // UTC date YYYY-MM-DD
+        console.log(`[lookupAppointments] Current UTC date: ${todayStr}`);
 
         const upcoming = appointments.filter(apt => {
             if (apt.status === 'cancelled' || apt.status === 'completed' || apt.status === 'no-show') {
@@ -188,9 +187,8 @@ export function lookupAppointments(email: string): {
                 return false;
             }
 
-            // Compare dates as strings first (YYYY-MM-DD format)
+            // Compare dates only (not times) - appointment times are in local timezone, not UTC
             const aptDateStr = apt.appointmentDate; // Already in YYYY-MM-DD
-            const aptTimeStr = apt.appointmentTime.substring(0, 5); // HH:MM
 
             // If appointment date is before today, it's in the past
             if (aptDateStr < todayStr) {
@@ -198,12 +196,7 @@ export function lookupAppointments(email: string): {
                 return false;
             }
 
-            // If appointment date is today, check time
-            if (aptDateStr === todayStr && aptTimeStr <= currentTimeStr) {
-                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: past time today (${aptTimeStr} <= ${currentTimeStr})`);
-                return false;
-            }
-
+            // Include all appointments from today onwards (don't filter by time due to timezone issues)
             return true;
         });
 

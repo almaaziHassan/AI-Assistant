@@ -244,20 +244,24 @@ export class ReceptionistService {
         // DEFENSIVE: Filter out past appointments here too (in case handlers.ts didn't)
         const now = new Date();
         const todayStr = now.toISOString().split('T')[0]; // UTC date YYYY-MM-DD
-        const currentTimeStr = now.toISOString().split('T')[1].substring(0, 5); // HH:MM
 
         const futureAppointments = (result.appointments || []).filter(apt => {
-            const aptDateStr = String(apt.date).includes('-') ? apt.date : new Date(apt.date).toISOString().split('T')[0];
-            const aptTimeStr = String(apt.time).substring(0, 5);
-
-            // Filter out past dates
-            if (aptDateStr < todayStr) {
-                console.log(`[doAppointmentLookup] Filtering past: ${aptDateStr} < ${todayStr}`);
-                return false;
+            // Normalize date to YYYY-MM-DD format
+            let aptDateStr = apt.date;
+            if (typeof apt.date === 'string' && apt.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                aptDateStr = apt.date;
+            } else {
+                try {
+                    aptDateStr = new Date(String(apt.date)).toISOString().split('T')[0];
+                } catch {
+                    aptDateStr = todayStr; // If parsing fails, include it
+                }
             }
-            // Filter out past times today
-            if (aptDateStr === todayStr && aptTimeStr <= currentTimeStr) {
-                console.log(`[doAppointmentLookup] Filtering past time: ${aptTimeStr} <= ${currentTimeStr}`);
+
+            // ONLY filter out appointments from BEFORE today
+            // Don't filter by time - timezone issues between UTC server and local appointments
+            if (aptDateStr < todayStr) {
+                console.log(`[doAppointmentLookup] Filtering past date: ${aptDateStr} < ${todayStr}`);
                 return false;
             }
             return true;
