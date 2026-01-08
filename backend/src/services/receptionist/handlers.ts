@@ -177,19 +177,34 @@ export function lookupAppointments(email: string): {
 
         // Filter to only upcoming appointments (not past, not cancelled)
         const now = new Date();
-        console.log(`[lookupAppointments] Current time (server): ${now.toISOString()}`);
+        // Also get current date string in YYYY-MM-DD format for date-only comparison
+        const todayStr = now.toISOString().split('T')[0]; // UTC date
+        const currentTimeStr = now.toISOString().split('T')[1].substring(0, 5); // HH:MM in UTC
+        console.log(`[lookupAppointments] Current: ${todayStr} ${currentTimeStr} UTC`);
 
         const upcoming = appointments.filter(apt => {
             if (apt.status === 'cancelled' || apt.status === 'completed' || apt.status === 'no-show') {
                 console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: status=${apt.status}`);
                 return false;
             }
-            const aptDate = new Date(apt.appointmentDate + 'T' + apt.appointmentTime);
-            const isPast = aptDate <= now;
-            if (isPast) {
-                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: past (apt=${aptDate.toISOString()}, now=${now.toISOString()})`);
+
+            // Compare dates as strings first (YYYY-MM-DD format)
+            const aptDateStr = apt.appointmentDate; // Already in YYYY-MM-DD
+            const aptTimeStr = apt.appointmentTime.substring(0, 5); // HH:MM
+
+            // If appointment date is before today, it's in the past
+            if (aptDateStr < todayStr) {
+                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: past date (${aptDateStr} < ${todayStr})`);
+                return false;
             }
-            return !isPast;
+
+            // If appointment date is today, check time
+            if (aptDateStr === todayStr && aptTimeStr <= currentTimeStr) {
+                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: past time today (${aptTimeStr} <= ${currentTimeStr})`);
+                return false;
+            }
+
+            return true;
         });
 
         console.log(`[lookupAppointments] ${upcoming.length} upcoming appointments after filtering`);

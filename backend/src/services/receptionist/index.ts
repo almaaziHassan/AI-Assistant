@@ -141,9 +141,13 @@ export class ReceptionistService {
         }
 
         // Check for cancel/reschedule intent with appointment selection
-        const wantsToCancel = msg.includes('cancel');
-        const wantsToReschedule = msg.includes('reschedule') || msg.includes('change') ||
-            msg.includes('move') || msg.includes('different');
+        // Use fuzzy matching to handle common typos
+        const cancelPatterns = ['cancel', 'cancle', 'cancell', 'cansel'];
+        const reschedulePatterns = ['reschedule', 'reshcdule', 'reschedulle', 'rescheduel',
+            'change', 'move', 'different', 'modify', 'update'];
+
+        const wantsToCancel = cancelPatterns.some(p => msg.includes(p));
+        const wantsToReschedule = reschedulePatterns.some(p => msg.includes(p));
 
         // Check if last message asked "cancel or reschedule?" about a selected appointment
         const wasAskingAction = lastAssistantMsg.includes('you selected') &&
