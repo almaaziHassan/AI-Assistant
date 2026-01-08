@@ -112,6 +112,233 @@ export class ReceptionistService {
     }
 
     /**
+     * Handle direct intent detection - BYPASSES AI completely for appointment flows
+     * Returns null if no direct intent detected (let AI handle it)
+     */
+    private handleDirectIntent(
+        userMessage: string,
+        history: ConversationMessage[]
+    ): ReceptionistResponse | null {
+        const msg = userMessage.toLowerCase().trim();
+
+        // Check if message is just an email
+        const emailMatch = msg.match(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/);
+
+        // Check if previous message asked for email (cancel/reschedule context)
+        const lastAssistantMsg = [...history].reverse().find(m => m.role === 'assistant')?.content?.toLowerCase() || '';
+        const wasAskingForEmail = lastAssistantMsg.includes('email') &&
+            (lastAssistantMsg.includes('cancel') || lastAssistantMsg.includes('reschedule') ||
+                lastAssistantMsg.includes('look up') || lastAssistantMsg.includes('appointment'));
+
+        // If user gave email after being asked
+        if (emailMatch && wasAskingForEmail) {
+            const email = emailMatch[0].toLowerCase();
+            console.log(`[DirectIntent] Email provided after cancel/reschedule context: ${email}`);
+            return this.doAppointmentLookup(email);
+        }
+
+        // Check for cancel/reschedule intent with appointment selection
+        const wantsToCancel = msg.includes('cancel');
+        const wantsToReschedule = msg.includes('reschedule') || msg.includes('change') ||
+            msg.includes('move') || msg.includes('different');
+
+        // Check if we have appointments in context and user is selecting one
+        const matchedApt = this.findAppointmentFromContext(msg);
+        if (matchedApt && (wantsToCancel || wantsToReschedule)) {
+            console.log(`[DirectIntent] Matched appointment action: ${wantsToCancel ? 'cancel' : 'reschedule'} ${matchedApt.serviceName}`);
+
+            if (wantsToCancel) {
+                return this.doCancelAppointment(matchedApt.id);
+            } else {
+                return this.doStartReschedule(matchedApt.id);
+            }
+        }
+
+        // If just a number/selection without action word, and we showed appointments recently
+        if (matchedApt && !wantsToCancel && !wantsToReschedule) {
+            // Check if last message was showing appointments
+            const wasShowingAppointments = lastAssistantMsg.includes('appointment') &&
+                (lastAssistantMsg.includes('cancel') || lastAssistantMsg.includes('reschedule') ||
+                    lastAssistantMsg.includes('what would you like'));
+
+            if (wasShowingAppointments) {
+                console.log(`[DirectIntent] User selected appointment without action word: ${matchedApt.serviceName}`);
+                // Ask what they want to do with it
+                return {
+                    message: `You selected **${matchedApt.serviceName}**. Would you like to **cancel** or **reschedule** this appointment? 📅`,
+                    action: { type: 'none' }
+                };
+            }
+        }
+
+        // Pure cancel/reschedule intent without email - ask for email
+        if ((wantsToCancel || wantsToReschedule) && !matchedApt) {
+            // Check if message contains an email
+            const inlineEmail = msg.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+            if (inlineEmail) {
+                console.log(`[DirectIntent] Cancel/reschedule with inline email: ${inlineEmail[0]}`);
+                return this.doAppointmentLookup(inlineEmail[0].toLowerCase());
+            }
+
+            // Check if we already have appointments in context
+            if (this.appointmentContext.size > 0) {
+                // We have context but couldn't match - might need to show list again
+                for (const [email, ctx] of this.appointmentContext.entries()) {
+                    if (Date.now() - ctx.timestamp < 10 * 60 * 1000 && ctx.appointments.length > 0) {
+                        console.log(`[DirectIntent] Showing appointments from context for ${email}`);
+                        return this.formatAppointmentList(ctx.appointments, email, wantsToReschedule ? 'reschedule' : 'cancel');
+                    }
+                }
+            }
+
+            console.log(`[DirectIntent] Cancel/reschedule intent, asking for email`);
+            return {
+                message: `To ${wantsToReschedule ? 'reschedule' : 'cancel'} your appointment, I'll need to look it up. 📋\n\nWhat **email address** did you use when booking?`,
+                action: { type: 'none' }
+            };
+        }
+
+        return null; // Let AI handle it
+    }
+
+    /**
+     * Do appointment lookup and format response
+     */
+    private doAppointmentLookup(email: string): ReceptionistResponse {
+        const result = lookupAppointments(email);
+
+        if (!result.success) {
+            return {
+                message: `I couldn't look up appointments: ${result.error}`,
+                action: { type: 'none' }
+            };
+        }
+
+        if (!result.appointments || result.appointments.length === 0) {
+            return {
+                message: `📋 No upcoming appointments found for **${email}**\n\nWould you like to **book a new appointment**? 📅`,
+                action: { type: 'no_appointments_found', data: { email } }
+            };
+        }
+
+        // Store in context
+        this.appointmentContext.set(email, {
+            appointments: result.appointments.map(apt => ({
+                id: apt.id,
+                serviceName: apt.serviceName,
+                date: apt.date,
+                time: apt.time
+            })),
+            timestamp: Date.now()
+        });
+
+        return this.formatAppointmentList(result.appointments, email, 'both');
+    }
+
+    /**
+     * Format appointment list for display
+     */
+    private formatAppointmentList(
+        appointments: Array<{ id: string; serviceName: string; date: string; time: string; staffName?: string }>,
+        email: string,
+        action: 'cancel' | 'reschedule' | 'both'
+    ): ReceptionistResponse {
+        const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+        const aptList = appointments.map((apt, i) => {
+            let formattedDate = apt.date;
+            let formattedTime = apt.time;
+            try {
+                const [year, month, day] = apt.date.split('-').map(Number);
+                const dateObj = new Date(year, month - 1, day);
+                if (!isNaN(dateObj.getTime())) {
+                    formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
+                }
+                const [hours, minutes] = apt.time.split(':').map(Number);
+                if (!isNaN(hours) && !isNaN(minutes)) {
+                    const ampm = hours >= 12 ? 'PM' : 'AM';
+                    formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                }
+            } catch { }
+            return `**${i + 1}.** 📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+        }).join('\n');
+
+        const actionPrompt = action === 'both'
+            ? 'Would you like to **cancel** or **reschedule** any of these?'
+            : `Which one would you like to **${action}**?`;
+
+        return {
+            message: `Here are your upcoming appointments:\n\n${aptList}\n\n${actionPrompt} ✨`,
+            action: {
+                type: 'appointments_found',
+                data: { appointments, email }
+            }
+        };
+    }
+
+    /**
+     * Do cancel appointment
+     */
+    private doCancelAppointment(appointmentId: string): ReceptionistResponse {
+        const result = cancelAppointmentHandler(appointmentId);
+
+        if (!result.success) {
+            return {
+                message: `I couldn't cancel that appointment. ${result.error}`,
+                action: { type: 'none' }
+            };
+        }
+
+        if (result.cancelledAppointment) {
+            const apt = result.cancelledAppointment;
+            return {
+                message: `✅ **Appointment Cancelled**\n\n📅 ${apt.serviceName} has been cancelled.\n\n📧 A confirmation email is on its way!\n\nWould you like to **book a new appointment**? 💆`,
+                action: {
+                    type: 'appointment_cancelled',
+                    data: { appointment: apt }
+                }
+            };
+        }
+
+        return {
+            message: '✅ The appointment has been cancelled.',
+            action: { type: 'appointment_cancelled' }
+        };
+    }
+
+    /**
+     * Do start reschedule
+     */
+    private doStartReschedule(appointmentId: string): ReceptionistResponse {
+        const result = getAppointmentForReschedule(appointmentId);
+
+        if (!result.success || !result.appointment) {
+            return {
+                message: `I couldn't start the rescheduling. ${result.error}`,
+                action: { type: 'none' }
+            };
+        }
+
+        const apt = result.appointment;
+        return {
+            message: `Let's reschedule your **${apt.serviceName}** appointment! 📅\n\nI'll open our booking form so you can pick a new date and time.`,
+            action: {
+                type: 'reschedule_appointment',
+                data: {
+                    originalAppointmentId: apt.id,
+                    serviceId: apt.serviceId,
+                    staffId: apt.staffId,
+                    serviceName: apt.serviceName,
+                    staffName: apt.staffName,
+                    customerName: apt.customerName,
+                    customerEmail: apt.customerEmail
+                }
+            }
+        };
+    }
+
+    /**
      * Get cached services or fetch from DB if cache expired
      */
     private getCachedServices() {
@@ -199,6 +426,18 @@ export class ReceptionistService {
         });
 
         const systemPrompt = buildSystemPrompt(relevantFAQs, staffList, servicesList);
+
+        // ============================================================
+        // DIRECT INTENT DETECTION - BYPASS AI FOR APPOINTMENT MANAGEMENT
+        // This handles cancel/reschedule flows directly without relying on
+        // the AI's unreliable function calling
+        // ============================================================
+
+        const directResult = this.handleDirectIntent(userMessage, history);
+        if (directResult) {
+            console.log('[DirectIntent] Handled directly:', directResult.action?.type);
+            return directResult;
+        }
 
         // Build messages array for Groq
         const messages: ChatMessage[] = [
