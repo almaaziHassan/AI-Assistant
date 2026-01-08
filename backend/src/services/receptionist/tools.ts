@@ -129,28 +129,23 @@ Examples that MUST trigger this:
             type: 'function',
             function: {
                 name: 'lookup_appointments',
-                description: `Look up customer's appointments by email.
+                description: `Look up customer's existing appointments by email.
 
-⚠️ CRITICAL: You MUST have a real email address before calling this!
-- If customer says "cancel/reschedule my appointment" but hasn't given email → ASK for email first, DO NOT call this
-- Only call this when customer has provided an actual email like "john@example.com"
+USE WHEN: Customer wants to view, cancel, change, or reschedule their appointment(s).
 
-WRONG: Calling with "please provide your email" or "unknown" 
-RIGHT: Ask "What email did you use when booking?" then wait for response
+FLOW:
+1. If customer hasn't provided email yet → Ask for it naturally
+2. When email is provided (like "john@example.com") → Call this function
+3. Response will include appointment details WITH IDs
+4. Use those IDs for cancel_appointment or start_reschedule
 
-Good trigger examples:
-- Customer says: "My email is john@example.com" → Call with "john@example.com"
-- Customer says: "test@gmail.com" → Call with "test@gmail.com"
-
-Bad trigger examples (DO NOT CALL):
-- Customer says: "Cancel my appointment" → ASK for email first
-- Customer says: "What appointments do I have?" → ASK for email first`,
+IMPORTANT: Only call when you have an actual email address from the customer.`,
                 parameters: {
                     type: 'object',
                     properties: {
                         customerEmail: {
                             type: 'string',
-                            description: 'Actual customer email address (must be a real email, not placeholder text)'
+                            description: 'Customer email address they used when booking'
                         }
                     },
                     required: ['customerEmail']

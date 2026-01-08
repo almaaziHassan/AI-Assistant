@@ -50,6 +50,13 @@ export class ReceptionistService {
     private servicesCache: CacheEntry<ReturnType<AdminService['getAllServices']>> | null = null;
     private staffCache: CacheEntry<ReturnType<AdminService['getAllStaff']>> | null = null;
 
+    // Session context for tracking last looked-up appointments per email
+    // This allows the AI to reference appointments by number (e.g., "cancel the first one")
+    private appointmentContext: Map<string, {
+        appointments: Array<{ id: string; serviceName: string; date: string; time: string }>;
+        timestamp: number;
+    }> = new Map();
+
     constructor(
         groq: GroqService = new GroqService(),
         config = servicesConfig,
@@ -58,6 +65,50 @@ export class ReceptionistService {
         this.groq = groq;
         this.config = config;
         this.adminService = adminSvc;
+    }
+
+    /**
+     * Find appointment from context based on user input
+     * Matches by number (1, first, 2, second) or service name
+     */
+    private findAppointmentFromContext(userMessage: string): { id: string; serviceName: string } | null {
+        const msg = userMessage.toLowerCase();
+
+        // Look through all contexts (ideally we'd track by session, but for now check all recent)
+        for (const [email, context] of this.appointmentContext.entries()) {
+            // Only use context from last 10 minutes
+            if (Date.now() - context.timestamp > 10 * 60 * 1000) continue;
+
+            const appointments = context.appointments;
+            if (!appointments.length) continue;
+
+            // Try to match by number (1, first, one, 2, second, two, etc.)
+            const numberPatterns = [
+                { patterns: ['1', 'first', 'one', '#1', 'number 1'], index: 0 },
+                { patterns: ['2', 'second', 'two', '#2', 'number 2'], index: 1 },
+                { patterns: ['3', 'third', 'three', '#3', 'number 3'], index: 2 },
+                { patterns: ['4', 'fourth', 'four', '#4', 'number 4'], index: 3 },
+                { patterns: ['5', 'fifth', 'five', '#5', 'number 5'], index: 4 },
+                { patterns: ['last', 'final'], index: appointments.length - 1 }
+            ];
+
+            for (const { patterns, index } of numberPatterns) {
+                if (patterns.some(p => msg.includes(p)) && index < appointments.length) {
+                    console.log(`[context] Matched appointment #${index + 1} by number reference`);
+                    return appointments[index];
+                }
+            }
+
+            // Try to match by service name
+            for (const apt of appointments) {
+                if (msg.includes(apt.serviceName.toLowerCase())) {
+                    console.log(`[context] Matched appointment by service name: ${apt.serviceName}`);
+                    return apt;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -286,11 +337,25 @@ Would you like us to call you back instead? I can set that up for you!`;
                         console.error(`[format] Error formatting apt ${i + 1}:`, e);
                     }
 
+                    // Keep display clean for users, IDs are in action.data.appointments
                     return `**${i + 1}.** 📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
                 }).join('\n');
 
+                // Store appointments in session context for later reference
+                const email = functionArgs.customerEmail.toLowerCase();
+                this.appointmentContext.set(email, {
+                    appointments: result.appointments.map(apt => ({
+                        id: apt.id,
+                        serviceName: apt.serviceName,
+                        date: apt.date,
+                        time: apt.time
+                    })),
+                    timestamp: Date.now()
+                });
+                console.log(`[lookup] Stored ${result.appointments.length} appointments in context for ${email}`);
+
                 return {
-                    message: `Here are your upcoming appointments:\n\n${aptList}\n\nJust tell me the **number** (e.g., "1" or "cancel 2" or "reschedule 3") ✨`,
+                    message: `Here are your upcoming appointments:\n\n${aptList}\n\nWhat would you like to do? 💆`,
                     action: {
                         type: 'appointments_found',
                         data: {
@@ -303,7 +368,22 @@ Would you like us to call you back instead? I can set that up for you!`;
 
             // Handle cancel_appointment - Cancel a specific appointment
             if (functionName === 'cancel_appointment') {
-                const result = cancelAppointmentHandler(functionArgs.appointmentId, functionArgs.reason);
+                let appointmentId = functionArgs.appointmentId;
+
+                // If no valid UUID, try to find appointment from context
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!appointmentId || !uuidRegex.test(appointmentId)) {
+                    console.log(`[cancel] Invalid ID "${appointmentId}", checking context...`);
+
+                    // Try to match from stored appointment context
+                    const matchedApt = this.findAppointmentFromContext(userMessage);
+                    if (matchedApt) {
+                        appointmentId = matchedApt.id;
+                        console.log(`[cancel] Found appointment from context: ${matchedApt.serviceName}`);
+                    }
+                }
+
+                const result = cancelAppointmentHandler(appointmentId, functionArgs.reason);
 
                 if (!result.success) {
                     // Check if the user message contains an email - if so, do automatic lookup
@@ -408,7 +488,22 @@ Would you like us to call you back instead? I can set that up for you!`;
 
             // Handle start_reschedule - Begin rescheduling process
             if (functionName === 'start_reschedule') {
-                const result = getAppointmentForReschedule(functionArgs.appointmentId);
+                let appointmentId = functionArgs.appointmentId;
+
+                // If no valid UUID, try to find appointment from context
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!appointmentId || !uuidRegex.test(appointmentId)) {
+                    console.log(`[reschedule] Invalid ID "${appointmentId}", checking context...`);
+
+                    // Try to match from stored appointment context
+                    const matchedApt = this.findAppointmentFromContext(userMessage);
+                    if (matchedApt) {
+                        appointmentId = matchedApt.id;
+                        console.log(`[reschedule] Found appointment from context: ${matchedApt.serviceName}`);
+                    }
+                }
+
+                const result = getAppointmentForReschedule(appointmentId);
 
                 if (!result.success || !result.appointment) {
                     // Check if the user message contains an email - if so, do automatic lookup
