@@ -57,6 +57,9 @@ export class ReceptionistService {
         timestamp: number;
     }> = new Map();
 
+    // Track selected appointment when user picks one but hasn't said action yet
+    private selectedAppointment: { id: string; serviceName: string } | null = null;
+
     constructor(
         groq: GroqService = new GroqService(),
         config = servicesConfig,
@@ -142,10 +145,28 @@ export class ReceptionistService {
         const wantsToReschedule = msg.includes('reschedule') || msg.includes('change') ||
             msg.includes('move') || msg.includes('different');
 
+        // Check if last message asked "cancel or reschedule?" about a selected appointment
+        const wasAskingAction = lastAssistantMsg.includes('you selected') &&
+            lastAssistantMsg.includes('cancel') && lastAssistantMsg.includes('reschedule');
+
+        // If user said just "cancel" or "reschedule" after we asked about their selection
+        if (wasAskingAction && (wantsToCancel || wantsToReschedule) && this.selectedAppointment) {
+            console.log(`[DirectIntent] Action on previously selected: ${wantsToCancel ? 'cancel' : 'reschedule'} ${this.selectedAppointment.serviceName}`);
+            const apt = this.selectedAppointment;
+            this.selectedAppointment = null; // Clear after use
+
+            if (wantsToCancel) {
+                return this.doCancelAppointment(apt.id);
+            } else {
+                return this.doStartReschedule(apt.id);
+            }
+        }
+
         // Check if we have appointments in context and user is selecting one
         const matchedApt = this.findAppointmentFromContext(msg);
         if (matchedApt && (wantsToCancel || wantsToReschedule)) {
             console.log(`[DirectIntent] Matched appointment action: ${wantsToCancel ? 'cancel' : 'reschedule'} ${matchedApt.serviceName}`);
+            this.selectedAppointment = null; // Clear any previous selection
 
             if (wantsToCancel) {
                 return this.doCancelAppointment(matchedApt.id);
@@ -163,6 +184,8 @@ export class ReceptionistService {
 
             if (wasShowingAppointments) {
                 console.log(`[DirectIntent] User selected appointment without action word: ${matchedApt.serviceName}`);
+                // SAVE the selection for the next message
+                this.selectedAppointment = { id: matchedApt.id, serviceName: matchedApt.serviceName };
                 // Ask what they want to do with it
                 return {
                     message: `You selected **${matchedApt.serviceName}**. Would you like to **cancel** or **reschedule** this appointment? 📅`,
@@ -247,20 +270,43 @@ export class ReceptionistService {
         const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
         const aptList = appointments.map((apt, i) => {
-            let formattedDate = apt.date;
-            let formattedTime = apt.time;
+            let formattedDate = String(apt.date);
+            let formattedTime = String(apt.time);
             try {
-                const [year, month, day] = apt.date.split('-').map(Number);
-                const dateObj = new Date(year, month - 1, day);
-                if (!isNaN(dateObj.getTime())) {
-                    formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
+                // Handle both Date objects and "YYYY-MM-DD" strings
+                let dateStr: string = String(apt.date);
+
+                // Check if it's already in YYYY-MM-DD format
+                if (typeof apt.date === 'string' && apt.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    dateStr = apt.date;
+                } else {
+                    // Try to parse as Date and convert to YYYY-MM-DD
+                    const parsed = new Date(String(apt.date));
+                    if (!isNaN(parsed.getTime())) {
+                        dateStr = parsed.toISOString().split('T')[0];
+                    }
                 }
-                const [hours, minutes] = apt.time.split(':').map(Number);
-                if (!isNaN(hours) && !isNaN(minutes)) {
-                    const ampm = hours >= 12 ? 'PM' : 'AM';
-                    formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+
+                if (typeof dateStr === 'string' && dateStr.includes('-')) {
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    const dateObj = new Date(year, month - 1, day);
+                    if (!isNaN(dateObj.getTime())) {
+                        formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
+                    }
                 }
-            } catch { }
+
+                // Handle time - ensure it's a string in HH:MM:SS format
+                let timeStr = apt.time;
+                if (typeof timeStr === 'string' && timeStr.includes(':')) {
+                    const [hours, minutes] = timeStr.split(':').map(Number);
+                    if (!isNaN(hours) && !isNaN(minutes)) {
+                        const ampm = hours >= 12 ? 'PM' : 'AM';
+                        formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                    }
+                }
+            } catch (e) {
+                console.error('[formatAppointmentList] Date formatting error:', e);
+            }
             return `**${i + 1}.** 📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
         }).join('\n');
 
