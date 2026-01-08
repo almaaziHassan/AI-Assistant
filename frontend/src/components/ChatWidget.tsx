@@ -4,6 +4,7 @@ import MessageList from './MessageList';
 import InputBox from './InputBox';
 import AppointmentForm, { Service } from './AppointmentForm';
 import CallbackForm from './CallbackForm';
+import AppointmentSelector from './AppointmentSelector';
 
 interface ChatWidgetProps {
   serverUrl: string;
@@ -59,6 +60,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
     customerEmail: string;
   } | null>(null);
 
+  // Appointment selector state - shows clickable appointment cards
+  const [appointmentSelectorData, setAppointmentSelectorData] = useState<{
+    appointments: Array<{ id: string; serviceName: string; date: string; time: string; staffName?: string }>;
+    email: string;
+  } | null>(null);
+
   // Get auth token for user-specific conversation history
   const authToken = localStorage.getItem('auth_token');
 
@@ -89,6 +96,20 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
       };
       setRescheduleData(data);
       setShowBookingForm(true);
+    }
+  }, [messages]);
+
+  // When AI finds appointments, show the appointment selector with clickable cards
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.action?.type === 'appointments_found' && lastMessage.action.data) {
+      const data = lastMessage.action.data as {
+        appointments: Array<{ id: string; serviceName: string; date: string; time: string; staffName?: string }>;
+        email: string;
+      };
+      if (data.appointments && data.appointments.length > 0) {
+        setAppointmentSelectorData(data);
+      }
     }
   }, [messages]);
 
@@ -221,6 +242,39 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
 
   const handleShowCallbackForm = () => {
     setShowCallbackForm(true);
+  };
+
+  // Handle cancel from appointment selector
+  const handleAppointmentCancel = async (appointmentId: string, serviceName: string) => {
+    setAppointmentSelectorData(null); // Close selector
+    addLocalMessage(`Cancel my ${serviceName} appointment`);
+
+    try {
+      const response = await fetch(`${serverUrl}/api/appointments/${appointmentId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        addLocalMessage(`✅ Your ${serviceName} appointment has been cancelled. Would you like to book a new appointment?`);
+      } else {
+        addLocalMessage(`There was an issue cancelling your appointment. Please try again.`);
+      }
+    } catch (err) {
+      addLocalMessage(`There was an issue cancelling your appointment. Please try again.`);
+    }
+  };
+
+  // Handle reschedule from appointment selector
+  const handleAppointmentReschedule = (appointmentId: string, serviceName: string) => {
+    setAppointmentSelectorData(null); // Close selector
+
+    // Send message to trigger rescheduling
+    sendMessage(`I want to reschedule my ${serviceName} appointment (ID: ${appointmentId})`);
+  };
+
+  const handleCloseAppointmentSelector = () => {
+    setAppointmentSelectorData(null);
   };
 
   const handleCallbackSubmit = async (callback: CallbackData) => {
@@ -359,6 +413,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
                 onSubmit={handleCallbackSubmit}
                 onCancel={() => setShowCallbackForm(false)}
               />
+            ) : appointmentSelectorData ? (
+              <>
+                <MessageList messages={messages} isTyping={isTyping} />
+                <AppointmentSelector
+                  appointments={appointmentSelectorData.appointments}
+                  onCancel={handleAppointmentCancel}
+                  onReschedule={handleAppointmentReschedule}
+                  onClose={handleCloseAppointmentSelector}
+                />
+              </>
             ) : (
               <>
                 <MessageList messages={messages} isTyping={isTyping} />
