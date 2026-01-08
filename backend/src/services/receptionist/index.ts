@@ -537,10 +537,29 @@ Would you like us to call you back instead? I can set that up for you!`;
             if (functionName === 'lookup_appointments' && functionArgs.customerEmail) {
                 const result = lookupAppointments(functionArgs.customerEmail);
                 if (result.success && result.appointments && result.appointments.length > 0) {
+                    const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+                    const aptList = result.appointments.map(apt => {
+                        let formattedDate = apt.date;
+                        let formattedTime = apt.time;
+                        try {
+                            const [year, month, day] = apt.date.split('-').map(Number);
+                            const dateObj = new Date(year, month - 1, day);
+                            if (!isNaN(dateObj.getTime())) {
+                                formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
+                            }
+                            const [hours, minutes] = apt.time.split(':').map(Number);
+                            if (!isNaN(hours) && !isNaN(minutes)) {
+                                const ampm = hours >= 12 ? 'PM' : 'AM';
+                                formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                            }
+                        } catch { }
+                        return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+                    }).join('\n');
+
                     return {
-                        message: `Here are your appointments:\n\n${result.appointments.map(apt =>
-                            `📅 **${apt.serviceName}** — ${apt.date} at ${apt.time}`
-                        ).join('\n')}\n\nWould you like to **cancel** or **reschedule**?`,
+                        message: `Here are your appointments:\n\n${aptList}\n\nWould you like to **cancel** or **reschedule**?`,
                         action: { type: 'appointments_found', data: { appointments: result.appointments } }
                     };
                 } else {
