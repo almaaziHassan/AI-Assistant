@@ -286,11 +286,11 @@ Would you like us to call you back instead? I can set that up for you!`;
                         console.error(`[format] Error formatting apt ${i + 1}:`, e);
                     }
 
-                    return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+                    return `**${i + 1}.** 📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
                 }).join('\n');
 
                 return {
-                    message: `Here are your upcoming appointments:\n\n${aptList}\n\nWould you like to **cancel** or **reschedule** any of these? ✨`,
+                    message: `Here are your upcoming appointments:\n\n${aptList}\n\nJust tell me the **number** (e.g., "1" or "cancel 2" or "reschedule 3") ✨`,
                     action: {
                         type: 'appointments_found',
                         data: {
