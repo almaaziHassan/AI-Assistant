@@ -149,6 +149,7 @@ export class GroqService {
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
+        console.log(`[Groq] chatWithFunctions attempt ${attempt + 1}, messages: ${messages.length}, tools: ${tools.length}`);
         const response = await this.client.chat.completions.create({
           model: this.model,
           messages: messages,
@@ -159,6 +160,7 @@ export class GroqService {
         });
 
         const message = response.choices[0]?.message;
+        console.log(`[Groq] Response received. Content: ${message?.content?.substring(0, 50) || 'null'}, ToolCalls: ${message?.tool_calls?.length || 0}`);
 
         return {
           content: message?.content || null,
