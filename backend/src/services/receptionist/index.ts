@@ -395,38 +395,88 @@ Would you like us to call you back instead? I can set that up for you!`;
         const aiResponse = response.content || '';
 
         // FALLBACK: Check if AI outputted function call as text
-        // Handles: <function(name){...}> OR <function(name){...}</function>
-        const functionCallMatch = aiResponse.match(/<function\((\w+)\)(\{.*?\})?(?:>|<\/function>)/);
-        if (functionCallMatch) {
-            const functionName = functionCallMatch[1];
-            let functionArgs: Record<string, string> = {};
+        // LLaMA models sometimes output function calls in various text formats:
+        // Format 1: <function(name){...}>
+        // Format 2: <function=name{...}></function>
+        // Format 3: <function=name({...})></function>
 
-            if (functionCallMatch[2]) {
-                try {
-                    functionArgs = JSON.parse(functionCallMatch[2]);
-                } catch (e) {
-                    // Ignore parse errors
+        let functionName: string | null = null;
+        let functionArgs: Record<string, string> = {};
+
+        // Try format 1: <function(name){...}>
+        const format1Match = aiResponse.match(/<function\((\w+)\)(\{.*?\})?(?:>|<\/function>)/);
+        if (format1Match) {
+            functionName = format1Match[1];
+            if (format1Match[2]) {
+                try { functionArgs = JSON.parse(format1Match[2]); } catch { }
+            }
+        }
+
+        // Try format 2 & 3: <function=name{...}> or <function=name({...})>
+        if (!functionName) {
+            const format2Match = aiResponse.match(/<function=(\w+)(?:\()?(\{.*?\})?\)?(?:>|<\/function>)/);
+            if (format2Match) {
+                functionName = format2Match[1];
+                if (format2Match[2]) {
+                    try { functionArgs = JSON.parse(format2Match[2]); } catch { }
                 }
             }
+        }
+
+        if (functionName) {
+            console.log(`[Fallback] Detected text function call: ${functionName}`, functionArgs);
 
             // Handle the function call
             if (functionName === 'show_booking_form') {
                 return {
-                    message: functionArgs.message || "Here's our booking form.",
+                    message: functionArgs.message || "Here's our booking form. 📅",
                     action: { type: 'book_appointment' }
                 };
             }
 
             if (functionName === 'offer_callback_form' || functionName === 'provide_contact_info') {
                 return {
-                    message: functionArgs.message || "I'll help you get in touch with us!",
+                    message: functionArgs.message || "I'll help you get in touch with us! 📞",
                     action: { type: 'request_callback' }
+                };
+            }
+
+            // Handle lookup_appointments from text
+            if (functionName === 'lookup_appointments' && functionArgs.customerEmail) {
+                const result = lookupAppointments(functionArgs.customerEmail);
+                if (result.success && result.appointments && result.appointments.length > 0) {
+                    return {
+                        message: `Here are your appointments:\n\n${result.appointments.map(apt =>
+                            `📅 **${apt.serviceName}** — ${apt.date} at ${apt.time}`
+                        ).join('\n')}\n\nWould you like to **cancel** or **reschedule**?`,
+                        action: { type: 'appointments_found', data: { appointments: result.appointments } }
+                    };
+                } else {
+                    return {
+                        message: `📋 No upcoming appointments found for **${functionArgs.customerEmail}**\n\nWould you like to **book a new appointment**? 📅`,
+                        action: { type: 'no_appointments_found' }
+                    };
+                }
+            }
+
+            // Handle start_reschedule/cancel_appointment with made-up IDs
+            if (functionName === 'start_reschedule' || functionName === 'cancel_appointment') {
+                // The AI made up an appointment ID - ask for email instead
+                return {
+                    message: "To help with that, I'll need to look up your appointments first. 📋\n\nWhat **email address** did you use when booking?",
+                    action: { type: 'none' }
                 };
             }
         }
 
+        // Strip any remaining function call text from response
+        const cleanResponse = aiResponse
+            .replace(/<function[^>]*>.*?<\/function>/g, '')
+            .replace(/<function[^>]*>/g, '')
+            .trim();
+
         return {
-            message: aiResponse || "I'm here to help! How can I assist you today?",
+            message: cleanResponse || "I'm here to help! How can I assist you today? 💆",
             action: { type: 'none' }
         };
     }

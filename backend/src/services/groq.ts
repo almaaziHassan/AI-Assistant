@@ -171,6 +171,19 @@ export class GroqService {
         console.error(`Groq API error (attempt ${attempt + 1}):`,
           error instanceof Error ? error.message : error);
 
+        // Special handling for tool_use_failed - extract the failed_generation
+        // and return it as content so the fallback parser can handle it
+        if (error && typeof error === 'object' && 'error' in error) {
+          const errorObj = (error as { error?: { error?: { code?: string; failed_generation?: string } } }).error?.error;
+          if (errorObj?.code === 'tool_use_failed' && errorObj?.failed_generation) {
+            console.log('[Groq] Tool use failed, returning failed_generation for fallback parsing');
+            return {
+              content: errorObj.failed_generation,
+              toolCalls: undefined
+            };
+          }
+        }
+
         if (this.isRateLimitError(error)) {
           const waitTime = this.getRetryAfter(error);
           console.log(`Rate limited. Waiting ${waitTime}ms before retry...`);
