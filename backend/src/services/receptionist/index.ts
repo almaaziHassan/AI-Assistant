@@ -306,8 +306,54 @@ Would you like us to call you back instead? I can set that up for you!`;
                 const result = cancelAppointmentHandler(functionArgs.appointmentId, functionArgs.reason);
 
                 if (!result.success) {
+                    // Check if the user message contains an email - if so, do automatic lookup
+                    const emailMatch = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                    if (emailMatch) {
+                        const email = emailMatch[0].toLowerCase();
+                        console.log(`[cancel_appointment] Auto-lookup with email from message: ${email}`);
+                        const lookupResult = lookupAppointments(email);
+
+                        if (lookupResult.success && lookupResult.appointments && lookupResult.appointments.length > 0) {
+                            // Found appointments - show them
+                            const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                            const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+                            const aptList = lookupResult.appointments.map(apt => {
+                                let formattedDate = apt.date;
+                                let formattedTime = apt.time;
+                                try {
+                                    const [year, month, day] = apt.date.split('-').map(Number);
+                                    const dateObj = new Date(year, month - 1, day);
+                                    if (!isNaN(dateObj.getTime())) {
+                                        formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
+                                    }
+                                    const [hours, minutes] = apt.time.split(':').map(Number);
+                                    if (!isNaN(hours) && !isNaN(minutes)) {
+                                        const ampm = hours >= 12 ? 'PM' : 'AM';
+                                        formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                                    }
+                                } catch { }
+                                return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+                            }).join('\n');
+
+                            return {
+                                message: `Here are your upcoming appointments:\n\n${aptList}\n\nWhich one would you like to **cancel**? ✨`,
+                                action: {
+                                    type: 'appointments_found',
+                                    data: { appointments: lookupResult.appointments, email }
+                                }
+                            };
+                        } else {
+                            return {
+                                message: `📋 No upcoming appointments found for **${email}**\n\nWould you like to **book a new appointment**? 📅`,
+                                action: { type: 'no_appointments_found', data: { email } }
+                            };
+                        }
+                    }
+
+                    // No email in message - ask for it
                     return {
-                        message: `I couldn't cancel that appointment: ${result.error}`,
+                        message: "To cancel your appointment, I'll need to look it up first. 📋\n\nWhat **email address** did you use when booking?",
                         action: { type: 'none' }
                     };
                 }
@@ -365,8 +411,54 @@ Would you like us to call you back instead? I can set that up for you!`;
                 const result = getAppointmentForReschedule(functionArgs.appointmentId);
 
                 if (!result.success || !result.appointment) {
+                    // Check if the user message contains an email - if so, do automatic lookup
+                    const emailMatch = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                    if (emailMatch) {
+                        const email = emailMatch[0].toLowerCase();
+                        console.log(`[start_reschedule] Auto-lookup with email from message: ${email}`);
+                        const lookupResult = lookupAppointments(email);
+
+                        if (lookupResult.success && lookupResult.appointments && lookupResult.appointments.length > 0) {
+                            // Found appointments - show them
+                            const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                            const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+                            const aptList = lookupResult.appointments.map(apt => {
+                                let formattedDate = apt.date;
+                                let formattedTime = apt.time;
+                                try {
+                                    const [year, month, day] = apt.date.split('-').map(Number);
+                                    const dateObj = new Date(year, month - 1, day);
+                                    if (!isNaN(dateObj.getTime())) {
+                                        formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
+                                    }
+                                    const [hours, minutes] = apt.time.split(':').map(Number);
+                                    if (!isNaN(hours) && !isNaN(minutes)) {
+                                        const ampm = hours >= 12 ? 'PM' : 'AM';
+                                        formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                                    }
+                                } catch { }
+                                return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+                            }).join('\n');
+
+                            return {
+                                message: `Here are your upcoming appointments:\n\n${aptList}\n\nWhich one would you like to **reschedule**? ✨`,
+                                action: {
+                                    type: 'appointments_found',
+                                    data: { appointments: lookupResult.appointments, email }
+                                }
+                            };
+                        } else {
+                            return {
+                                message: `📋 No upcoming appointments found for **${email}**\n\nWould you like to **book a new appointment**? 📅`,
+                                action: { type: 'no_appointments_found', data: { email } }
+                            };
+                        }
+                    }
+
+                    // No email in message - ask for it
                     return {
-                        message: `I couldn't start the rescheduling process: ${result.error}`,
+                        message: "To reschedule your appointment, I'll need to look it up first. 📋\n\nWhat **email address** did you use when booking?",
                         action: { type: 'none' }
                     };
                 }
