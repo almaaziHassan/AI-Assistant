@@ -250,27 +250,75 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
     addLocalMessage(`Cancel my ${serviceName} appointment`);
 
     try {
-      const response = await fetch(`${serverUrl}/api/appointments/${appointmentId}/cancel`, {
-        method: 'POST',
+      // Use DELETE method as the API expects
+      const response = await fetch(`${serverUrl}/api/appointments/${appointmentId}`, {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
 
       if (response.ok) {
         addLocalMessage(`✅ Your ${serviceName} appointment has been cancelled. Would you like to book a new appointment?`);
       } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Cancel failed:', errorData);
         addLocalMessage(`There was an issue cancelling your appointment. Please try again.`);
       }
     } catch (err) {
+      console.error('Cancel error:', err);
       addLocalMessage(`There was an issue cancelling your appointment. Please try again.`);
     }
   };
 
   // Handle reschedule from appointment selector
-  const handleAppointmentReschedule = (appointmentId: string, serviceName: string) => {
+  const handleAppointmentReschedule = async (appointmentId: string, serviceName: string) => {
     setAppointmentSelectorData(null); // Close selector
+    addLocalMessage(`Reschedule my ${serviceName} appointment`);
 
-    // Send message to trigger rescheduling
-    sendMessage(`I want to reschedule my ${serviceName} appointment (ID: ${appointmentId})`);
+    // Get appointment details to pre-fill the form
+    try {
+      const response = await fetch(`${serverUrl}/api/appointments/${appointmentId}`);
+      if (response.ok) {
+        const apt = await response.json();
+
+        // Set reschedule data - this includes the original appointment ID for cancellation
+        setRescheduleData({
+          originalAppointmentId: appointmentId,
+          serviceId: apt.serviceId,
+          staffId: apt.staffId,
+          serviceName: apt.serviceName || serviceName,
+          customerName: apt.customerName,
+          customerEmail: apt.customerEmail
+        });
+
+        // Open booking form with pre-filled data
+        setShowBookingForm(true);
+
+        addLocalMessage(`Let's reschedule your **${serviceName}** appointment! 📅\n\nI've opened the booking form with your details pre-filled. Just pick a new date and time.`);
+      } else {
+        // Fallback: open form without pre-fill
+        setRescheduleData({
+          originalAppointmentId: appointmentId,
+          serviceId: '',
+          serviceName: serviceName,
+          customerName: '',
+          customerEmail: ''
+        });
+        setShowBookingForm(true);
+        addLocalMessage(`Let's reschedule your appointment! Please fill in the booking form.`);
+      }
+    } catch (err) {
+      console.error('Error fetching appointment for reschedule:', err);
+      // Fallback
+      setRescheduleData({
+        originalAppointmentId: appointmentId,
+        serviceId: '',
+        serviceName: serviceName,
+        customerName: '',
+        customerEmail: ''
+      });
+      setShowBookingForm(true);
+      addLocalMessage(`Let's reschedule your appointment! Please fill in the booking form.`);
+    }
   };
 
   const handleCloseAppointmentSelector = () => {
