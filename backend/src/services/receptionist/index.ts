@@ -207,13 +207,13 @@ export class ReceptionistService {
                 return this.doAppointmentLookup(inlineEmail[0].toLowerCase());
             }
 
-            // Check if we already have appointments in context
+            // If we have a cached email, do a FRESH lookup instead of using stale data
+            // This ensures cancelled appointments don't show
             if (this.appointmentContext.size > 0) {
-                // We have context but couldn't match - might need to show list again
                 for (const [email, ctx] of this.appointmentContext.entries()) {
-                    if (Date.now() - ctx.timestamp < 10 * 60 * 1000 && ctx.appointments.length > 0) {
-                        console.log(`[DirectIntent] Showing appointments from context for ${email}`);
-                        return this.formatAppointmentList(ctx.appointments, email, wantsToReschedule ? 'reschedule' : 'cancel');
+                    if (Date.now() - ctx.timestamp < 10 * 60 * 1000) {
+                        console.log(`[DirectIntent] Doing fresh lookup for ${email} (instead of using cache)`);
+                        return this.doAppointmentLookup(email);
                     }
                 }
             }
