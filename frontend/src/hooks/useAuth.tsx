@@ -12,6 +12,11 @@ export interface User {
     id: string;
     email: string;
     name: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    emailVerified?: boolean;
+    createdAt?: string;
     role: 'customer' | 'staff' | 'admin';
 }
 
@@ -26,6 +31,7 @@ interface AuthContextType {
     register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
     logout: () => void;
     updateUser: (user: User) => void;
+    refreshUser?: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

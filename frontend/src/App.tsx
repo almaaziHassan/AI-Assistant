@@ -9,6 +9,9 @@ import './styles/landing.css';
 // Lazy load AdminDashboard - only loaded when user navigates to /admin
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 
+// Lazy load UserDashboard - user sees this after login
+const UserDashboard = lazy(() => import('./components/UserDashboard'));
+
 // Loading fallback for lazy-loaded components
 const LoadingFallback = () => (
   <div style={{
@@ -47,7 +50,7 @@ const UserAppointmentsPage = lazy(() => import('./components/UserAppointmentsPag
 // Main App content with auth context
 const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
   const { isAuthenticated, user, logout } = useAuth();
-  const [currentPage, setCurrentPage] = useState<'landing' | 'admin' | 'account' | 'appointments' | 'verify-email' | 'reset-password'>('landing');
+  const [currentPage, setCurrentPage] = useState<'landing' | 'admin' | 'dashboard' | 'account' | 'appointments' | 'verify-email' | 'reset-password'>('landing');
   const [chatOpen, setChatOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalView, setAuthModalView] = useState<'login' | 'register'>('login');
@@ -60,6 +63,8 @@ const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
 
       if (hash === '#/admin' || pathname === '/admin') {
         setCurrentPage('admin');
+      } else if (hash === '#/dashboard' || pathname === '/dashboard') {
+        setCurrentPage('dashboard');
       } else if (hash === '#/account' || pathname === '/account') {
         setCurrentPage('account');
       } else if (hash === '#/appointments' || pathname === '/appointments') {
@@ -139,6 +144,15 @@ const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
     );
   }
 
+  // Handle user dashboard (after login)
+  if (currentPage === 'dashboard') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <UserDashboard serverUrl={serverUrl} onLogout={logout} />
+      </Suspense>
+    );
+  }
+
   return (
     <div>
       <LandingPage
@@ -164,7 +178,12 @@ const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         initialView={authModalView}
-        onSuccess={() => setAuthModalOpen(false)}
+        onSuccess={() => {
+          setAuthModalOpen(false);
+          // Redirect to dashboard after successful login
+          window.location.hash = '#/dashboard';
+          setCurrentPage('dashboard');
+        }}
       />
     </div>
   );
