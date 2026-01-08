@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Message, ConfirmationData, CallbackConfirmationData } from '../hooks/useChat';
 
 interface MessageListProps {
@@ -116,8 +117,8 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isTyping }) => {
           ) : message.type === 'callback_confirmation' && message.callbackConfirmation ? (
             <CallbackConfirmationCard data={message.callbackConfirmation} />
           ) : (
-            <div className="message-content">
-              {message.content}
+            <div className="message-content markdown-content">
+              <ReactMarkdown>{message.content}</ReactMarkdown>
             </div>
           )}
           <div className="message-time">
