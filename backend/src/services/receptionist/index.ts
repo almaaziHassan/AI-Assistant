@@ -118,10 +118,10 @@ export class ReceptionistService {
      * Handle direct intent detection - BYPASSES AI completely for appointment flows
      * Returns null if no direct intent detected (let AI handle it)
      */
-    private handleDirectIntent(
+    private async handleDirectIntent(
         userMessage: string,
         history: ConversationMessage[]
-    ): ReceptionistResponse | null {
+    ): Promise<ReceptionistResponse | null> {
         const msg = userMessage.toLowerCase().trim();
 
         // Check if message is just an email
@@ -137,7 +137,7 @@ export class ReceptionistService {
         if (emailMatch && wasAskingForEmail) {
             const email = emailMatch[0].toLowerCase();
             console.log(`[DirectIntent] Email provided after cancel/reschedule context: ${email}`);
-            return this.doAppointmentLookup(email);
+            return await this.doAppointmentLookup(email);
         }
 
         // Check for cancel/reschedule intent with appointment selection
@@ -160,9 +160,9 @@ export class ReceptionistService {
             this.selectedAppointment = null; // Clear after use
 
             if (wantsToCancel) {
-                return this.doCancelAppointment(apt.id);
+                return await this.doCancelAppointment(apt.id);
             } else {
-                return this.doStartReschedule(apt.id);
+                return await this.doStartReschedule(apt.id);
             }
         }
 
@@ -173,9 +173,9 @@ export class ReceptionistService {
             this.selectedAppointment = null; // Clear any previous selection
 
             if (wantsToCancel) {
-                return this.doCancelAppointment(matchedApt.id);
+                return await this.doCancelAppointment(matchedApt.id);
             } else {
-                return this.doStartReschedule(matchedApt.id);
+                return await this.doStartReschedule(matchedApt.id);
             }
         }
 
@@ -204,7 +204,7 @@ export class ReceptionistService {
             const inlineEmail = msg.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
             if (inlineEmail) {
                 console.log(`[DirectIntent] Cancel/reschedule with inline email: ${inlineEmail[0]}`);
-                return this.doAppointmentLookup(inlineEmail[0].toLowerCase());
+                return await this.doAppointmentLookup(inlineEmail[0].toLowerCase());
             }
 
             // If we have a cached email, do a FRESH lookup instead of using stale data
@@ -213,7 +213,7 @@ export class ReceptionistService {
                 for (const [email, ctx] of this.appointmentContext.entries()) {
                     if (Date.now() - ctx.timestamp < 10 * 60 * 1000) {
                         console.log(`[DirectIntent] Doing fresh lookup for ${email} (instead of using cache)`);
-                        return this.doAppointmentLookup(email);
+                        return await this.doAppointmentLookup(email);
                     }
                 }
             }
@@ -231,8 +231,8 @@ export class ReceptionistService {
     /**
      * Do appointment lookup and format response
      */
-    private doAppointmentLookup(email: string): ReceptionistResponse {
-        const result = lookupAppointments(email);
+    private async doAppointmentLookup(email: string): Promise<ReceptionistResponse> {
+        const result = await lookupAppointments(email);
 
         if (!result.success) {
             return {
@@ -358,8 +358,8 @@ export class ReceptionistService {
     /**
      * Do cancel appointment
      */
-    private doCancelAppointment(appointmentId: string): ReceptionistResponse {
-        const result = cancelAppointmentHandler(appointmentId);
+    private async doCancelAppointment(appointmentId: string): Promise<ReceptionistResponse> {
+        const result = await cancelAppointmentHandler(appointmentId);
 
         if (!result.success) {
             return {
@@ -388,8 +388,8 @@ export class ReceptionistService {
     /**
      * Do start reschedule
      */
-    private doStartReschedule(appointmentId: string): ReceptionistResponse {
-        const result = getAppointmentForReschedule(appointmentId);
+    private async doStartReschedule(appointmentId: string): Promise<ReceptionistResponse> {
+        const result = await getAppointmentForReschedule(appointmentId);
 
         if (!result.success || !result.appointment) {
             return {
@@ -511,7 +511,7 @@ export class ReceptionistService {
         // the AI's unreliable function calling
         // ============================================================
 
-        const directResult = this.handleDirectIntent(userMessage, history);
+        const directResult = await this.handleDirectIntent(userMessage, history);
         if (directResult) {
             console.log('[DirectIntent] Handled directly:', directResult.action?.type);
             return directResult;
@@ -604,7 +604,7 @@ Would you like us to call you back instead? I can set that up for you!`;
 
             // Handle lookup_appointments - Find customer's appointments by email
             if (functionName === 'lookup_appointments') {
-                const result = lookupAppointments(functionArgs.customerEmail);
+                const result = await lookupAppointments(functionArgs.customerEmail);
 
                 if (!result.success) {
                     return {
@@ -700,7 +700,7 @@ Would you like us to call you back instead? I can set that up for you!`;
                     }
                 }
 
-                const result = cancelAppointmentHandler(appointmentId, functionArgs.reason);
+                const result = await cancelAppointmentHandler(appointmentId, functionArgs.reason);
 
                 if (!result.success) {
                     // Check if the user message contains an email - if so, do automatic lookup
@@ -708,7 +708,7 @@ Would you like us to call you back instead? I can set that up for you!`;
                     if (emailMatch) {
                         const email = emailMatch[0].toLowerCase();
                         console.log(`[cancel_appointment] Auto-lookup with email from message: ${email}`);
-                        const lookupResult = lookupAppointments(email);
+                        const lookupResult = await lookupAppointments(email);
 
                         if (lookupResult.success && lookupResult.appointments && lookupResult.appointments.length > 0) {
                             // Found appointments - show them
@@ -820,7 +820,7 @@ Would you like us to call you back instead? I can set that up for you!`;
                     }
                 }
 
-                const result = getAppointmentForReschedule(appointmentId);
+                const result = await getAppointmentForReschedule(appointmentId);
 
                 if (!result.success || !result.appointment) {
                     // Check if the user message contains an email - if so, do automatic lookup
@@ -828,7 +828,7 @@ Would you like us to call you back instead? I can set that up for you!`;
                     if (emailMatch) {
                         const email = emailMatch[0].toLowerCase();
                         console.log(`[start_reschedule] Auto-lookup with email from message: ${email}`);
-                        const lookupResult = lookupAppointments(email);
+                        const lookupResult = await lookupAppointments(email);
 
                         if (lookupResult.success && lookupResult.appointments && lookupResult.appointments.length > 0) {
                             // Found appointments - show them
@@ -947,7 +947,7 @@ Would you like us to call you back instead? I can set that up for you!`;
 
             // Handle lookup_appointments from text
             if (functionName === 'lookup_appointments' && functionArgs.customerEmail) {
-                const result = lookupAppointments(functionArgs.customerEmail);
+                const result = await lookupAppointments(functionArgs.customerEmail);
                 if (result.success && result.appointments && result.appointments.length > 0) {
                     const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

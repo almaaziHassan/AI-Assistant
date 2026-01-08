@@ -1,9 +1,10 @@
 import { runQuery } from '../../db/database';
 import { v4 as uuidv4 } from 'uuid';
 import { BookingConfirmation, CallbackConfirmation } from './types';
-import { SchedulerService } from '../scheduler';
+import { schedulerServicePrisma } from '../schedulerPrisma';
 
-const scheduler = new SchedulerService();
+// Use Prisma scheduler (same database as API routes)
+const scheduler = schedulerServicePrisma;
 
 /**
  * Execute booking through the scheduler service
@@ -127,11 +128,11 @@ export interface AppointmentInfo {
  * Why email-based: Email is unique identifier for appointments
  * Allows matching even if customer wasn't logged in when booking
  */
-export function lookupAppointments(email: string): {
+export async function lookupAppointments(email: string): Promise<{
     success: boolean;
     appointments?: AppointmentInfo[];
     error?: string
-} {
+}> {
     try {
         // Validate email - AI sometimes calls with placeholder text
         if (!email || typeof email !== 'string') {
@@ -161,7 +162,7 @@ export function lookupAppointments(email: string): {
             return { success: false, error: 'Please provide a valid email address (e.g., john@example.com).' };
         }
 
-        const appointments = scheduler.getAppointmentsByEmail(emailLower);
+        const appointments = await scheduler.getAppointmentsByEmail(emailLower);
 
         // Debug logging to understand appointment lookup
         console.log(`[lookupAppointments] Email: ${emailLower}`);
@@ -236,11 +237,11 @@ export function lookupAppointments(email: string): {
  * Why separate from lookup: Customer must confirm which appointment
  * This prevents accidental cancellations
  */
-export function cancelAppointment(appointmentId: string, reason?: string): {
+export async function cancelAppointment(appointmentId: string, reason?: string): Promise<{
     success: boolean;
     cancelledAppointment?: AppointmentInfo;
     error?: string;
-} {
+}> {
     try {
         // Validate appointment ID - must be UUID format (from lookup_appointments)
         if (!appointmentId || typeof appointmentId !== 'string') {
@@ -254,7 +255,7 @@ export function cancelAppointment(appointmentId: string, reason?: string): {
         }
 
         // Get appointment details first
-        const appointment = scheduler.getAppointment(appointmentId);
+        const appointment = await scheduler.getAppointment(appointmentId);
 
         if (!appointment) {
             return { success: false, error: 'Appointment not found. Please provide your email so I can look up your appointments.' };
@@ -273,7 +274,7 @@ export function cancelAppointment(appointmentId: string, reason?: string): {
         }
 
         // Cancel the appointment
-        const success = scheduler.cancelAppointment(appointmentId);
+        const success = await scheduler.cancelAppointment(appointmentId);
 
         if (!success) {
             return { success: false, error: 'Failed to cancel appointment' };
@@ -306,11 +307,11 @@ export function cancelAppointment(appointmentId: string, reason?: string): {
  * Why return appointment details: Frontend needs service info to pre-fill form
  * Original appointment is cancelled only after new booking is confirmed
  */
-export function getAppointmentForReschedule(appointmentId: string): {
+export async function getAppointmentForReschedule(appointmentId: string): Promise<{
     success: boolean;
     appointment?: AppointmentInfo & { serviceId: string; staffId?: string };
     error?: string;
-} {
+}> {
     try {
         // Validate appointment ID - must be UUID format (from lookup_appointments)
         if (!appointmentId || typeof appointmentId !== 'string') {
@@ -323,7 +324,7 @@ export function getAppointmentForReschedule(appointmentId: string): {
             return { success: false, error: 'Please provide your email first so I can look up your appointments.' };
         }
 
-        const appointment = scheduler.getAppointment(appointmentId);
+        const appointment = await scheduler.getAppointment(appointmentId);
 
         if (!appointment) {
             return { success: false, error: 'Appointment not found. Please provide your email so I can look up your appointments.' };
@@ -363,4 +364,5 @@ export function getAppointmentForReschedule(appointmentId: string): {
         };
     }
 }
+
 
