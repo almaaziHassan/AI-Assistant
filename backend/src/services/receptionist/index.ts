@@ -232,6 +232,11 @@ export class ReceptionistService {
      * Do appointment lookup and format response
      */
     private doAppointmentLookup(email: string): ReceptionistResponse {
+        // IMPORTANT: Clear ALL cached context before fresh lookup
+        // This ensures cancelled/rescheduled appointments don't show stale data
+        this.appointmentContext.clear();
+        this.selectedAppointment = null;
+
         const result = lookupAppointments(email);
 
         if (!result.success) {
