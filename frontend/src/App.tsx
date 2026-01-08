@@ -103,6 +103,18 @@ const AppContent: React.FC<AppContentProps> = ({ serverUrl }) => {
     };
   }, []);
 
+  // Auto-redirect to dashboard if user is authenticated and on landing page
+  useEffect(() => {
+    if (isAuthenticated && currentPage === 'landing' && !authModalOpen) {
+      // Small delay to ensure auth state is fully loaded
+      const timer = setTimeout(() => {
+        window.location.hash = '#/dashboard';
+        setCurrentPage('dashboard');
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, currentPage, authModalOpen]);
+
   const goToLanding = () => {
     window.location.hash = '';
     setCurrentPage('landing');
