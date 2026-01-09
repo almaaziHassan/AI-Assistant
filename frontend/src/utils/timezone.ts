@@ -4,7 +4,7 @@
  * 
  * The business operates in Pakistan Standard Time (UTC+5)
  * Appointments are stored in the business timezone
- * Users see times in the business timezone with a note if they're in a different timezone
+ * Users see times CONVERTED to their local timezone automatically
  */
 
 // Business timezone configuration
@@ -27,16 +27,35 @@ export function getUserTimezone(): string {
 }
 
 /**
+ * Get short timezone abbreviation for user's timezone
+ */
+export function getUserTimezoneAbbr(): string {
+    const date = new Date();
+    // Get timezone abbreviation from formatted date
+    const formatter = new Intl.DateTimeFormat('en', {
+        timeZoneName: 'short'
+    });
+    const parts = formatter.formatToParts(date);
+    const tzPart = parts.find(part => part.type === 'timeZoneName');
+    return tzPart?.value || 'Local';
+}
+
+/**
  * Check if user is in the same timezone as the business
  */
 export function isUserInBusinessTimezone(): boolean {
     const userTz = getUserTimezone();
-    return userTz === BUSINESS_TIMEZONE;
+    // Check both the timezone name and the offset
+    if (userTz === BUSINESS_TIMEZONE) return true;
+
+    // Also check by offset for zones with same offset but different names
+    const userOffset = -getUserTimezoneOffset(); // Convert to east-positive
+    return userOffset === BUSINESS_TIMEZONE_OFFSET;
 }
 
 /**
  * Get timezone difference description for user
- * e.g., "3 hours ahead of business" or "same timezone as business"
+ * e.g., "3 hours ahead" or "same timezone"
  */
 export function getTimezoneDescription(): string {
     const userOffset = -getUserTimezoneOffset(); // Convert to "hours from UTC" (east positive)
@@ -44,25 +63,47 @@ export function getTimezoneDescription(): string {
     const diffMinutes = userOffset - businessOffset;
 
     if (diffMinutes === 0) {
-        return 'Same timezone as business';
+        return 'same timezone';
     }
 
     const diffHours = Math.abs(diffMinutes / 60);
-    const direction = diffMinutes > 0 ? 'ahead of' : 'behind';
+    const direction = diffMinutes > 0 ? 'ahead' : 'behind';
     const hoursLabel = diffHours === 1 ? 'hour' : 'hours';
 
-    return `${diffHours} ${hoursLabel} ${direction} business timezone`;
+    return `${diffHours} ${hoursLabel} ${direction}`;
 }
 
 /**
- * Format a date string for display in business timezone
- * Input: YYYY-MM-DD format (business timezone date)
- * Output: Formatted date string
+ * Convert a business timezone date/time to user's local time
+ * Input: YYYY-MM-DD and HH:mm in business timezone (PKT)
+ * Output: Date object in user's local timezone
  */
-export function formatBusinessDate(dateStr: string): string {
-    // Date is already in business timezone, format for display
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('en-US', {
+export function businessTimeToLocal(dateStr: string, timeStr: string): Date {
+    // Parse time
+    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    // Create date in UTC, then adjust for business timezone
+    // Business is UTC+5, so subtract 5 hours to get UTC
+    const year = parseInt(dateStr.substring(0, 4));
+    const month = parseInt(dateStr.substring(5, 7)) - 1; // 0-indexed
+    const day = parseInt(dateStr.substring(8, 10));
+
+    // Create as if it's in business timezone by first making UTC
+    // then adding the business offset
+    const utcTime = Date.UTC(year, month, day, hours - 5, minutes, 0, 0);
+
+    // Return as local Date (JavaScript automatically converts to local TZ)
+    return new Date(utcTime);
+}
+
+/**
+ * Format a date string for display in user's local timezone
+ * Input: YYYY-MM-DD format (business timezone date)
+ * Output: Formatted date string in user's local timezone
+ */
+export function formatBusinessDate(dateStr: string, timeStr: string = '12:00'): string {
+    const localDate = businessTimeToLocal(dateStr, timeStr);
+    return localDate.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -71,43 +112,50 @@ export function formatBusinessDate(dateStr: string): string {
 }
 
 /**
- * Format a time string for display
- * Input: HH:mm format (business timezone time)
- * Output: Formatted time string with AM/PM
+ * Format a time string for display in user's LOCAL timezone
+ * Input: date (YYYY-MM-DD) and time (HH:mm) in business timezone
+ * Output: Formatted time string in USER'S local timezone with AM/PM
  */
-export function formatBusinessTime(timeStr: string): string {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+export function formatTimeInLocalZone(dateStr: string, timeStr: string): string {
+    const localDate = businessTimeToLocal(dateStr, timeStr);
+    return localDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+/**
+ * Format a time with timezone abbreviation for clarity
+ * Shows time in user's local timezone with their TZ abbrev
+ */
+export function formatTimeWithZone(dateStr: string, timeStr: string): string {
+    const localTime = formatTimeInLocalZone(dateStr, timeStr);
+
+    // For local users in same timezone, just show time
+    if (isUserInBusinessTimezone()) {
+        return localTime;
+    }
+
+    // For international users, add their timezone abbreviation
+    return `${localTime} (${getUserTimezoneAbbr()})`;
 }
 
 /**
  * Check if an appointment (in business timezone) is in the past
- * Compares business time appointment with current business time
+ * Compares business time appointment with current time (works regardless of user TZ)
  */
 export function isAppointmentInPast(dateStr: string, timeStr: string): boolean {
-    // Get current time in business timezone
     const now = new Date();
-
-    // Convert current time to business timezone
-    // Business is UTC+5, so we need to add 5 hours to UTC
-    const utcNow = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const businessNow = new Date(utcNow + (BUSINESS_TIMEZONE_OFFSET * 60000));
-
-    // Parse appointment time (already in business timezone)
-    const timeWithSeconds = timeStr.includes(':') && timeStr.split(':').length === 2
-        ? `${timeStr}:00`
-        : timeStr;
-    const aptDateTime = new Date(`${dateStr}T${timeWithSeconds}`);
+    const appointmentLocal = businessTimeToLocal(dateStr, timeStr);
 
     // If parsing failed, treat as upcoming (safer)
-    if (isNaN(aptDateTime.getTime())) {
+    if (isNaN(appointmentLocal.getTime())) {
         console.warn('[Timezone] Invalid date/time:', dateStr, timeStr);
         return false;
     }
 
-    return aptDateTime < businessNow;
+    return appointmentLocal < now;
 }
 
 /**
@@ -119,13 +167,12 @@ export function getBusinessTimezoneAbbr(): string {
 
 /**
  * Format date/time with timezone indicator if user is in different timezone
+ * DEPRECATED: Use formatTimeWithZone instead for auto-conversion
  */
 export function formatWithTimezoneNote(_dateStr: string, timeStr: string): string {
-    const formattedTime = formatBusinessTime(timeStr);
-
-    if (!isUserInBusinessTimezone()) {
-        return `${formattedTime} ${getBusinessTimezoneAbbr()}`;
-    }
-
-    return formattedTime;
+    // Simple fallback - just format the time
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 }

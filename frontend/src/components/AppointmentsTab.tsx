@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import {
     formatBusinessDate,
-    formatWithTimezoneNote,
+    formatTimeWithZone,
     isAppointmentInPast,
     isUserInBusinessTimezone,
     getTimezoneDescription
@@ -91,9 +91,9 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
         }
     };
 
-    // Use timezone-aware formatting
-    const formatDate = formatBusinessDate;
-    const formatTime = (time: string) => formatWithTimezoneNote('', time).split(' ').slice(0, -1).join(' ') || formatWithTimezoneNote('', time);
+    // Use timezone-aware formatting - times auto-convert to user's local timezone
+    const formatDate = (dateStr: string, timeStr: string = '12:00') => formatBusinessDate(dateStr, timeStr);
+    const formatTime = (dateStr: string, timeStr: string) => formatTimeWithZone(dateStr, timeStr);
 
     const getStatusBadge = (status: string) => {
         const statusStyles: Record<string, { bg: string; color: string; label: string }> = {
@@ -159,7 +159,7 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
                 <div className="timezone-notice">
                     <span className="timezone-icon">🌍</span>
                     <span className="timezone-text">
-                        Times shown in business timezone (PKT). You are {timezoneNote}.
+                        Times automatically converted to your local timezone ({timezoneNote} from business).
                     </span>
                 </div>
             )}
@@ -213,7 +213,7 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
                                         </div>
                                         <div className="detail-row">
                                             <span className="detail-icon">🕐</span>
-                                            <span className="detail-text">{formatTime(apt.time)}</span>
+                                            <span className="detail-text">{formatTime(apt.date, apt.time)}</span>
                                         </div>
                                         {apt.staffName && (
                                             <div className="detail-row">
@@ -279,7 +279,7 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
                                         </div>
                                         <div className="detail-row">
                                             <span className="detail-icon">🕐</span>
-                                            <span className="detail-text">{formatTime(apt.time)}</span>
+                                            <span className="detail-text">{formatTime(apt.date, apt.time)}</span>
                                         </div>
                                         {apt.staffName && (
                                             <div className="detail-row">
