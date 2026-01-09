@@ -95,6 +95,67 @@ export function createAppointmentRouterPrisma(
         }
     });
 
+    // GET /api/appointments/my-appointments - Get appointments for logged-in user
+    // Fetches by both userId AND email for comprehensive results
+    // NOTE: This route MUST be before /:id to prevent matching "my-appointments" as an ID
+    router.get('/my-appointments', async (req: Request, res: Response) => {
+        try {
+            const userId = req.query.userId as string;
+            const email = req.query.email as string;
+
+            if (!userId && !email) {
+                return res.status(400).json({ error: 'userId or email is required' });
+            }
+
+            // Build OR condition to fetch by userId OR email
+            const whereConditions: any[] = [];
+            if (userId) {
+                whereConditions.push({ userId: userId });
+            }
+            if (email) {
+                whereConditions.push({ customerEmail: email.toLowerCase() });
+            }
+
+            const appointments = await prisma.appointment.findMany({
+                where: {
+                    OR: whereConditions,
+                    status: { not: 'cancelled' }
+                },
+                orderBy: { appointmentDate: 'asc' }
+            });
+
+            // Format and deduplicate (in case same booking matches both conditions)
+            const seen = new Set();
+            const formatted = appointments
+                .filter(apt => {
+                    if (seen.has(apt.id)) return false;
+                    seen.add(apt.id);
+                    return true;
+                })
+                .map(apt => ({
+                    id: apt.id,
+                    customerName: apt.customerName,
+                    customerEmail: apt.customerEmail,
+                    customerPhone: apt.customerPhone,
+                    serviceId: apt.serviceId,
+                    serviceName: apt.serviceName,
+                    staffId: apt.staffId,
+                    staffName: apt.staffName,
+                    date: apt.appointmentDate.toISOString().split('T')[0],
+                    time: apt.appointmentTime.toISOString().split('T')[1].substring(0, 5),
+                    duration: apt.duration,
+                    status: apt.status || 'confirmed',
+                    notes: apt.notes,
+                    userId: apt.userId
+                }));
+
+            res.json(formatted);
+        } catch (error) {
+            console.error('Get my appointments error:', error);
+            res.status(500).json({ error: 'Failed to get appointments' });
+        }
+    });
+
     // GET /api/appointments/:id - Get an appointment by ID
     router.get('/:id', async (req: Request, res: Response) => {
         try {
@@ -164,66 +225,6 @@ export function createAppointmentRouterPrisma(
         }
     });
 
-    // GET /api/appointments/my-appointments - Get appointments for logged-in user
-    // Fetches by both userId AND email for comprehensive results
-    router.get('/my-appointments', async (req: Request, res: Response) => {
-        try {
-            const userId = req.query.userId as string;
-            const email = req.query.email as string;
-
-            if (!userId && !email) {
-                return res.status(400).json({ error: 'userId or email is required' });
-            }
-
-            // Build OR condition to fetch by userId OR email
-            const whereConditions: any[] = [];
-            if (userId) {
-                whereConditions.push({ userId: userId });
-            }
-            if (email) {
-                whereConditions.push({ customerEmail: email.toLowerCase() });
-            }
-
-            const appointments = await prisma.appointment.findMany({
-                where: {
-                    OR: whereConditions,
-                    status: { not: 'cancelled' }
-                },
-                orderBy: { appointmentDate: 'asc' }
-            });
-
-            // Format and deduplicate (in case same booking matches both conditions)
-            const seen = new Set();
-            const formatted = appointments
-                .filter(apt => {
-                    if (seen.has(apt.id)) return false;
-                    seen.add(apt.id);
-                    return true;
-                })
-                .map(apt => ({
-                    id: apt.id,
-                    customerName: apt.customerName,
-                    customerEmail: apt.customerEmail,
-                    customerPhone: apt.customerPhone,
-                    serviceId: apt.serviceId,
-                    serviceName: apt.serviceName,
-                    staffId: apt.staffId,
-                    staffName: apt.staffName,
-                    date: apt.appointmentDate.toISOString().split('T')[0],
-                    time: apt.appointmentTime.toISOString().split('T')[1].substring(0, 5),
-                    duration: apt.duration,
-                    status: apt.status || 'confirmed',
-                    notes: apt.notes,
-                    userId: apt.userId
-                }));
-
-            res.json(formatted);
-        } catch (error) {
-            console.error('Get my appointments error:', error);
-            res.status(500).json({ error: 'Failed to get appointments' });
-        }
-    });
-
     // GET /api/appointments/by-date/:date - Get appointments by date
     router.get('/by-date/:date', async (req: Request, res: Response) => {
         try {
@@ -235,8 +236,6 @@ export function createAppointmentRouterPrisma(
             res.status(500).json({ error: 'Failed to get appointments' });
         }
     });
-
-    // DELETE /api/appointments/:id - Cancel an appointment
     router.delete('/:id', async (req: Request, res: Response) => {
         try {
             const { id } = req.params;
