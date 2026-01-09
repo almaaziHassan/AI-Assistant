@@ -1,6 +1,6 @@
 /**
  * Appointments Tab Component
- * Shows user's appointments in a card layout
+ * Shows user's appointments with sub-tabs for Upcoming and Past
  */
 
 import React, { useState, useEffect } from 'react';
@@ -29,6 +29,7 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [cancellingId, setCancellingId] = useState<string | null>(null);
+    const [activeSubTab, setActiveSubTab] = useState<'upcoming' | 'past'>('upcoming');
 
     useEffect(() => {
         fetchAppointments();
@@ -40,8 +41,6 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
         try {
             setLoading(true);
             // Use the /my-appointments endpoint which fetches by BOTH userId and email
-            // This ensures we get appointments linked to the user account AND
-            // any appointments booked with their email even if they weren't logged in
             const params = new URLSearchParams();
             if (user.id) params.append('userId', user.id);
             if (user.email) params.append('email', user.email);
@@ -129,20 +128,20 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
         );
     };
 
-    const isPastAppointment = (dateStr: string) => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const aptDate = new Date(dateStr + 'T00:00:00');
-        return aptDate < today;
+    const isPastAppointment = (dateStr: string, timeStr: string) => {
+        const now = new Date();
+        const aptDateTime = new Date(`${dateStr}T${timeStr}`);
+        return aptDateTime < now;
     };
 
+    // Filter appointments based on date AND time
     const upcomingAppointments = appointments.filter(
-        apt => !isPastAppointment(apt.date) && apt.status !== 'cancelled' && apt.status !== 'completed'
+        apt => !isPastAppointment(apt.date, apt.time) && apt.status !== 'cancelled' && apt.status !== 'completed'
     );
 
     const pastAppointments = appointments.filter(
-        apt => isPastAppointment(apt.date) || apt.status === 'cancelled' || apt.status === 'completed'
-    );
+        apt => isPastAppointment(apt.date, apt.time) || apt.status === 'cancelled' || apt.status === 'completed'
+    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Most recent first
 
     if (loading) {
         return (
@@ -164,119 +163,152 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
 
     return (
         <div className="appointments-tab">
-            {/* Upcoming Appointments */}
-            <div className="appointments-section">
-                <h2 className="section-title">
-                    <span className="section-icon">📅</span>
-                    Upcoming Appointments
-                </h2>
-
-                {upcomingAppointments.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-icon">📋</div>
-                        <h3>No Upcoming Appointments</h3>
-                        <p>You don't have any upcoming appointments. Use the chat to book one!</p>
-                    </div>
-                ) : (
-                    <div className="appointments-grid">
-                        {upcomingAppointments.map(apt => (
-                            <div key={apt.id} className="appointment-card">
-                                <div className="card-header">
-                                    <h3 className="service-name">{apt.serviceName}</h3>
-                                    {getStatusBadge(apt.status)}
-                                </div>
-
-                                <div className="card-details">
-                                    <div className="detail-row">
-                                        <span className="detail-icon">📆</span>
-                                        <span className="detail-text">{formatDate(apt.date)}</span>
-                                    </div>
-                                    <div className="detail-row">
-                                        <span className="detail-icon">🕐</span>
-                                        <span className="detail-text">{formatTime(apt.time)}</span>
-                                    </div>
-                                    {apt.staffName && (
-                                        <div className="detail-row">
-                                            <span className="detail-icon">👤</span>
-                                            <span className="detail-text">with {apt.staffName}</span>
-                                        </div>
-                                    )}
-                                    <div className="detail-row">
-                                        <span className="detail-icon">⏱️</span>
-                                        <span className="detail-text">{apt.duration} minutes</span>
-                                    </div>
-                                </div>
-
-                                <div className="card-actions">
-                                    <button
-                                        className="action-btn reschedule-btn"
-                                        onClick={() => {
-                                            // Open chat with reschedule intent
-                                            const event = new CustomEvent('openChatWithIntent', {
-                                                detail: { intent: 'reschedule', appointmentId: apt.id }
-                                            });
-                                            window.dispatchEvent(event);
-                                        }}
-                                    >
-                                        📅 Reschedule
-                                    </button>
-                                    <button
-                                        className="action-btn cancel-btn"
-                                        onClick={() => handleCancelAppointment(apt.id)}
-                                        disabled={cancellingId === apt.id}
-                                    >
-                                        {cancellingId === apt.id ? '...' : '✕ Cancel'}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+            {/* Sub-tabs for Upcoming/Past */}
+            <div className="appointments-subtabs">
+                <button
+                    className={`subtab-button ${activeSubTab === 'upcoming' ? 'active' : ''}`}
+                    onClick={() => setActiveSubTab('upcoming')}
+                >
+                    <span className="subtab-icon">📅</span>
+                    <span className="subtab-label">Upcoming</span>
+                    {upcomingAppointments.length > 0 && (
+                        <span className="subtab-badge">{upcomingAppointments.length}</span>
+                    )}
+                </button>
+                <button
+                    className={`subtab-button ${activeSubTab === 'past' ? 'active' : ''}`}
+                    onClick={() => setActiveSubTab('past')}
+                >
+                    <span className="subtab-icon">📜</span>
+                    <span className="subtab-label">Past</span>
+                    {pastAppointments.length > 0 && (
+                        <span className="subtab-badge past">{pastAppointments.length}</span>
+                    )}
+                </button>
             </div>
 
-            {/* Past Appointments */}
-            {pastAppointments.length > 0 && (
-                <div className="appointments-section past-section">
-                    <h2 className="section-title">
-                        <span className="section-icon">📜</span>
-                        Past Appointments
-                    </h2>
-
-                    <div className="appointments-grid">
-                        {pastAppointments.slice(0, 5).map(apt => (
-                            <div key={apt.id} className="appointment-card past">
-                                <div className="card-header">
-                                    <h3 className="service-name">{apt.serviceName}</h3>
-                                    {getStatusBadge(apt.status)}
-                                </div>
-
-                                <div className="card-details">
-                                    <div className="detail-row">
-                                        <span className="detail-icon">📆</span>
-                                        <span className="detail-text">{formatDate(apt.date)}</span>
+            {/* Upcoming Appointments Tab Content */}
+            {activeSubTab === 'upcoming' && (
+                <div className="appointments-section">
+                    {upcomingAppointments.length === 0 ? (
+                        <div className="empty-state">
+                            <div className="empty-icon">📋</div>
+                            <h3>No Upcoming Appointments</h3>
+                            <p>You don't have any upcoming appointments. Use the chat to book one!</p>
+                        </div>
+                    ) : (
+                        <div className="appointments-grid">
+                            {upcomingAppointments.map(apt => (
+                                <div key={apt.id} className="appointment-card">
+                                    <div className="card-header">
+                                        <h3 className="service-name">{apt.serviceName}</h3>
+                                        {getStatusBadge(apt.status)}
                                     </div>
-                                    <div className="detail-row">
-                                        <span className="detail-icon">🕐</span>
-                                        <span className="detail-text">{formatTime(apt.time)}</span>
+
+                                    <div className="card-details">
+                                        <div className="detail-row">
+                                            <span className="detail-icon">📆</span>
+                                            <span className="detail-text">{formatDate(apt.date)}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-icon">🕐</span>
+                                            <span className="detail-text">{formatTime(apt.time)}</span>
+                                        </div>
+                                        {apt.staffName && (
+                                            <div className="detail-row">
+                                                <span className="detail-icon">👤</span>
+                                                <span className="detail-text">with {apt.staffName}</span>
+                                            </div>
+                                        )}
+                                        <div className="detail-row">
+                                            <span className="detail-icon">⏱️</span>
+                                            <span className="detail-text">{apt.duration} minutes</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="card-actions">
+                                        <button
+                                            className="action-btn reschedule-btn"
+                                            onClick={() => {
+                                                const event = new CustomEvent('openChatWithIntent', {
+                                                    detail: { intent: 'reschedule', appointmentId: apt.id }
+                                                });
+                                                window.dispatchEvent(event);
+                                            }}
+                                        >
+                                            📅 Reschedule
+                                        </button>
+                                        <button
+                                            className="action-btn cancel-btn"
+                                            onClick={() => handleCancelAppointment(apt.id)}
+                                            disabled={cancellingId === apt.id}
+                                        >
+                                            {cancellingId === apt.id ? '...' : '✕ Cancel'}
+                                        </button>
                                     </div>
                                 </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
-                                <div className="card-actions">
-                                    <button
-                                        className="action-btn book-again-btn"
-                                        onClick={() => {
-                                            const event = new CustomEvent('openChatWithIntent', {
-                                                detail: { intent: 'book', serviceName: apt.serviceName }
-                                            });
-                                            window.dispatchEvent(event);
-                                        }}
-                                    >
-                                        🔄 Book Again
-                                    </button>
+            {/* Past Appointments Tab Content */}
+            {activeSubTab === 'past' && (
+                <div className="appointments-section">
+                    {pastAppointments.length === 0 ? (
+                        <div className="empty-state">
+                            <div className="empty-icon">📜</div>
+                            <h3>No Past Appointments</h3>
+                            <p>You don't have any past appointments yet.</p>
+                        </div>
+                    ) : (
+                        <div className="appointments-grid">
+                            {pastAppointments.map(apt => (
+                                <div key={apt.id} className="appointment-card past">
+                                    <div className="card-header">
+                                        <h3 className="service-name">{apt.serviceName}</h3>
+                                        {getStatusBadge(apt.status)}
+                                    </div>
+
+                                    <div className="card-details">
+                                        <div className="detail-row">
+                                            <span className="detail-icon">📆</span>
+                                            <span className="detail-text">{formatDate(apt.date)}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-icon">🕐</span>
+                                            <span className="detail-text">{formatTime(apt.time)}</span>
+                                        </div>
+                                        {apt.staffName && (
+                                            <div className="detail-row">
+                                                <span className="detail-icon">👤</span>
+                                                <span className="detail-text">with {apt.staffName}</span>
+                                            </div>
+                                        )}
+                                        <div className="detail-row">
+                                            <span className="detail-icon">⏱️</span>
+                                            <span className="detail-text">{apt.duration} minutes</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="card-actions">
+                                        <button
+                                            className="action-btn book-again-btn"
+                                            onClick={() => {
+                                                const event = new CustomEvent('openChatWithIntent', {
+                                                    detail: { intent: 'book', serviceName: apt.serviceName }
+                                                });
+                                                window.dispatchEvent(event);
+                                            }}
+                                        >
+                                            🔄 Book Again
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
