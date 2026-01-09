@@ -11,6 +11,8 @@ interface ChatWidgetProps {
   serverUrl: string;
   defaultOpen?: boolean;
   onClose?: () => void;
+  rescheduleIntent?: { appointmentId: string } | null;
+  onRescheduleHandled?: () => void;  // Callback to clear the intent after handling
 }
 
 interface BookingData {
@@ -46,7 +48,13 @@ const prefetchCache: PrefetchCache = {
 
 const PREFETCH_TTL = 60 * 1000; // 60 seconds
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false, onClose }) => {
+const ChatWidget: React.FC<ChatWidgetProps> = ({
+  serverUrl,
+  defaultOpen = false,
+  onClose,
+  rescheduleIntent,
+  onRescheduleHandled
+}) => {
   const { user } = useAuth(); // Get current user for linking bookings
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [showBookingForm, setShowBookingForm] = useState(false);
@@ -76,6 +84,56 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
 
   // Track if we've already triggered prefetch
   const hasPrefetched = useRef(false);
+
+  // Handle reschedule intent from dashboard
+  useEffect(() => {
+    if (rescheduleIntent?.appointmentId) {
+      console.log('[ChatWidget] Handling reschedule intent for:', rescheduleIntent.appointmentId);
+
+      // Fetch appointment details and open reschedule form
+      const fetchAndReschedule = async () => {
+        try {
+          const response = await fetch(`${serverUrl}/api/appointments/${rescheduleIntent.appointmentId}`);
+          if (!response.ok) throw new Error('Failed to fetch appointment');
+
+          const appointment = await response.json();
+          console.log('[ChatWidget] Appointment details:', appointment);
+
+          // Set reschedule data to trigger the booking form in reschedule mode
+          setRescheduleData({
+            originalAppointmentId: appointment.id,
+            serviceId: appointment.serviceId,
+            staffId: appointment.staffId,
+            serviceName: appointment.serviceName,
+            customerName: appointment.customerName,
+            customerEmail: appointment.customerEmail
+          });
+
+          // Show the booking form
+          setShowBookingForm(true);
+
+          // Add a message to the chat
+          addLocalMessage(
+            `I'd like to reschedule my ${appointment.serviceName} appointment.`,
+            'user'
+          );
+          addLocalMessage(
+            `Of course! Let's reschedule your ${appointment.serviceName} appointment. Please select a new date and time below.`,
+            'assistant'
+          );
+
+          // Clear the intent
+          onRescheduleHandled?.();
+        } catch (err) {
+          console.error('[ChatWidget] Error fetching appointment for reschedule:', err);
+          addLocalMessage('Sorry, I could not find that appointment. Please try again.', 'assistant');
+          onRescheduleHandled?.();
+        }
+      };
+
+      fetchAndReschedule();
+    }
+  }, [rescheduleIntent?.appointmentId]);
 
   // Open chat when defaultOpen changes to true
   useEffect(() => {

@@ -35,6 +35,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const { user, logout, isAuthenticated } = useAuth();
     const [activeTab, setActiveTab] = useState<'appointments' | 'account'>('appointments');
     const [chatOpen, setChatOpen] = useState(true); // Auto-open chat on load
+    const [rescheduleIntent, setRescheduleIntent] = useState<{ appointmentId: string } | null>(null);
 
     // Redirect to home if not authenticated
     useEffect(() => {
@@ -42,6 +43,27 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             window.location.hash = '';
         }
     }, [isAuthenticated]);
+
+    // Listen for reschedule/book intent from appointment cards
+    useEffect(() => {
+        const handleChatIntent = (event: CustomEvent<{ intent: string; appointmentId?: string; serviceName?: string }>) => {
+            const { intent, appointmentId } = event.detail;
+
+            if (intent === 'reschedule' && appointmentId) {
+                console.log('[UserDashboard] Reschedule intent received for:', appointmentId);
+                setRescheduleIntent({ appointmentId });
+                setChatOpen(true);
+            } else if (intent === 'book') {
+                // Just open the chat for booking
+                setChatOpen(true);
+            }
+        };
+
+        window.addEventListener('openChatWithIntent', handleChatIntent as EventListener);
+        return () => {
+            window.removeEventListener('openChatWithIntent', handleChatIntent as EventListener);
+        };
+    }, []);
 
     const handleLogout = () => {
         logout();
@@ -123,6 +145,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 serverUrl={serverUrl}
                 defaultOpen={chatOpen}
                 onClose={() => setChatOpen(false)}
+                rescheduleIntent={rescheduleIntent}
+                onRescheduleHandled={() => setRescheduleIntent(null)}
             />
 
             {/* Quick Action Button to Open Chat */}
