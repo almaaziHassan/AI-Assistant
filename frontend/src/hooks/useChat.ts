@@ -73,6 +73,9 @@ export function useChat({ serverUrl, authToken }: UseChatOptions) {
   };
 
   useEffect(() => {
+    // Clear messages when (re)connecting to ensure fresh state for new user
+    setMessages([]);
+
     const socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       auth: authToken ? { token: authToken } : undefined
@@ -278,7 +281,9 @@ export function useChat({ serverUrl, authToken }: UseChatOptions) {
     return () => {
       socket.disconnect();
     };
-  }, [serverUrl]);
+    // IMPORTANT: Include authToken in dependencies so socket reconnects when user logs in/out
+    // This ensures each user gets their own chat history
+  }, [serverUrl, authToken]);
 
   const sendMessage = useCallback((content: string) => {
     if (!socketRef.current || !isConnected) {
