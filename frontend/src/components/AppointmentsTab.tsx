@@ -5,6 +5,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import {
+    formatBusinessDate,
+    formatWithTimezoneNote,
+    isAppointmentInPast,
+    isUserInBusinessTimezone,
+    getTimezoneDescription
+} from '../utils/timezone';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
@@ -84,23 +91,9 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
         }
     };
 
-    const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr + 'T00:00:00');
-        const options: Intl.DateTimeFormatOptions = {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        };
-        return date.toLocaleDateString('en-US', options);
-    };
-
-    const formatTime = (time: string) => {
-        const [hours, minutes] = time.split(':').map(Number);
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        const displayHours = hours % 12 || 12;
-        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-    };
+    // Use timezone-aware formatting
+    const formatDate = formatBusinessDate;
+    const formatTime = (time: string) => formatWithTimezoneNote('', time).split(' ').slice(0, -1).join(' ') || formatWithTimezoneNote('', time);
 
     const getStatusBadge = (status: string) => {
         const statusStyles: Record<string, { bg: string; color: string; label: string }> = {
@@ -128,28 +121,17 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
         );
     };
 
-    const isPastAppointment = (dateStr: string, timeStr: string) => {
-        const now = new Date();
-        // Handle time format (HH:mm) - add :00 for seconds if not present
-        const timeWithSeconds = timeStr.includes(':') && timeStr.split(':').length === 2
-            ? `${timeStr}:00`
-            : timeStr;
-        const aptDateTime = new Date(`${dateStr}T${timeWithSeconds}`);
-        // If date parsing fails, treat as upcoming (safer default)
-        if (isNaN(aptDateTime.getTime())) {
-            console.warn('[AppointmentsTab] Invalid date/time:', dateStr, timeStr);
-            return false;
-        }
-        return aptDateTime < now;
-    };
+    // Timezone info for international users
+    const showTimezoneNote = !isUserInBusinessTimezone();
+    const timezoneNote = showTimezoneNote ? getTimezoneDescription() : '';
 
-    // Filter appointments based on date AND time
+    // Use timezone-aware past detection
     const upcomingAppointments = appointments.filter(
-        apt => !isPastAppointment(apt.date, apt.time) && apt.status !== 'cancelled' && apt.status !== 'completed'
+        apt => !isAppointmentInPast(apt.date, apt.time) && apt.status !== 'cancelled' && apt.status !== 'completed'
     );
 
     const pastAppointments = appointments.filter(
-        apt => isPastAppointment(apt.date, apt.time) || apt.status === 'cancelled' || apt.status === 'completed'
+        apt => isAppointmentInPast(apt.date, apt.time) || apt.status === 'cancelled' || apt.status === 'completed'
     ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Most recent first
 
     if (loading) {
@@ -172,6 +154,16 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
 
     return (
         <div className="appointments-tab">
+            {/* Timezone note for international users */}
+            {showTimezoneNote && (
+                <div className="timezone-notice">
+                    <span className="timezone-icon">🌍</span>
+                    <span className="timezone-text">
+                        Times shown in business timezone (PKT). You are {timezoneNote}.
+                    </span>
+                </div>
+            )}
+
             {/* Sub-tabs for Upcoming/Past */}
             <div className="appointments-subtabs">
                 <button
