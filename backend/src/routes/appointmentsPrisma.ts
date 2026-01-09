@@ -131,8 +131,9 @@ export function createAppointmentRouterPrisma(
 
             const appointments = await prisma.appointment.findMany({
                 where: {
-                    OR: whereConditions,
-                    status: { not: 'cancelled' }
+                    OR: whereConditions
+                    // Note: Don't filter by status here - we want to return all appointments
+                    // The frontend will filter into upcoming/past tabs including cancelled ones
                 },
                 orderBy: { appointmentDate: 'asc' }
             });

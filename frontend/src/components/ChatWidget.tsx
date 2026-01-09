@@ -77,8 +77,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
     email: string;
   } | null>(null);
 
-  // Get auth token for user-specific conversation history
-  const authToken = localStorage.getItem('auth_token');
+  // Get auth token from auth context (reactive when user logs in/out)
+  // user is already available from useAuth() at line 58
+  const authToken = user ? localStorage.getItem('auth_token') : null;
 
   const { messages, isConnected, isTyping, error, sendMessage, addLocalMessage, startNewConversation, saveConfirmationToServer } = useChat({ serverUrl, authToken });
 

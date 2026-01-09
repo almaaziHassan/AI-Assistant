@@ -130,7 +130,16 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
 
     const isPastAppointment = (dateStr: string, timeStr: string) => {
         const now = new Date();
-        const aptDateTime = new Date(`${dateStr}T${timeStr}`);
+        // Handle time format (HH:mm) - add :00 for seconds if not present
+        const timeWithSeconds = timeStr.includes(':') && timeStr.split(':').length === 2
+            ? `${timeStr}:00`
+            : timeStr;
+        const aptDateTime = new Date(`${dateStr}T${timeWithSeconds}`);
+        // If date parsing fails, treat as upcoming (safer default)
+        if (isNaN(aptDateTime.getTime())) {
+            console.warn('[AppointmentsTab] Invalid date/time:', dateStr, timeStr);
+            return false;
+        }
         return aptDateTime < now;
     };
 
