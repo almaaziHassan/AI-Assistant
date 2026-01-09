@@ -19,9 +19,55 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 describe('AdminDashboard', () => {
   const serverUrl = 'http://localhost:3000';
 
+  // Default mock data for fallback
+  const defaultMockStats = {
+    todayAppointments: 0,
+    weekAppointments: 0,
+    monthAppointments: 0,
+    totalRevenue: 0,
+    cancelledCount: 0,
+    upcomingCount: 0,
+    waitlistCount: 0,
+    pendingCallbacksCount: 0,
+    topServices: []
+  };
+
+  const defaultAppointmentStats = {
+    total: 0,
+    pending: 0,
+    confirmed: 0,
+    completed: 0,
+    cancelled: 0,
+    noShow: 0,
+    noShowRate: 0
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.getItem.mockReturnValue(null);
+
+    // Set up a default implementation that returns safe fallback values
+    // This prevents "appointments.map is not a function" errors when mocks run out
+    mockFetch.mockImplementation((url: string) => {
+      // Return appropriate defaults based on URL pattern
+      if (url.includes('/api/admin/appointments')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]), status: 200 });
+      }
+      if (url.includes('/api/admin/dashboard')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(defaultMockStats), status: 200 });
+      }
+      if (url.includes('/api/appointments/stats')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(defaultAppointmentStats), status: 200 });
+      }
+      if (url.includes('/api/admin/action-required')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]), status: 200 });
+      }
+      if (url.includes('/status')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }), status: 200 });
+      }
+      // Default fallback
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}), status: 200 });
+    });
   });
 
   describe('Authentication', () => {
@@ -60,7 +106,7 @@ describe('AdminDashboard', () => {
 
     it('should show loading state while checking auth', () => {
       localStorageMock.getItem.mockReturnValue('some-token');
-      mockFetch.mockImplementation(() => new Promise(() => {})); // Never resolves
+      mockFetch.mockImplementation(() => new Promise(() => { })); // Never resolves
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 

@@ -27,13 +27,16 @@ interface AppointmentsProps {
 }
 
 export const Appointments: React.FC<AppointmentsProps> = ({
-    appointments,
+    appointments: appointmentsProp,
     viewMode,
     setViewMode,
     filter,
     setFilter,
     onUpdateStatus
 }) => {
+    // Defensive: ensure appointments is always an array
+    const appointments = Array.isArray(appointmentsProp) ? appointmentsProp : [];
+
     return (
         <div className="appointments-list">
             <div className="section-header">
