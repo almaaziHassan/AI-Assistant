@@ -32,14 +32,21 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
 
     useEffect(() => {
         fetchAppointments();
-    }, [user?.email]);
+    }, [user?.id, user?.email]);
 
     const fetchAppointments = async () => {
-        if (!user?.email) return;
+        if (!user?.id && !user?.email) return;
 
         try {
             setLoading(true);
-            const response = await fetch(`${serverUrl}/api/appointments/by-email/${encodeURIComponent(user.email)}`);
+            // Use the /my-appointments endpoint which fetches by BOTH userId and email
+            // This ensures we get appointments linked to the user account AND
+            // any appointments booked with their email even if they weren't logged in
+            const params = new URLSearchParams();
+            if (user.id) params.append('userId', user.id);
+            if (user.email) params.append('email', user.email);
+
+            const response = await fetch(`${serverUrl}/api/appointments/my-appointments?${params}`);
             if (!response.ok) throw new Error('Failed to fetch appointments');
 
             const data = await response.json();

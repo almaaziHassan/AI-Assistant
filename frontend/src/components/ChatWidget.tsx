@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from '../hooks/useChat';
+import { useAuth } from '../hooks/useAuth';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
 import AppointmentForm, { Service } from './AppointmentForm';
@@ -19,6 +20,7 @@ interface BookingData {
   serviceId: string;
   date: string;
   time: string;
+  userId?: string;  // Added: Link booking to user account if logged in
 }
 
 interface CallbackData {
@@ -45,6 +47,7 @@ const prefetchCache: PrefetchCache = {
 const PREFETCH_TTL = 60 * 1000; // 60 seconds
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false, onClose }) => {
+  const { user } = useAuth(); // Get current user for linking bookings
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [showCallbackForm, setShowCallbackForm] = useState(false);
@@ -165,10 +168,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ serverUrl, defaultOpen = false,
         // Note: We don't block on cancel errors - continue with new booking
       }
 
+      // Add userId to booking if user is logged in
+      // This links the appointment to their account for the My Appointments tab
+      const bookingWithUser = {
+        ...booking,
+        userId: user?.id || undefined
+      };
+
       const response = await fetch(`${serverUrl}/api/appointments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(booking)
+        body: JSON.stringify(bookingWithUser)
       });
 
       if (response.ok) {

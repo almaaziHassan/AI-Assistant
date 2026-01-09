@@ -43,6 +43,7 @@ export interface BookingRequest {
     date: string;
     time: string;
     notes?: string;
+    userId?: string;  // Links appointment to user account if logged in
 }
 
 // Simple mutex for preventing race conditions
@@ -364,6 +365,7 @@ export class SchedulerServicePrisma {
                     duration: service.duration,
                     status: 'pending',
                     notes: normalizedRequest.notes?.trim() || null,
+                    userId: normalizedRequest.userId || null,  // Link to user account if logged in
                 },
             });
 
