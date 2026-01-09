@@ -96,7 +96,10 @@ export function createAppointmentRouterPrisma(
     });
 
     // GET /api/appointments/my-appointments - Get appointments for logged-in user
-    // Fetches by both userId AND email for comprehensive results
+    // Fetches appointments that belong to this user:
+    // 1. Appointments where userId matches (booked while logged in as this user)
+    // 2. Appointments where customerEmail matches AND userId is NULL (booked with their email while NOT logged in)
+    // This prevents User A from seeing User B's appointments just because emails match
     // NOTE: This route MUST be before /:id to prevent matching "my-appointments" as an ID
     router.get('/my-appointments', async (req: Request, res: Response) => {
         try {
@@ -107,13 +110,23 @@ export function createAppointmentRouterPrisma(
                 return res.status(400).json({ error: 'userId or email is required' });
             }
 
-            // Build OR condition to fetch by userId OR email
+            // Build conditions for proper ownership matching:
+            // - Match by userId (appointments made while logged in as this user)
+            // - OR match by email ONLY if the appointment has no userId (made while logged out)
             const whereConditions: any[] = [];
+
             if (userId) {
+                // Appointments explicitly linked to this user's account
                 whereConditions.push({ userId: userId });
             }
+
             if (email) {
-                whereConditions.push({ customerEmail: email.toLowerCase() });
+                // Appointments made with this email but NOT linked to any user account
+                // (i.e., booked while logged out or before account creation)
+                whereConditions.push({
+                    customerEmail: email.toLowerCase(),
+                    userId: null  // Important: Only match if no userId is set
+                });
             }
 
             const appointments = await prisma.appointment.findMany({
