@@ -13,6 +13,7 @@ interface ChatWidgetProps {
   onClose?: () => void;
   rescheduleIntent?: { appointmentId: string } | null;
   onRescheduleHandled?: () => void;  // Callback to clear the intent after handling
+  onBookingComplete?: () => void;    // Callback to refresh dashboard/appointments
 }
 
 interface BookingData {
@@ -53,7 +54,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   defaultOpen = false,
   onClose,
   rescheduleIntent,
-  onRescheduleHandled
+  onRescheduleHandled,
+  onBookingComplete
 }) => {
   const { user } = useAuth(); // Get current user for linking bookings
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -244,6 +246,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         const appointment = await response.json();
         setShowBookingForm(false);
         setRescheduleData(null); // Clear reschedule data
+
+        // Notify parent to refresh data
+        if (onBookingComplete) {
+          onBookingComplete();
+        }
 
         const confirmationData = {
           serviceName: appointment.serviceName,

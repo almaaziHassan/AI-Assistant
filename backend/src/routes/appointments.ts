@@ -138,10 +138,21 @@ export function createAppointmentRouter(
   router.delete('/:id', (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+
+      // Get appointment details first (for email)
+      const appointment = scheduler.getAppointment(id);
+
       const success = scheduler.cancelAppointment(id);
 
       if (!success) {
         return res.status(404).json({ error: 'Appointment not found' });
+      }
+
+      // Send cancellation email
+      if (appointment) {
+        emailSvc.sendCancellationEmail(appointment).catch(err => {
+          console.error('Failed to send cancellation email:', err);
+        });
       }
 
       res.json({ message: 'Appointment cancelled successfully' });

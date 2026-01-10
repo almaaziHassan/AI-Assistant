@@ -376,6 +376,202 @@ ${business.phone} | ${business.email}
 
     return false;
   }
+
+  private generateCancellationEmail(appointment: Appointment): { subject: string; html: string; text: string } {
+    const { business } = this.config;
+    const formattedDate = this.formatDate(appointment.appointmentDate);
+    const formattedTime = this.formatTime(appointment.appointmentTime);
+
+    const subject = `Appointment Cancelled - ${business.name}`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Appointment Cancellation</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); padding: 40px 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Appointment Cancelled</h1>
+              <p style="margin: 10px 0 0; color: rgba(255,255,255,0.9); font-size: 16px;">We're sorry to see you cancel</p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <p style="margin: 0 0 20px; color: #333; font-size: 16px; line-height: 1.6;">
+                Hi <strong>${appointment.customerName}</strong>,
+              </p>
+              <p style="margin: 0 0 30px; color: #666; font-size: 15px; line-height: 1.6;">
+                Your appointment has been cancelled as requested. Here are the details of the cancelled appointment:
+              </p>
+
+              <!-- Appointment Details Card -->
+              <table role="presentation" style="width: 100%; background-color: #f8f9fa; border-radius: 12px; margin-bottom: 30px;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <table role="presentation" style="width: 100%;">
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="color: #888; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Service</span><br>
+                          <span style="color: #333; font-size: 16px; font-weight: 600;">${appointment.serviceName}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-top: 1px solid #e5e7eb;">
+                          <span style="color: #888; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Date</span><br>
+                          <span style="color: #333; font-size: 16px; font-weight: 600;">${formattedDate}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-top: 1px solid #e5e7eb;">
+                          <span style="color: #888; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Time</span><br>
+                          <span style="color: #333; font-size: 16px; font-weight: 600;">${formattedTime}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-top: 1px solid #e5e7eb;">
+                          <span style="color: #888; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Confirmation #</span><br>
+                          <span style="color: #ef4444; font-size: 14px; font-weight: 600; font-family: monospace;">${appointment.id.substring(0, 8).toUpperCase()}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Contact Info -->
+              <table role="presentation" style="width: 100%; background-color: #fff8e6; border-radius: 12px; margin-bottom: 30px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <p style="margin: 0; color: #92690c; font-size: 14px; line-height: 1.6;">
+                      <strong>Want to reschedule?</strong><br>
+                      You can book a new appointment online or contact us directly.<br>
+                      Phone: ${business.phone}<br>
+                      Email: ${business.email}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0; color: #666; font-size: 15px; line-height: 1.6;">
+                We hope to see you again soon!
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8f9fa; padding: 24px 40px; text-align: center; border-top: 1px solid #e5e7eb;">
+              <p style="margin: 0 0 8px; color: #333; font-size: 14px; font-weight: 600;">${business.name}</p>
+              <p style="margin: 0; color: #888; font-size: 13px;">
+                ${business.phone} | ${business.email}
+              </p>
+              <p style="margin: 16px 0 0; color: #aaa; font-size: 12px;">
+                This is an automated message. Please do not reply directly to this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+
+    const text = `
+APPOINTMENT CANCELLED - ${business.name}
+
+Hi ${appointment.customerName},
+
+Your appointment has been cancelled as requested. Here are the details:
+
+SERVICE: ${appointment.serviceName}
+DATE: ${formattedDate}
+TIME: ${formattedTime}
+CONFIRMATION #: ${appointment.id.substring(0, 8).toUpperCase()}
+
+Want to reschedule?
+You can book a new appointment online or contact us directly.
+Phone: ${business.phone}
+Email: ${business.email}
+
+We hope to see you again soon!
+
+---
+${business.name}
+${business.phone} | ${business.email}
+    `;
+
+    return { subject, html, text };
+  }
+
+  async sendCancellationEmail(appointment: Appointment): Promise<boolean> {
+    const { subject, html, text } = this.generateCancellationEmail(appointment);
+    const fromEmail = process.env.BREVO_FROM_EMAIL || process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com';
+    const fromName = process.env.BREVO_FROM_NAME || this.config.business.name;
+
+    if (!this.isConfigured) {
+      // Log email preview to console when not configured
+      console.log('\n========== EMAIL PREVIEW (CANCELLATION) ==========');
+      console.log(`To: ${appointment.customerEmail}`);
+      console.log(`Subject: ${subject}`);
+      console.log('---');
+      console.log(text);
+      console.log('====================================\n');
+      return true;
+    }
+
+    // Use Brevo API if available
+    if (this.useBrevoApi && this.brevoApi) {
+      try {
+        const sendSmtpEmail = new brevo.SendSmtpEmail();
+        sendSmtpEmail.subject = subject;
+        sendSmtpEmail.htmlContent = html;
+        sendSmtpEmail.textContent = text;
+        sendSmtpEmail.sender = { name: fromName, email: fromEmail };
+        sendSmtpEmail.to = [{ email: appointment.customerEmail, name: appointment.customerName }];
+
+        await this.brevoApi.sendTransacEmail(sendSmtpEmail);
+        console.log(`Cancellation email sent via Brevo API to ${appointment.customerEmail}`);
+        return true;
+      } catch (error) {
+        console.error('Failed to send cancellation email via Brevo API:', error);
+        return false;
+      }
+    }
+
+    // Fallback to SMTP
+    if (this.transporter) {
+      try {
+        await this.transporter.sendMail({
+          from: \`"\${fromName}" <\${fromEmail}>\`,
+          to: appointment.customerEmail,
+          subject,
+          text,
+          html
+        });
+
+        console.log(`Cancellation email sent via SMTP to ${ appointment.customerEmail }`);
+        return true;
+      } catch (error) {
+        console.error('Failed to send cancellation email via SMTP:', error);
+        return false;
+      }
+    }
+
+    return false;
+  }
 }
 
 export const emailService = new EmailService();

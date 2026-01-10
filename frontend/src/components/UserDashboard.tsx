@@ -37,6 +37,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
     const [chatOpen, setChatOpen] = useState(true); // Auto-open chat on load
     const [rescheduleIntent, setRescheduleIntent] = useState<{ appointmentId: string } | null>(null);
 
+
     // Redirect to home if not authenticated
     useEffect(() => {
         if (!isAuthenticated) {
@@ -147,6 +148,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
                 onClose={() => setChatOpen(false)}
                 rescheduleIntent={rescheduleIntent}
                 onRescheduleHandled={() => setRescheduleIntent(null)}
+                onBookingComplete={() => window.location.reload()}
             />
 
             {/* Quick Action Button to Open Chat */}
