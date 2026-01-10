@@ -271,8 +271,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           }
         );
 
-        // Save to server for persistence on refresh
-        saveConfirmationToServer(
+        // Save to server for persistence on refresh (wait for ack)
+        await saveConfirmationToServer(
           'Your appointment has been confirmed!',
           'confirmation',
           'booking_confirmed',
@@ -290,11 +290,9 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         );
 
         // Notify parent to refresh data (page reload)
-        // Delay slightly to ensure socket event is sent before reload
+        // Now safe to do since we waited for server acknowledgement
         if (onBookingComplete) {
-          setTimeout(() => {
-            onBookingComplete();
-          }, 500);
+          onBookingComplete();
         }
       } else {
         const err = await response.json();
