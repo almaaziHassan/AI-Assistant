@@ -211,3 +211,17 @@ model SystemSetting {
 
   @@map("system_settings")
 }
+
+model KnowledgeDoc {
+  id        String    @id @default(uuid())
+  title     String
+  content   String
+  tags      Json?     @default("[]")
+  metadata  Json?     @default("{}")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive], map: "idx_knowledge_docs_active")
+  @@map("knowledge_docs")
+}

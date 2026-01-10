@@ -9,6 +9,7 @@
 import { GroqService, ChatMessage } from '../groq';
 import servicesConfig from '../../config/services.json';
 import { adminService, AdminService } from '../admin';
+import { KnowledgeService } from '../knowledge';
 import { getTools } from './tools';
 import { buildSystemPrompt } from './promptBuilder';
 import {
@@ -45,6 +46,7 @@ export class ReceptionistService {
     private groq: GroqService;
     private defaultConfig: typeof servicesConfig;
     private adminService: AdminService;
+    private knowledgeService: KnowledgeService;
 
     // In-memory cache for frequently accessed data
     private servicesCache: CacheEntry<ReturnType<AdminService['getAllServices']>> | null = null;
@@ -70,6 +72,12 @@ export class ReceptionistService {
         this.groq = groq;
         this.defaultConfig = config;
         this.adminService = adminSvc;
+        this.knowledgeService = KnowledgeService.getInstance();
+
+        // Initialize knowledge base (fire and forget)
+        this.knowledgeService.initialize().catch(err => {
+            console.error('Failed to initialize Knowledge Service in Receptionist:', err);
+        });
     }
 
     /**
@@ -579,7 +587,16 @@ export class ReceptionistService {
         // Get config to pass to prompt builder
         const config = this.getFullConfig();
 
-        const systemPrompt = buildSystemPrompt(relevantFAQs, staffList, servicesList, config);
+        let systemPrompt = buildSystemPrompt(relevantFAQs, staffList, servicesList, config);
+
+        // Search Knowledge Base (RAG)
+        const relevantDocs = this.knowledgeService.search(userMessage, 2);
+        if (relevantDocs.length > 0) {
+            const knowledgeContext = relevantDocs.map(doc =>
+                `[KNOWLEDGE: ${doc.title}]\n${doc.content}`
+            ).join('\n\n');
+            systemPrompt += `\n\nRELEVANT KNOWLEDGE BASE INFORMATION:\nUse this information to answer detailed questions if applicable:\n${knowledgeContext}`;
+        }
 
         // ============================================================
         // DIRECT INTENT DETECTION - BYPASS AI FOR APPOINTMENT MANAGEMENT

@@ -1,12 +1,73 @@
 import { Router, Request, Response } from 'express';
 import { adminService, AdminService } from '../services/admin';
 import { SchedulerService } from '../services/scheduler';
+import { KnowledgeService } from '../services/knowledge';
 
 export function createAdminRouter(
   adminSvc: AdminService = adminService,
   scheduler: SchedulerService = new SchedulerService()
 ) {
   const router = Router();
+  const knowledgeSvc = KnowledgeService.getInstance();
+  // ... existing code ...
+
+  // ============ KNOWLEDGE DOCS (RAG) ============
+
+  // GET /api/admin/docs - Get all docs
+  router.get('/docs', async (req: Request, res: Response) => {
+    try {
+      const activeOnly = req.query.active === 'true';
+      const docs = await knowledgeSvc.getAllDocs(activeOnly);
+      res.json(docs);
+    } catch (error) {
+      console.error('Get docs error:', error);
+      res.status(500).json({ error: 'Failed to get docs' });
+    }
+  });
+
+  // POST /api/admin/docs - Create doc
+  router.post('/docs', async (req: Request, res: Response) => {
+    try {
+      const { title, content, tags } = req.body;
+      if (!title || !content) {
+        return res.status(400).json({ error: 'Title and content are required' });
+      }
+
+      const doc = await knowledgeSvc.createDoc({
+        title,
+        content,
+        tags: tags || []
+      });
+      res.status(201).json(doc);
+    } catch (error) {
+      console.error('Create doc error:', error);
+      res.status(500).json({ error: 'Failed to create doc' });
+    }
+  });
+
+  // PUT /api/admin/docs/:id - Update doc
+  router.put('/docs/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const doc = await knowledgeSvc.updateDoc(id, req.body);
+      res.json(doc);
+    } catch (error) {
+      console.error('Update doc error:', error);
+      res.status(500).json({ error: 'Failed to update doc' });
+    }
+  });
+
+  // DELETE /api/admin/docs/:id - Delete doc
+  router.delete('/docs/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      await knowledgeSvc.deleteDoc(id);
+      res.json({ message: 'Doc deleted successfully' });
+    } catch (error) {
+      console.error('Delete doc error:', error);
+      res.status(500).json({ error: 'Failed to delete doc' });
+    }
+  });
 
   // ============ DASHBOARD ============
 

@@ -10,9 +10,10 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
     serverUrl,
     getAuthHeaders,
 }) => {
-    const [activeTab, setActiveTab] = useState<'faqs' | 'settings'>('faqs');
+    const [activeTab, setActiveTab] = useState<'faqs' | 'settings' | 'docs'>('faqs');
     const [faqs, setFaqs] = useState<FAQ[]>([]);
     const [settings, setSettings] = useState<SystemSetting[]>([]);
+    const [docs, setDocs] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     // FAQ Form State
@@ -25,6 +26,15 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
         displayOrder: number;
         isActive: boolean;
     }>({ question: '', answer: '', keywords: '', displayOrder: 0, isActive: true });
+
+    // Docs Form State
+    const [showDocForm, setShowDocForm] = useState(false);
+    const [editingDocId, setEditingDocId] = useState<string | null>(null);
+    const [docForm, setDocForm] = useState<{
+        title: string;
+        content: string;
+        tags: string;
+    }>({ title: '', content: '', tags: '' });
 
     // Settings Editor State
     const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -40,9 +50,12 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
             if (activeTab === 'faqs') {
                 const res = await fetch(`${serverUrl}/api/admin/faqs`, { headers: getAuthHeaders() });
                 if (res.ok) setFaqs(await res.json());
-            } else {
+            } else if (activeTab === 'settings') {
                 const res = await fetch(`${serverUrl}/api/admin/settings`, { headers: getAuthHeaders() });
                 if (res.ok) setSettings(await res.json());
+            } else if (activeTab === 'docs') {
+                const res = await fetch(`${serverUrl}/api/admin/docs`, { headers: getAuthHeaders() });
+                if (res.ok) setDocs(await res.json());
             }
         } catch (error) {
             console.error('Failed to fetch data', error);
@@ -107,6 +120,61 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
         }
     };
 
+    // Docs Handlers
+    const handleSaveDoc = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const url = editingDocId ? `${serverUrl}/api/admin/docs/${editingDocId}` : `${serverUrl}/api/admin/docs`;
+            const method = editingDocId ? 'PUT' : 'POST';
+
+            const body = {
+                title: docForm.title,
+                content: docForm.content,
+                tags: docForm.tags.split(',').map(k => k.trim()).filter(k => k)
+            };
+
+            const res = await fetch(url, {
+                method,
+                headers: getAuthHeaders(),
+                body: JSON.stringify(body)
+            });
+
+            if (res.ok) {
+                setShowDocForm(false);
+                setEditingDocId(null);
+                setDocForm({ title: '', content: '', tags: '' });
+                fetchData();
+            } else {
+                alert('Failed to save document');
+            }
+        } catch {
+            alert('Error saving document');
+        }
+    };
+
+    const handleEditDoc = (doc: any) => {
+        setDocForm({
+            title: doc.title,
+            content: doc.content,
+            tags: (doc.tags || []).join(', ')
+        });
+        setEditingDocId(doc.id);
+        setShowDocForm(true);
+    };
+
+    const handleDeleteDoc = async (id: string) => {
+        if (!confirm('Delete this Document?')) return;
+        try {
+            await fetch(`${serverUrl}/api/admin/docs/${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            fetchData();
+        } catch {
+            alert('Error deleting document');
+        }
+    };
+
     // Settings Handlers
     const handleEditSetting = (setting: SystemSetting) => {
         setEditingKey(setting.key);
@@ -151,6 +219,12 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                         onClick={() => setActiveTab('faqs')}
                     >
                         FAQs
+                    </button>
+                    <button
+                        className={`tab-btn ${activeTab === 'docs' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('docs')}
+                    >
+                        Documents (RAG)
                     </button>
                     <button
                         className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
@@ -241,6 +315,73 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                                 <p>{faq.answer}</p>
                                 <div className="tags">
                                     {faq.keywords.map(k => <span key={k} className="tag">{k}</span>)}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {!isLoading && activeTab === 'docs' && (
+                <div className="docs-container">
+                    <button
+                        className="btn-primary"
+                        style={{ marginBottom: '20px' }}
+                        onClick={() => {
+                            setEditingDocId(null);
+                            setDocForm({ title: '', content: '', tags: '' });
+                            setShowDocForm(!showDocForm);
+                        }}
+                    >
+                        {showDocForm ? 'Cancel' : '+ Add Document'}
+                    </button>
+
+                    {showDocForm && (
+                        <form className="admin-form" onSubmit={handleSaveDoc}>
+                            <div className="form-group">
+                                <label>Title</label>
+                                <input
+                                    value={docForm.title}
+                                    onChange={e => setDocForm({ ...docForm, title: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Content (Markdown supported)</label>
+                                <textarea
+                                    value={docForm.content}
+                                    onChange={e => setDocForm({ ...docForm, content: e.target.value })}
+                                    required
+                                    rows={10}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Tags (comma separated for search relevance)</label>
+                                <input
+                                    value={docForm.tags}
+                                    onChange={e => setDocForm({ ...docForm, tags: e.target.value })}
+                                    placeholder="policy, pricing, agreement"
+                                />
+                            </div>
+                            <button type="submit" className="btn-save">Save Document</button>
+                        </form>
+                    )}
+
+                    <div className="items-list">
+                        {docs.map(doc => (
+                            <div key={doc.id} className="item-card">
+                                <div className="item-header">
+                                    <h3>{doc.title}</h3>
+                                    <div className="actions">
+                                        <button onClick={() => handleEditDoc(doc)}>Edit</button>
+                                        <button className="danger" onClick={() => handleDeleteDoc(doc.id)}>Delete</button>
+                                    </div>
+                                </div>
+                                <div className="doc-preview" style={{ maxHeight: '100px', overflow: 'hidden', color: '#666' }}>
+                                    {doc.content.slice(0, 150)}...
+                                </div>
+                                <div className="tags">
+                                    {doc.tags.map((t: string) => <span key={t} className="tag">{t}</span>)}
                                 </div>
                             </div>
                         ))}
