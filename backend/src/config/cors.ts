@@ -43,6 +43,13 @@ export function getCorsOriginChecker() {
 
             if (allowedNoSlash.includes(originNoSlash)) return callback(null, true);
 
+            // Check for Vercel preview deployments
+            // Pattern: https://ai-assistant-v7-.*-tellyquests-projects.vercel.app
+            const vercelPreviewRegex = /^https:\/\/ai-assistant-v7-.*-tellyquests-projects\.vercel\.app$/;
+            if (vercelPreviewRegex.test(originNoSlash)) {
+                return callback(null, true);
+            }
+
             console.error(`CORS Blocked Origin: ${origin}. Allowed: ${allowedOrigins.join(', ')}`);
         }
 
