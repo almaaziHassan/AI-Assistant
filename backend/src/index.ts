@@ -10,11 +10,13 @@
  * - Session management: src/socket/sessionManager.ts
  */
 
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import dotenv from 'dotenv';
 
 import chatRoutes from './routes/chat';
 import { createAppointmentRouter } from './routes/appointments';
