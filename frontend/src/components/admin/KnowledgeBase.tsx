@@ -139,14 +139,23 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                 body: JSON.stringify(body)
             });
 
+            const text = await res.text();
+
             if (res.ok) {
                 setShowDocForm(false);
                 setEditingDocId(null);
                 setDocForm({ title: '', content: '', tags: '' });
                 fetchData();
             } else {
-                const err = await res.json().catch(() => ({ error: res.statusText }));
-                alert(`Failed to save document: ${err.error || 'Unknown error'}`);
+                let errorMsg = res.statusText;
+                try {
+                    const json = JSON.parse(text);
+                    if (json.error) errorMsg = json.error;
+                } catch {
+                    // response was not JSON, use text if short, else status
+                    if (text && text.length < 200) errorMsg = text;
+                }
+                alert(`Failed to save document (${res.status}): ${errorMsg}`);
             }
         } catch (e: any) {
             alert(`Error saving document: ${e.message}`);
