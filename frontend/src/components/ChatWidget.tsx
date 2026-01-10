@@ -147,9 +147,15 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 
   // Handle reschedule_appointment action from AI
   // When AI triggers rescheduling, open booking form with pre-filled data
+  // Handle actions from AI (reschedule, book, callback)
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.action?.type === 'reschedule_appointment' && lastMessage.action.data) {
+
+    // Safety check - ensure action exists
+    if (!lastMessage?.action) return;
+
+    // Reschedule
+    if (lastMessage.action.type === 'reschedule_appointment' && lastMessage.action.data) {
       const data = lastMessage.action.data as {
         originalAppointmentId: string;
         serviceId: string;
@@ -160,6 +166,16 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
       };
       setRescheduleData(data);
       setShowBookingForm(true);
+    }
+
+    // New Booking - Auto-open form
+    else if (lastMessage.action.type === 'book_appointment') {
+      setShowBookingForm(true);
+    }
+
+    // Request Callback - Auto-open form
+    else if (lastMessage.action.type === 'request_callback') {
+      setShowCallbackForm(true);
     }
   }, [messages]);
 
