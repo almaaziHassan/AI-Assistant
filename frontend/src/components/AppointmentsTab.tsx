@@ -56,9 +56,9 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
             if (!response.ok) throw new Error('Failed to fetch appointments');
 
             const data = await response.json();
-            // Sort by date (upcoming first)
+            // Sort by date and time (upcoming first)
             const sorted = data.sort((a: Appointment, b: Appointment) =>
-                new Date(a.date).getTime() - new Date(b.date).getTime()
+                (a.date + a.time).localeCompare(b.date + b.time)
             );
             setAppointments(sorted);
         } catch (err) {
@@ -132,7 +132,7 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
 
     const pastAppointments = appointments.filter(
         apt => isAppointmentInPast(apt.date, apt.time) || apt.status === 'cancelled' || apt.status === 'completed'
-    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Most recent first
+    ).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)); // Most recent first
 
     if (loading) {
         return (
