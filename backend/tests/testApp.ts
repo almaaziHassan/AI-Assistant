@@ -10,6 +10,9 @@ import servicesRouter from '../src/routes/services';
 import callbacksRouter from '../src/routes/callbacks';
 import adminRouter from '../src/routes/admin';
 import chatRouter from '../src/routes/chat';
+import authRoutes from '../src/routes/auth';
+
+import { adminAuthMiddleware } from '../src/middleware/adminAuth';
 
 export function createTestApp() {
   const app = express();
@@ -22,8 +25,9 @@ export function createTestApp() {
   app.use('/api/appointments', appointmentsRouter);
   app.use('/api/services', servicesRouter);
   app.use('/api/callbacks', callbacksRouter);
-  app.use('/api/admin', adminRouter);
+  app.use('/api/admin', adminAuthMiddleware, adminRouter);
   app.use('/api/chat', chatRouter);
+  app.use('/api/auth', authRoutes);
 
   // Health check
   app.get('/api/health', (req, res) => {

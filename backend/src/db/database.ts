@@ -418,6 +418,27 @@ function createSqliteTables(): void {
   }
 
   sqliteDb.run(`
+    CREATE TABLE IF NOT EXISTS services (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      duration INTEGER NOT NULL,
+      price DECIMAL(10,2) NOT NULL DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      display_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  sqliteDb.run(`
+    CREATE TABLE IF NOT EXISTS staff_services (
+      staff_id TEXT NOT NULL,
+      service_id TEXT NOT NULL,
+      PRIMARY KEY (staff_id, service_id)
+    )
+  `);
+
+  sqliteDb.run(`
     CREATE TABLE IF NOT EXISTS locations (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

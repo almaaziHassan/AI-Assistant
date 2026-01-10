@@ -7,6 +7,10 @@ dotenv.config({ path: '.env.test' });
 // Set test environment  
 process.env.NODE_ENV = 'test';
 
+// Force SQLite for integration tests
+// set to non-empty string to prevent dotenv from reloading logic
+process.env.DATABASE_URL = 'sqlite://memory';
+
 // Increase timeout for async operations
 jest.setTimeout(30000);
 

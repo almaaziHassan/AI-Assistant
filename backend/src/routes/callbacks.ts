@@ -52,6 +52,7 @@ export function createCallbacksRouter() {
       const id = uuidv4();
       const now = new Date().toISOString();
 
+
       runQuery(
         `INSERT INTO callbacks (id, customer_name, customer_phone, customer_email, preferred_time, concerns, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,

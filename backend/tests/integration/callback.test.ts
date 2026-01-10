@@ -3,6 +3,15 @@ import { createTestApp } from '../testApp';
 
 const app = createTestApp();
 
+// Helper to login and get token
+async function getAuthToken(): Promise<string> {
+  const password = process.env.ADMIN_PASSWORD || 'admin123';
+  const response = await request(app)
+    .post('/api/auth/login')
+    .send({ password });
+  return response.body.token || '';
+}
+
 describe('Callback API Integration', () => {
   let createdCallbackId: string;
 
@@ -114,16 +123,20 @@ describe('Callback API Integration', () => {
 
   describe('GET /api/callbacks', () => {
     it('should return list of callbacks', async () => {
+      const token = await getAuthToken();
       const response = await request(app)
         .get('/api/callbacks')
+        .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should filter callbacks by status', async () => {
+      const token = await getAuthToken();
       const response = await request(app)
         .get('/api/callbacks?status=pending')
+        .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
@@ -145,9 +158,11 @@ describe('Callback API Integration', () => {
         .expect(201);
 
       const id = createResponse.body.id;
+      const token = await getAuthToken();
 
       const response = await request(app)
         .get(`/api/callbacks/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('id', id);
@@ -155,8 +170,10 @@ describe('Callback API Integration', () => {
     });
 
     it('should return 404 for non-existent callback', async () => {
+      const token = await getAuthToken();
       const response = await request(app)
         .get('/api/callbacks/non-existent-id')
+        .set('Authorization', `Bearer ${token}`)
         .expect(404);
 
       expect(response.body).toHaveProperty('error');
@@ -175,9 +192,11 @@ describe('Callback API Integration', () => {
         .expect(201);
 
       const id = createResponse.body.id;
+      const token = await getAuthToken();
 
       const response = await request(app)
         .put(`/api/callbacks/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ status: 'contacted' })
         .expect(200);
 
@@ -196,9 +215,11 @@ describe('Callback API Integration', () => {
         .expect(201);
 
       const id = createResponse.body.id;
+      const token = await getAuthToken();
 
       const response = await request(app)
         .put(`/api/callbacks/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ notes: 'Called and scheduled appointment' })
         .expect(200);
 
@@ -216,9 +237,11 @@ describe('Callback API Integration', () => {
         .expect(201);
 
       const id = createResponse.body.id;
+      const token = await getAuthToken();
 
       const response = await request(app)
         .put(`/api/callbacks/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ status: 'invalid_status' })
         .expect(400);
 
@@ -226,8 +249,10 @@ describe('Callback API Integration', () => {
     });
 
     it('should return 404 for non-existent callback', async () => {
+      const token = await getAuthToken();
       const response = await request(app)
         .put('/api/callbacks/non-existent-id')
+        .set('Authorization', `Bearer ${token}`)
         .send({ status: 'contacted' })
         .expect(404);
 
@@ -236,6 +261,7 @@ describe('Callback API Integration', () => {
 
     it('should accept all valid statuses', async () => {
       const validStatuses = ['pending', 'contacted', 'completed', 'no_answer'];
+      const token = await getAuthToken();
 
       for (const status of validStatuses) {
         const createResponse = await request(app)
@@ -248,6 +274,7 @@ describe('Callback API Integration', () => {
 
         const response = await request(app)
           .put(`/api/callbacks/${createResponse.body.id}`)
+          .set('Authorization', `Bearer ${token}`)
           .send({ status })
           .expect(200);
 
@@ -268,9 +295,11 @@ describe('Callback API Integration', () => {
         .expect(201);
 
       const id = createResponse.body.id;
+      const token = await getAuthToken();
 
       const response = await request(app)
         .delete(`/api/callbacks/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('success', true);
@@ -278,12 +307,15 @@ describe('Callback API Integration', () => {
       // Verify it's deleted
       await request(app)
         .get(`/api/callbacks/${id}`)
+        .set('Authorization', `Bearer ${token}`)
         .expect(404);
     });
 
     it('should return 404 for non-existent callback', async () => {
+      const token = await getAuthToken();
       const response = await request(app)
         .delete('/api/callbacks/non-existent-id')
+        .set('Authorization', `Bearer ${token}`)
         .expect(404);
 
       expect(response.body).toHaveProperty('error');
@@ -293,6 +325,7 @@ describe('Callback API Integration', () => {
 
 describe('Callback Data Integrity', () => {
   it('should trim whitespace from inputs', async () => {
+    // Public endpoint
     const response = await request(app)
       .post('/api/callbacks')
       .send({
@@ -301,9 +334,11 @@ describe('Callback Data Integrity', () => {
       })
       .expect(201);
 
-    // Verify by fetching the callback
+    // Verify by fetching the callback (protected)
+    const token = await getAuthToken();
     const getResponse = await request(app)
       .get(`/api/callbacks/${response.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
     expect(getResponse.body.customerName).toBe('Trimmed User');

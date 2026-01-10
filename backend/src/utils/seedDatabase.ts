@@ -68,28 +68,59 @@ async function seedPostgres() {
 function seedSqlite() {
     const db = getDbSync();
 
-    // Check if we already have valid staff
-    const stmt = db.prepare('SELECT * FROM staff LIMIT 1');
-    const hasStaff = stmt.step();
-    stmt.free();
+    // Check if we already have valid staff and services
+    const stmtStaff = db.prepare('SELECT * FROM staff LIMIT 1');
+    const hasStaff = stmtStaff.step();
+    stmtStaff.free();
 
-    if (hasStaff) {
+    const stmtServices = db.prepare('SELECT * FROM services LIMIT 1');
+    const hasServices = stmtServices.step();
+    stmtServices.free();
+
+    if (hasStaff && hasServices) {
         console.log('Database already has valid data, skipping seed.');
         return;
     }
 
-    console.log('Database is empty, seeding with default data...');
+    console.log('Database needs seeding...');
 
     try {
-        // Add default staff member (SQLite still has services column for backward compat)
-        const staffId = uuidv4();
-        db.run(
-            `INSERT INTO staff (id, name, email, role, services, is_active, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [staffId, 'Available Staff', null, 'Therapist', '[]', 1, new Date().toISOString()]
-        );
+        // 1. Create Default Services if missing
+        let service1Id = uuidv4();
+        let service2Id = uuidv4();
 
-        console.log('✅ Default staff member added');
+        if (!hasServices) {
+            db.run(
+                `INSERT INTO services (id, name, description, duration, price, is_active, display_order)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [service1Id, 'General Consultation', 'Initial discussion about your needs', 30, 50.00, 1, 1]
+            );
+            db.run(
+                `INSERT INTO services (id, name, description, duration, price, is_active, display_order)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [service2Id, 'Deep Tissue Massage', 'Therapeutic massage for muscle relief', 60, 100.00, 1, 2]
+            );
+            console.log('✅ Default services added');
+        } else {
+            // Retrieve existing service IDs for staff
+            const s = db.prepare('SELECT id FROM services LIMIT 2');
+            if (s.step()) service1Id = s.getAsObject().id as string;
+            if (s.step()) service2Id = s.getAsObject().id as string;
+            s.free();
+        }
+
+        // 2. Add default staff if missing
+        if (!hasStaff) {
+            const staffId = uuidv4();
+            const servicesJson = JSON.stringify([service1Id, service2Id]);
+
+            db.run(
+                `INSERT INTO staff (id, name, email, role, services, is_active, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [staffId, 'Available Staff', 'staff@example.com', 'Therapist', servicesJson, 1, new Date().toISOString()]
+            );
+            console.log('✅ Default staff member added');
+        }
 
         // Save after changes
         saveDatabase();
