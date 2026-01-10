@@ -383,21 +383,32 @@ export function useChat({ serverUrl, authToken }: UseChatOptions) {
     setMessages(prev => [...prev, message]);
   }, []);
 
-  // Save a confirmation message to the server (for persistence on refresh)
+  // Save a confirmation message to server and wait for acknowledgement
   const saveConfirmationToServer = useCallback((
     content: string,
     messageType: 'confirmation' | 'callback_confirmation',
     actionType: string,
     actionData: Record<string, unknown>
-  ) => {
-    if (socketRef.current && isConnected) {
+  ): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!socketRef.current || !isConnected) {
+        resolve(false);
+        return;
+      }
+
+      // Emit with acknowledgement callback
       socketRef.current.emit('saveConfirmation', {
         content,
         messageType,
         actionType,
         actionData
+      }, (response: { success: boolean }) => {
+        resolve(response?.success ?? false);
       });
-    }
+
+      // Fallback timeout in case server doesn't respond
+      setTimeout(() => resolve(false), 5000);
+    });
   }, [isConnected]);
 
   return {
