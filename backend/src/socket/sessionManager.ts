@@ -30,10 +30,16 @@ export function initializeSession(sessionId?: string): {
     let finalSessionId = sessionId;
     let isNewSession = false;
 
-    // Create new session if none provided or invalid
-    if (!finalSessionId || !chatHistoryService.sessionExists(finalSessionId)) {
+    // If no session ID provided, generate one
+    if (!finalSessionId) {
         finalSessionId = chatHistoryService.createSession();
         isNewSession = true;
+    } else {
+        // If session ID provided, check if it exists in DB
+        // If not, it's a new session, but we keep the ID (important for authenticated users)
+        if (!chatHistoryService.sessionExists(finalSessionId)) {
+            isNewSession = true;
+        }
     }
 
     // Load existing history from database (simple format for AI context)
