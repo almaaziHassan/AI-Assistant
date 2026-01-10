@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { adminServicePrisma, AdminServicePrisma } from '../services/adminPrisma';
 import prisma from '../db/prisma';
+import { KnowledgeService } from '../services/knowledge';
 
 export function createAdminRouterPrisma(
     adminSvc: AdminServicePrisma = adminServicePrisma
@@ -439,6 +440,175 @@ export function createAdminRouterPrisma(
             }
             console.error('Update status error:', error);
             res.status(500).json({ error: 'Failed to update appointment status' });
+        }
+    });
+
+    // ============ KNOWLEDGE DOCS (RAG) ============
+
+    // GET /api/admin/docs - Get all docs
+    router.get('/docs', async (req: Request, res: Response) => {
+        try {
+            const activeOnly = req.query.active === 'true';
+            const docs = await KnowledgeService.getInstance().getAllDocs(activeOnly);
+            res.json(docs);
+        } catch (error) {
+            console.error('Get docs error:', error);
+            res.status(500).json({ error: 'Failed to get docs' });
+        }
+    });
+
+    // POST /api/admin/docs - Create doc
+    router.post('/docs', async (req: Request, res: Response) => {
+        try {
+            const { title, content, tags } = req.body;
+            if (!title || !content) {
+                return res.status(400).json({ error: 'Title and content are required' });
+            }
+
+            const doc = await KnowledgeService.getInstance().createDoc({
+                title,
+                content,
+                tags: tags || []
+            });
+            res.status(201).json(doc);
+        } catch (error) {
+            console.error('Create doc error:', error);
+            res.status(500).json({ error: 'Failed to create doc' });
+        }
+    });
+
+    // PUT /api/admin/docs/:id - Update doc
+    router.put('/docs/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const doc = await KnowledgeService.getInstance().updateDoc(id, req.body);
+            res.json(doc);
+        } catch (error) {
+            console.error('Update doc error:', error);
+            res.status(500).json({ error: 'Failed to update doc' });
+        }
+    });
+
+    // DELETE /api/admin/docs/:id - Delete doc
+    router.delete('/docs/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            await KnowledgeService.getInstance().deleteDoc(id);
+            res.json({ message: 'Doc deleted successfully' });
+        } catch (error) {
+            console.error('Delete doc error:', error);
+            res.status(500).json({ error: 'Failed to delete doc' });
+        }
+    });
+
+    // ============ KNOWLEDGE BASE (FAQs) ============
+
+    // GET /api/admin/faqs - Get all FAQs
+    router.get('/faqs', async (req: Request, res: Response) => {
+        try {
+            const activeOnly = req.query.active === 'true';
+            const faqs = await adminSvc.getAllFAQs(activeOnly);
+            res.json(faqs);
+        } catch (error) {
+            console.error('Get FAQs error:', error);
+            res.status(500).json({ error: 'Failed to get FAQs' });
+        }
+    });
+
+    // POST /api/admin/faqs - Create FAQ
+    router.post('/faqs', async (req: Request, res: Response) => {
+        try {
+            const { question, answer, keywords, displayOrder, isActive } = req.body;
+            if (!question || !answer) {
+                return res.status(400).json({ error: 'Question and answer are required' });
+            }
+
+            const faq = await adminSvc.createFAQ({
+                question,
+                answer,
+                keywords: keywords || [],
+                displayOrder,
+                isActive: isActive !== false
+            });
+            res.status(201).json(faq);
+        } catch (error) {
+            console.error('Create FAQ error:', error);
+            res.status(500).json({ error: 'Failed to create FAQ' });
+        }
+    });
+
+    // PUT /api/admin/faqs/:id - Update FAQ
+    router.put('/faqs/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const faq = await adminSvc.updateFAQ(id, req.body);
+            if (!faq) {
+                return res.status(404).json({ error: 'FAQ not found' });
+            }
+            res.json(faq);
+        } catch (error) {
+            console.error('Update FAQ error:', error);
+            res.status(500).json({ error: 'Failed to update FAQ' });
+        }
+    });
+
+    // DELETE /api/admin/faqs/:id - Delete FAQ
+    router.delete('/faqs/:id', async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const success = await adminSvc.deleteFAQ(id);
+            if (!success) {
+                return res.status(404).json({ error: 'FAQ not found' });
+            }
+            res.json({ message: 'FAQ deleted successfully' });
+        } catch (error) {
+            console.error('Delete FAQ error:', error);
+            res.status(500).json({ error: 'Failed to delete FAQ' });
+        }
+    });
+
+    // ============ SYSTEM SETTINGS ============
+
+    // GET /api/admin/settings - Get all settings
+    router.get('/settings', async (req: Request, res: Response) => {
+        try {
+            const settings = await adminSvc.getAllSystemSettings();
+            res.json(settings);
+        } catch (error) {
+            console.error('Get settings error:', error);
+            res.status(500).json({ error: 'Failed to get settings' });
+        }
+    });
+
+    // GET /api/admin/settings/:key - Get setting by key
+    router.get('/settings/:key', async (req: Request, res: Response) => {
+        try {
+            const setting = await adminSvc.getSystemSetting(req.params.key);
+            if (!setting) {
+                return res.status(404).json({ error: 'Setting not found' });
+            }
+            res.json(setting);
+        } catch (error) {
+            console.error('Get setting error:', error);
+            res.status(500).json({ error: 'Failed to get setting' });
+        }
+    });
+
+    // PUT /api/admin/settings/:key - Update setting
+    router.put('/settings/:key', async (req: Request, res: Response) => {
+        try {
+            const { key } = req.params;
+            const { value, description } = req.body;
+
+            if (value === undefined) {
+                return res.status(400).json({ error: 'Value is required' });
+            }
+
+            const setting = await adminSvc.setSystemSetting(key, value, description);
+            res.json(setting);
+        } catch (error) {
+            console.error('Update setting error:', error);
+            res.status(500).json({ error: 'Failed to update setting' });
         }
     });
 
