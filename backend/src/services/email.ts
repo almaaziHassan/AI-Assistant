@@ -555,14 +555,14 @@ ${business.phone} | ${business.email}
     if (this.transporter) {
       try {
         await this.transporter.sendMail({
-          from: \`"\${fromName}" <\${fromEmail}>\`,
+          from: `"${fromName}" <${fromEmail}>`,
           to: appointment.customerEmail,
           subject,
           text,
           html
         });
 
-        console.log(`Cancellation email sent via SMTP to ${ appointment.customerEmail }`);
+        console.log(`Cancellation email sent via SMTP to ${appointment.customerEmail}`);
         return true;
       } catch (error) {
         console.error('Failed to send cancellation email via SMTP:', error);
