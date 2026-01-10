@@ -35,6 +35,7 @@ export interface UserPayload {
     email: string;
     name: string;
     role: UserRole;
+    createdAt?: Date | string;
 }
 
 export interface AuthResult {
@@ -107,7 +108,8 @@ class UserAuthService {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: user.role
+                    role: user.role,
+                    createdAt: user.createdAt
                 }
             };
         } catch (error) {
@@ -179,7 +181,8 @@ class UserAuthService {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: user.role
+                    role: user.role,
+                    createdAt: user.createdAt
                 },
                 token
             };
@@ -225,7 +228,8 @@ class UserAuthService {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: user.role
+                    role: user.role,
+                    createdAt: user.createdAt
                 },
                 token: authToken
             };
@@ -325,7 +329,8 @@ class UserAuthService {
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                role: user.role
+                role: user.role,
+                createdAt: user.createdAt
             };
         } catch (error) {
             console.error('Get user error:', error);
@@ -352,7 +357,8 @@ class UserAuthService {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: user.role
+                    role: user.role,
+                    createdAt: user.createdAt
                 }
             };
         } catch (error) {
@@ -507,7 +513,8 @@ class UserAuthService {
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    role: user.role
+                    role: user.role,
+                    createdAt: user.createdAt
                 },
                 token
             };
@@ -524,7 +531,8 @@ class UserAuthService {
             id: user.id,
             email: user.email,
             name: user.name,
-            role: user.role
+            role: user.role,
+            createdAt: user.createdAt
         };
 
         return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });

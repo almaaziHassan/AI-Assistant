@@ -254,15 +254,7 @@ const AccountTab: React.FC = () => {
                 </h2>
 
                 <div className="stats-grid">
-                    <div className="stat-card">
-                        <div className="stat-icon">📧</div>
-                        <div className="stat-info">
-                            <span className="stat-label">Email Status</span>
-                            <span className="stat-value verified">
-                                {user?.emailVerified ? '✓ Verified' : '⚠ Not Verified'}
-                            </span>
-                        </div>
-                    </div>
+
 
                     <div className="stat-card">
                         <div className="stat-icon">📅</div>
