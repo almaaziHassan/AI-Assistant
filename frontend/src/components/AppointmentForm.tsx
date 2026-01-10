@@ -396,7 +396,11 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({
         <div className="form-step">
           <h4>Select a Service</h4>
           {loading ? (
-            <div className="loading">Loading services...</div>
+            <div className="service-list">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="skeleton skeleton-service" />
+              ))}
+            </div>
           ) : services.length === 0 ? (
             <div className="no-slots">No services available</div>
           ) : (
@@ -464,7 +468,16 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({
             <div className="time-slots">
               <label>Available Times for {formatDateForDisplay(formData.date)}:</label>
               {loading ? (
-                <div className="loading">Loading available times...</div>
+                <div>
+                  <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px', fontStyle: 'italic' }}>
+                    Checking availability...
+                  </div>
+                  <div className="slots-grid">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+                      <div key={i} className="skeleton skeleton-slot" />
+                    ))}
+                  </div>
+                </div>
               ) : closedDayMessage ? (
                 <div className="no-slots">{closedDayMessage}</div>
               ) : availableSlots.length === 0 ? (
