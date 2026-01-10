@@ -196,10 +196,11 @@ export function createSocketHandlers(
             messageType: 'confirmation' | 'callback_confirmation';
             actionType: string;
             actionData: Record<string, unknown>;
-        }) => {
+        }, callback?: (response: { success: boolean }) => void) => {
             const sessionId = getSessionForSocket(socket.id);
             if (!sessionId) {
                 console.error('No session found for socket:', socket.id);
+                if (callback) callback({ success: false });
                 return;
             }
 
@@ -214,6 +215,11 @@ export function createSocketHandlers(
             const history = getConversationHistory(sessionId);
             history.push({ role: 'assistant', content: data.content });
             saveConversationHistory(sessionId, history);
+
+            // Acknowledge success to client
+            if (callback) {
+                callback({ success: true });
+            }
         };
     }
 
