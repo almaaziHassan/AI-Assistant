@@ -287,6 +287,16 @@
   text-align: right;
 }
 
+/* Status Message Style (Transient updates) */
+.ai-receptionist-message.status-message .message-content {
+  background: transparent;
+  color: #6b7280;
+  font-style: italic;
+  padding-left: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
 /* Typing Indicator */
 .typing-indicator {
   display: flex;
@@ -295,7 +305,6 @@
   background: #f3f4f6;
   border-radius: 18px;
   border-bottom-left-radius: 4px;
-  width: fit-content;
 }
 
 .typing-indicator span {

@@ -30,6 +30,7 @@ export interface Message {
     type: string;
     data?: Record<string, unknown>;
   };
+  isStatusMessage?: boolean;
 }
 
 interface UseChatOptions {
@@ -195,6 +196,31 @@ export function useChat({ serverUrl, authToken }: UseChatOptions) {
       setMessages(historyMessages);
     });
 
+    // Handle intermediate status updates ("Thinking...", "Checking appointments...")
+    socket.on('token', (data: { content: string, type?: string }) => {
+      setMessages(prev => {
+        const lastMsg = prev[prev.length - 1];
+
+        // If we already have a status message, update it
+        if (lastMsg && lastMsg.isStatusMessage) {
+          return [...prev.slice(0, -1), {
+            ...lastMsg,
+            content: data.content
+          }];
+        }
+
+        // Create a new status message
+        return [...prev, {
+          id: 'status-msg', // Temporary ID
+          role: 'assistant',
+          content: data.content,
+          timestamp: new Date().toISOString(),
+          type: 'text',
+          isStatusMessage: true
+        }];
+      });
+    });
+
     socket.on('message', (data: {
       role: 'assistant';
       content: string;
@@ -264,14 +290,25 @@ export function useChat({ serverUrl, authToken }: UseChatOptions) {
       }
 
       // Regular message
-      const newMessage: Message = {
-        id: generateId(),
-        role: data.role,
-        content: data.content,
-        timestamp: data.timestamp,
-        action: data.action
-      };
-      setMessages(prev => [...prev, newMessage]);
+      // Check if we have a status message to replace
+      setMessages(prev => {
+        const lastMsg = prev[prev.length - 1];
+        const hasStatusMessage = lastMsg && lastMsg.isStatusMessage;
+
+        const finalMessage: Message = {
+          id: generateId(),
+          role: data.role,
+          content: data.content,
+          timestamp: data.timestamp,
+          action: data.action,
+          isStatusMessage: false
+        };
+
+        if (hasStatusMessage) {
+          return [...prev.slice(0, -1), finalMessage];
+        }
+        return [...prev, finalMessage];
+      });
     });
 
     socket.on('typing', (data: { isTyping: boolean }) => {

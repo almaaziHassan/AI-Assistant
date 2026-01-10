@@ -110,7 +110,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isTyping }) => {
       {messages.map((message) => (
         <div
           key={message.id}
-          className={`ai-receptionist-message ${message.role}`}
+          className={`ai-receptionist-message ${message.role} ${message.isStatusMessage ? 'status-message' : ''}`}
         >
           {message.type === 'confirmation' && message.confirmation ? (
             <ConfirmationCard data={message.confirmation} />

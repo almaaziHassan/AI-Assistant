@@ -578,7 +578,7 @@ Would you like us to call you back instead? I can set that up for you!`;
 
             // Handle callback request
             if (functionName === 'request_callback') {
-                const result = executeCallbackRequest(functionArgs);
+                const result = await executeCallbackRequest(functionArgs);
 
                 if (result.success && result.confirmation) {
                     const confirmationMessage = `I've submitted your callback request. Our wellness team will reach out to you at ${result.confirmation.customerPhone} ` +

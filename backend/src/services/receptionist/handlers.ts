@@ -52,13 +52,19 @@ export async function executeBooking(args: {
 /**
  * Execute callback request - saves to database
  */
-export function executeCallbackRequest(args: {
+// Helper for artificial delay
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Execute callback request - saves to database
+ */
+export async function executeCallbackRequest(args: {
     customerName: string;
     customerPhone: string;
     customerEmail?: string;
     preferredTime?: string;
     concerns?: string;
-}): { success: boolean; confirmation?: CallbackConfirmation; error?: string } {
+}): Promise<{ success: boolean; confirmation?: CallbackConfirmation; error?: string }> {
     // Validate that we have real data, not placeholders
     const invalidValues = ['not provided', 'n/a', 'unknown', 'none', ''];
     const nameLower = (args.customerName || '').toLowerCase().trim();
@@ -72,6 +78,9 @@ export function executeCallbackRequest(args: {
     }
 
     try {
+        // Add artificial delay for realism
+        await sleep(1500);
+
         const id = uuidv4();
         const now = new Date().toISOString();
 
