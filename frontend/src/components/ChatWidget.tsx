@@ -247,11 +247,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
         setShowBookingForm(false);
         setRescheduleData(null); // Clear reschedule data
 
-        // Notify parent to refresh data
-        if (onBookingComplete) {
-          onBookingComplete();
-        }
-
         const confirmationData = {
           serviceName: appointment.serviceName,
           staffName: appointment.staffName,
@@ -266,7 +261,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           email: booking.customerEmail
         };
 
-        // Add confirmation card to local state
+        // Add confirmation card to local state (immediate feedback)
         addLocalMessage(
           'Your appointment has been confirmed!',
           'assistant',
@@ -293,6 +288,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             }
           }
         );
+
+        // Notify parent to refresh data (page reload)
+        // Delay slightly to ensure socket event is sent before reload
+        if (onBookingComplete) {
+          setTimeout(() => {
+            onBookingComplete();
+          }, 500);
+        }
       } else {
         const err = await response.json();
         throw new Error(err.error || 'Failed to book appointment');
