@@ -107,28 +107,42 @@ jobs:
         run: npm audit --audit-level=moderate
         continue-on-error: true
 
-  deployment-check:
-    name: Deployment Readiness
+  deploy:
+    name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [backend-test, frontend-test]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Check environment files
+
+      # --- Backend Deployment (Railway) ---
+      - name: Deploy Backend to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        working-directory: ./backend
         run: |
-          echo "✅ Checking deployment configuration..."
-          if [ -f "backend/.env.example" ]; then
-            echo "✅ Backend .env.example exists"
+          if [ -n "$RAILWAY_TOKEN" ]; then
+            echo "installing railway cli..."
+            npm install -g @railway/cli
+            echo "deploying backend..."
+            railway up --detach
+          else
+            echo "⚠️ RAILWAY_TOKEN not found. Skipping backend deployment."
           fi
-          if [ -f "vercel.json" ]; then
-            echo "✅ Vercel config exists"
-          fi
-          if [ -f "backend/railway.json" ]; then
-            echo "✅ Railway config exists"
-          fi
-      
-      - name: Deployment ready
-        run: echo "🚀 All checks passed - Ready for deployment!"
+
+      # --- Frontend Deployment (Vercel) ---
+      - name: Deploy Frontend to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: ./
+        if: "${{ env.VERCEL_TOKEN != '' }}" # Only run if token exists to avoid failure in forks/local
+        env:
+            VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+            VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+            VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
