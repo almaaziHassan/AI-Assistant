@@ -145,10 +145,11 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                 setDocForm({ title: '', content: '', tags: '' });
                 fetchData();
             } else {
-                alert('Failed to save document');
+                const err = await res.json().catch(() => ({ error: res.statusText }));
+                alert(`Failed to save document: ${err.error || 'Unknown error'}`);
             }
-        } catch {
-            alert('Error saving document');
+        } catch (e: any) {
+            alert(`Error saving document: ${e.message}`);
         }
     };
 
