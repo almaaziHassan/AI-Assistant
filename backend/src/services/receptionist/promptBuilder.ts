@@ -1,11 +1,4 @@
-import servicesConfig from '../../config/services.json';
-
-interface FAQ {
-    id: string;
-    question: string;
-    answer: string;
-    keywords: string[];
-}
+import { FAQ } from '../admin/types';
 
 interface CommonProblem {
     problem: string;
@@ -20,6 +13,27 @@ interface IndustryKnowledge {
     frequencyRecommendations: Record<string, string>;
 }
 
+interface BusinessConfig {
+    name: string;
+    description: string;
+    phone: string;
+    email: string;
+    address: string;
+    website?: string;
+}
+
+interface ReceptionistConfig {
+    name: string;
+    persona: string;
+    greeting: string;
+    fallbackMessage: string;
+    escalationMessage: string;
+}
+
+interface HoursConfig {
+    [day: string]: { open?: string; close?: string };
+}
+
 /**
  * Build the system prompt for the AI receptionist
  * This highly detailed prompt guides the AI's behavior and responses
@@ -27,17 +41,22 @@ interface IndustryKnowledge {
 export function buildSystemPrompt(
     relevantFAQs: FAQ[] = [],
     staffList: { id: string; name: string; role: string; services: string[] }[] = [],
-    servicesList: { id: string; name: string; description?: string; duration: number; price: number }[] = []
+    servicesList: { id: string; name: string; description?: string; duration: number; price: number }[] = [],
+    config: {
+        business: BusinessConfig;
+        hours: HoursConfig;
+        receptionist: ReceptionistConfig;
+        industryKnowledge?: IndustryKnowledge;
+    }
 ): string {
-    const { business, hours, receptionist } = servicesConfig;
-    const faqs = (servicesConfig as { faqs?: FAQ[] }).faqs || [];
-    const industryKnowledge = (servicesConfig as { industryKnowledge?: IndustryKnowledge }).industryKnowledge;
+    const { business, hours, receptionist, industryKnowledge } = config;
 
+    // Build Services Text
     const servicesText = servicesList
         .map(s => `- ${s.name}: ${s.description || 'Service'} (${s.duration} min, $${s.price})`)
         .join('\n');
 
-    // Build staff text
+    // Build Staff Text
     let staffText = '';
     if (staffList.length > 0) {
         staffText = `\n\n## Our Team\n${staffList.map(s => {
@@ -46,6 +65,7 @@ export function buildSystemPrompt(
         }).join('\n')}`;
     }
 
+    // Build Hours Text
     const hoursText = Object.entries(hours)
         .map(([day, h]) => {
             if (!h.open || !h.close) return `- ${day}: Closed`;
@@ -53,24 +73,23 @@ export function buildSystemPrompt(
         })
         .join('\n');
 
-    const faqsText = faqs
-        .map(f => `Q: ${f.question}\nA: ${f.answer}`)
-        .join('\n\n');
-
-    // Build industry knowledge section
+    // Build Industry Knowledge Section
     let industryText = '';
     if (industryKnowledge) {
-        const problemsText = industryKnowledge.commonProblems
+        const problemsText = (industryKnowledge.commonProblems || [])
             .map(p => `- "${p.problem}": Common causes include ${p.causes.join(', ')}. ${p.advice}`)
             .join('\n');
 
-        const benefitsText = Object.entries(industryKnowledge.benefits)
+        const benefitsText = Object.entries(industryKnowledge.benefits || {})
             .map(([type, benefits]) => `${type}: ${benefits.join(', ')}`)
             .join('\n');
 
-        industryText = `
+        const freqText = Object.entries(industryKnowledge.frequencyRecommendations || {})
+            .map(([type, freq]) => `- ${type}: ${freq}`)
+            .join('\n');
 
-## Industry Knowledge - Use This to Help Customers
+        industryText = `
+\n## Industry Knowledge - Use This to Help Customers
 
 ### Common Customer Problems & Solutions
 ${problemsText}
@@ -79,7 +98,7 @@ ${problemsText}
 ${benefitsText}
 
 ### Recommended Frequency
-${Object.entries(industryKnowledge.frequencyRecommendations).map(([type, freq]) => `- ${type}: ${freq}`).join('\n')}`;
+${freqText}`;
     }
 
     // Build relevant FAQ context if any matched
@@ -168,9 +187,6 @@ ${hoursText}
 ## Services
 ${servicesText}${staffText}
 ${industryText}
-
-## FAQs
-${faqsText}
 
 ## AVAILABLE FUNCTIONS - Use Based on Intent
 

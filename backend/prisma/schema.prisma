@@ -188,3 +188,26 @@ model staff_services {
 
   @@id([staff_id, service_id])
 }
+
+model FAQ {
+  id           String    @id @default(uuid())
+  question     String
+  answer       String
+  keywords     Json?     @default("[]")
+  displayOrder Int?      @default(0) @map("display_order")
+  isActive     Boolean?  @default(true) @map("is_active")
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive], map: "idx_faqs_active")
+  @@map("faqs")
+}
+
+model SystemSetting {
+  key         String    @id
+  value       Json
+  description String?
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("system_settings")
+}

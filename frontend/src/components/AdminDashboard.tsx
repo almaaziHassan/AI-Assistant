@@ -7,6 +7,7 @@ import { StaffManager } from './admin/StaffManager';
 import { ServicesManager } from './admin/ServicesManager';
 import { HolidaysManager } from './admin/HolidaysManager';
 import { CallbacksManager } from './admin/CallbacksManager';
+import { KnowledgeBase } from './admin/KnowledgeBase';
 import Clock from './admin/Clock';
 import { TableSkeleton, StatsSkeleton } from './admin/Skeleton';
 import {
@@ -45,7 +46,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     getAuthHeaders
   } = useAdminAuth(serverUrl);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays' | 'knowledge'>('overview');
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [appointmentStats, setAppointmentStats] = useState<AppointmentStats | null>(null);
@@ -285,7 +286,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       </header>
 
       <nav className="admin-tabs">
-        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays'] as const).map(tab => (
+        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays', 'knowledge'] as const).map(tab => (
           <button
             key={tab}
             className={`admin-tab ${activeTab === tab ? 'active' : ''}`}
@@ -358,6 +359,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
             getAuthHeaders={getAuthHeaders}
             onRefresh={fetchData}
             onLogout={handleLogout}
+          />
+        )}
+
+        {/* Knowledge Base Tab */}
+        {activeTab === 'knowledge' && (
+          <KnowledgeBase
+            serverUrl={serverUrl}
+            getAuthHeaders={getAuthHeaders}
           />
         )}
 

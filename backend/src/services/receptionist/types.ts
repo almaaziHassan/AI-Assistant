@@ -51,9 +51,7 @@ export interface ConversationMessage {
     content: string;
 }
 
-export interface FAQ {
-    id: string;
-    question: string;
-    answer: string;
-    keywords: string[];
-}
+// Re-export shared types from admin
+export { FAQ } from '../admin/types';
+
+

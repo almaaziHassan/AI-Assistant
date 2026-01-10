@@ -13,7 +13,11 @@ import {
 import {
     getDashboardStats, getAppointmentsForDateRange, getAllAppointments
 } from './analytics';
-import { Staff, Location, Service, Holiday, DashboardStats, WeeklySchedule } from './types';
+import {
+    createFAQ, getFAQ, getAllFAQs, updateFAQ, deleteFAQ,
+    getSystemSetting, getAllSystemSettings, setSystemSetting
+} from './systemSettings';
+import { Staff, Location, Service, Holiday, DashboardStats, WeeklySchedule, FAQ, SystemSetting } from './types';
 
 // Re-export types
 export * from './types';
@@ -118,6 +122,39 @@ export class AdminService {
 
     getAllAppointments(options: { status?: string; limit?: number; offset?: number } = {}): Record<string, unknown>[] {
         return getAllAppointments(options);
+    }
+
+    // ============ KNOWLEDGE BASE (FAQs & Settings) ============
+    createFAQ(data: Omit<FAQ, 'id' | 'createdAt' | 'updatedAt'>): FAQ {
+        return createFAQ(data);
+    }
+
+    getFAQ(id: string): FAQ | null {
+        return getFAQ(id);
+    }
+
+    getAllFAQs(activeOnly: boolean = false): FAQ[] {
+        return getAllFAQs(activeOnly);
+    }
+
+    updateFAQ(id: string, data: Partial<Omit<FAQ, 'id' | 'createdAt' | 'updatedAt'>>): FAQ | null {
+        return updateFAQ(id, data);
+    }
+
+    deleteFAQ(id: string): boolean {
+        return deleteFAQ(id);
+    }
+
+    getSystemSetting(key: string): SystemSetting | null {
+        return getSystemSetting(key);
+    }
+
+    getAllSystemSettings(): SystemSetting[] {
+        return getAllSystemSettings();
+    }
+
+    setSystemSetting(key: string, value: any, description?: string): SystemSetting {
+        return setSystemSetting(key, value, description);
     }
 }
 

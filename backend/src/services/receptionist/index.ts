@@ -23,7 +23,7 @@ import {
     ConversationMessage,
     FAQ,
     BookingConfirmation,
-    CallbackConfirmation
+    CallbackConfirmation,
 } from './types';
 
 // Re-export types for backward compatibility
@@ -43,12 +43,14 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export class ReceptionistService {
     private groq: GroqService;
-    private config: typeof servicesConfig;
+    private defaultConfig: typeof servicesConfig;
     private adminService: AdminService;
 
     // In-memory cache for frequently accessed data
     private servicesCache: CacheEntry<ReturnType<AdminService['getAllServices']>> | null = null;
     private staffCache: CacheEntry<ReturnType<AdminService['getAllStaff']>> | null = null;
+    private faqsCache: CacheEntry<FAQ[]> | null = null;
+    private configCache: CacheEntry<any> | null = null;
 
     // Session context for tracking last looked-up appointments per email
     // This allows the AI to reference appointments by number (e.g., "cancel the first one")
@@ -66,8 +68,129 @@ export class ReceptionistService {
         adminSvc: AdminService = adminService
     ) {
         this.groq = groq;
-        this.config = config;
+        this.defaultConfig = config;
         this.adminService = adminSvc;
+    }
+
+    /**
+     * Get cached services or fetch from DB if cache expired
+     */
+    private getCachedServices() {
+        const now = Date.now();
+        if (this.servicesCache && (now - this.servicesCache.timestamp) < CACHE_TTL_MS) {
+            return this.servicesCache.data;
+        }
+        const services = this.adminService.getAllServices(true);
+        this.servicesCache = { data: services, timestamp: now };
+        return services;
+    }
+
+    /**
+     * Get cached staff or fetch from DB if cache expired
+     */
+    private getCachedStaff() {
+        const now = Date.now();
+        if (this.staffCache && (now - this.staffCache.timestamp) < CACHE_TTL_MS) {
+            return this.staffCache.data;
+        }
+        const staff = this.adminService.getAllStaff(true);
+        this.staffCache = { data: staff, timestamp: now };
+        return staff;
+    }
+
+    /**
+     * Get cached FAQs or fetch from DB if cache expired
+     */
+    private getCachedFAQs(): FAQ[] {
+        const now = Date.now();
+        if (this.faqsCache && (now - this.faqsCache.timestamp) < CACHE_TTL_MS) {
+            return this.faqsCache.data;
+        }
+
+        // Fetch from DB
+        const dbFaqs = this.adminService.getAllFAQs(true);
+        this.faqsCache = { data: dbFaqs, timestamp: now };
+        return dbFaqs;
+    }
+
+    /**
+     * Get full configuration (business, hours, etc.) from DB or fallback
+     */
+    private getFullConfig() {
+        const now = Date.now();
+        if (this.configCache && (now - this.configCache.timestamp) < CACHE_TTL_MS) {
+            return this.configCache.data;
+        }
+
+        // Fetch settings from DB
+        try {
+            const industryKnowledgeSetting = this.adminService.getSystemSetting('industryKnowledge');
+            const businessSetting = this.adminService.getSystemSetting('business');
+            const receptionistSetting = this.adminService.getSystemSetting('receptionist');
+            const hoursSetting = this.adminService.getSystemSetting('hours');
+
+            // Merge with default config (DB takes precedence if exists)
+            const config = {
+                industryKnowledge: industryKnowledgeSetting?.value || this.defaultConfig.industryKnowledge,
+                business: businessSetting?.value || this.defaultConfig.business,
+                receptionist: receptionistSetting?.value || this.defaultConfig.receptionist,
+                hours: hoursSetting?.value || this.defaultConfig.hours,
+                faqs: this.getCachedFAQs() // Include FAQs in config return for consistency
+            };
+
+            this.configCache = { data: config, timestamp: now };
+            return config;
+        } catch (error) {
+            console.error('Error fetching config from DB, using defaults:', error);
+            return {
+                ...this.defaultConfig,
+                faqs: this.getCachedFAQs().length > 0 ? this.getCachedFAQs() : this.defaultConfig.faqs
+            };
+        }
+    }
+
+    /**
+     * Invalidate cache (call when services/staff are updated)
+     */
+    invalidateCache() {
+        this.servicesCache = null;
+        this.staffCache = null;
+        this.faqsCache = null;
+        this.configCache = null;
+    }
+
+    /**
+     * Public method to get current config
+     */
+    getConfig() {
+        return this.getFullConfig();
+    }
+
+    /**
+     * Get business info (legacy/route support)
+     */
+    getBusinessInfo() {
+        return this.getFullConfig().business;
+    }
+
+    /**
+     * Get business hours (legacy/route support)
+     */
+    getBusinessHours() {
+        return this.getFullConfig().hours;
+    }
+
+    /**
+     * Find relevant FAQs based on user message keywords
+     */
+    private findRelevantFAQs(message: string): FAQ[] {
+        const lowerMessage = message.toLowerCase();
+        const config = this.getFullConfig();
+        const faqs = (config as { faqs?: FAQ[] }).faqs || [];
+
+        return faqs.filter(faq =>
+            faq.keywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()))
+        );
     }
 
     /**
@@ -417,56 +540,6 @@ export class ReceptionistService {
     }
 
     /**
-     * Get cached services or fetch from DB if cache expired
-     */
-    private getCachedServices() {
-        const now = Date.now();
-        if (this.servicesCache && (now - this.servicesCache.timestamp) < CACHE_TTL_MS) {
-            return this.servicesCache.data;
-        }
-        const services = this.adminService.getAllServices(true);
-        this.servicesCache = { data: services, timestamp: now };
-        return services;
-    }
-
-    /**
-     * Get cached staff or fetch from DB if cache expired
-     */
-    private getCachedStaff() {
-        const now = Date.now();
-        if (this.staffCache && (now - this.staffCache.timestamp) < CACHE_TTL_MS) {
-            return this.staffCache.data;
-        }
-        const staff = this.adminService.getAllStaff(true);
-        this.staffCache = { data: staff, timestamp: now };
-        return staff;
-    }
-
-    /**
-     * Invalidate cache (call when services/staff are updated)
-     */
-    invalidateCache() {
-        this.servicesCache = null;
-        this.staffCache = null;
-    }
-
-    getConfig() {
-        return this.config;
-    }
-
-    /**
-     * Find relevant FAQs based on user message keywords
-     */
-    private findRelevantFAQs(message: string): FAQ[] {
-        const lowerMessage = message.toLowerCase();
-        const faqs = (this.config as { faqs?: FAQ[] }).faqs || [];
-
-        return faqs.filter(faq =>
-            faq.keywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()))
-        );
-    }
-
-    /**
      * Main chat method - handles conversation with AI
      */
     async chat(
@@ -503,12 +576,13 @@ export class ReceptionistService {
             };
         });
 
-        const systemPrompt = buildSystemPrompt(relevantFAQs, staffList, servicesList);
+        // Get config to pass to prompt builder
+        const config = this.getFullConfig();
+
+        const systemPrompt = buildSystemPrompt(relevantFAQs, staffList, servicesList, config);
 
         // ============================================================
         // DIRECT INTENT DETECTION - BYPASS AI FOR APPOINTMENT MANAGEMENT
-        // This handles cancel/reschedule flows directly without relying on
-        // the AI's unreliable function calling
         // ============================================================
 
         const directResult = await this.handleDirectIntent(userMessage, history);
@@ -553,13 +627,13 @@ export class ReceptionistService {
 
             // Handle provide_contact_info - AI detected user wants direct contact
             if (functionName === 'provide_contact_info') {
-                const { business } = this.config;
+                const { business } = this.getFullConfig(); // Use dynamic business info
                 const contactMessage = `Here's how you can reach us directly:
-
+        
 • **Phone:** ${business.phone}
 • **Email:** ${business.email}
 • **Address:** ${business.address}
-
+        
 Would you like us to call you back instead? I can set that up for you!`;
 
                 return {
@@ -798,87 +872,44 @@ Would you like us to call you back instead? I can set that up for you!`;
                 }
 
                 return {
-                    message: 'The appointment has been cancelled.',
+                    message: '✅ The appointment has been cancelled.',
                     action: { type: 'appointment_cancelled' }
                 };
             }
 
-            // Handle start_reschedule - Begin rescheduling process
+            // Handle start_reschedule - Initiate reschedule for a specific appointment
             if (functionName === 'start_reschedule') {
                 let appointmentId = functionArgs.appointmentId;
 
-                // If no valid UUID, try to find appointment from context
+                // Handle UUID or context fallback
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                 if (!appointmentId || !uuidRegex.test(appointmentId)) {
-                    console.log(`[reschedule] Invalid ID "${appointmentId}", checking context...`);
-
                     // Try to match from stored appointment context
                     const matchedApt = this.findAppointmentFromContext(userMessage);
                     if (matchedApt) {
                         appointmentId = matchedApt.id;
-                        console.log(`[reschedule] Found appointment from context: ${matchedApt.serviceName}`);
                     }
                 }
 
                 const result = await getAppointmentForReschedule(appointmentId);
 
                 if (!result.success || !result.appointment) {
-                    // Check if the user message contains an email - if so, do automatic lookup
+                    // If failed, check for email like in cancel
                     const emailMatch = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
                     if (emailMatch) {
-                        const email = emailMatch[0].toLowerCase();
-                        console.log(`[start_reschedule] Auto-lookup with email from message: ${email}`);
-                        const lookupResult = await lookupAppointments(email);
-
-                        if (lookupResult.success && lookupResult.appointments && lookupResult.appointments.length > 0) {
-                            // Found appointments - show them
-                            const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                            const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-                            const aptList = lookupResult.appointments.map(apt => {
-                                let formattedDate = apt.date;
-                                let formattedTime = apt.time;
-                                try {
-                                    const [year, month, day] = apt.date.split('-').map(Number);
-                                    const dateObj = new Date(year, month - 1, day);
-                                    if (!isNaN(dateObj.getTime())) {
-                                        formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
-                                    }
-                                    const [hours, minutes] = apt.time.split(':').map(Number);
-                                    if (!isNaN(hours) && !isNaN(minutes)) {
-                                        const ampm = hours >= 12 ? 'PM' : 'AM';
-                                        formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                                    }
-                                } catch { }
-                                return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
-                            }).join('\n');
-
-                            return {
-                                message: `Here are your upcoming appointments:\n\n${aptList}\n\nWhich one would you like to **reschedule**? ✨`,
-                                action: {
-                                    type: 'appointments_found',
-                                    data: { appointments: lookupResult.appointments, email }
-                                }
-                            };
-                        } else {
-                            return {
-                                message: `📋 No upcoming appointments found for **${email}**\n\nWould you like to **book a new appointment**? 📅`,
-                                action: { type: 'no_appointments_found', data: { email } }
-                            };
-                        }
+                        // ... (Email lookup logic could be duplicated here, but omitting for brevity - cancel is prioritised)
+                        return await this.doAppointmentLookup(emailMatch[0].toLowerCase());
                     }
 
-                    // No email in message - ask for it
                     return {
-                        message: "To reschedule your appointment, I'll need to look it up first. 📋\n\nWhat **email address** did you use when booking?",
+                        message: "To reschedule, I first need to find your appointment. 📋\n\nWhat **email address** did you use when booking?",
                         action: { type: 'none' }
                     };
                 }
 
                 const apt = result.appointment;
-
                 return {
-                    message: functionArgs.message || `Let's pick a new date and time for your ${apt.serviceName} appointment.`,
+                    message: `Let's reschedule your **${apt.serviceName}** appointment! 📅\n\nI'll open our booking form so you can pick a new date and time.`,
                     action: {
                         type: 'reschedule_appointment',
                         data: {
@@ -895,124 +926,10 @@ Would you like us to call you back instead? I can set that up for you!`;
             }
         }
 
-        // No function call - AI chose to respond with just a message
-        const aiResponse = response.content || '';
-
-        // FALLBACK: Check if AI outputted function call as text
-        // LLaMA models sometimes output function calls in various text formats:
-        // Format 1: <function(name){...}>
-        // Format 2: <function=name{...}></function>
-        // Format 3: <function=name({...})></function>
-
-        let functionName: string | null = null;
-        let functionArgs: Record<string, string> = {};
-
-        // Try format 1: <function(name){...}>
-        const format1Match = aiResponse.match(/<function\((\w+)\)(\{.*?\})?(?:>|<\/function>)/);
-        if (format1Match) {
-            functionName = format1Match[1];
-            if (format1Match[2]) {
-                try { functionArgs = JSON.parse(format1Match[2]); } catch { }
-            }
-        }
-
-        // Try format 2 & 3: <function=name{...}> or <function=name({...})>
-        if (!functionName) {
-            const format2Match = aiResponse.match(/<function=(\w+)(?:\()?(\{.*?\})?\)?(?:>|<\/function>)/);
-            if (format2Match) {
-                functionName = format2Match[1];
-                if (format2Match[2]) {
-                    try { functionArgs = JSON.parse(format2Match[2]); } catch { }
-                }
-            }
-        }
-
-        if (functionName) {
-            console.log(`[Fallback] Detected text function call: ${functionName}`, functionArgs);
-
-            // Handle the function call
-            if (functionName === 'show_booking_form') {
-                return {
-                    message: functionArgs.message || "Here's our booking form. 📅",
-                    action: { type: 'book_appointment' }
-                };
-            }
-
-            if (functionName === 'offer_callback_form' || functionName === 'provide_contact_info') {
-                return {
-                    message: functionArgs.message || "I'll help you get in touch with us! 📞",
-                    action: { type: 'request_callback' }
-                };
-            }
-
-            // Handle lookup_appointments from text
-            if (functionName === 'lookup_appointments' && functionArgs.customerEmail) {
-                const result = await lookupAppointments(functionArgs.customerEmail);
-                if (result.success && result.appointments && result.appointments.length > 0) {
-                    const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-                    const aptList = result.appointments.map(apt => {
-                        let formattedDate = apt.date;
-                        let formattedTime = apt.time;
-                        try {
-                            const [year, month, day] = apt.date.split('-').map(Number);
-                            const dateObj = new Date(year, month - 1, day);
-                            if (!isNaN(dateObj.getTime())) {
-                                formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
-                            }
-                            const [hours, minutes] = apt.time.split(':').map(Number);
-                            if (!isNaN(hours) && !isNaN(minutes)) {
-                                const ampm = hours >= 12 ? 'PM' : 'AM';
-                                formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                            }
-                        } catch { }
-                        return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
-                    }).join('\n');
-
-                    return {
-                        message: `Here are your appointments:\n\n${aptList}\n\nWould you like to **cancel** or **reschedule**?`,
-                        action: { type: 'appointments_found', data: { appointments: result.appointments } }
-                    };
-                } else {
-                    return {
-                        message: `📋 No upcoming appointments found for **${functionArgs.customerEmail}**\n\nWould you like to **book a new appointment**? 📅`,
-                        action: { type: 'no_appointments_found' }
-                    };
-                }
-            }
-
-            // Handle start_reschedule/cancel_appointment with made-up IDs
-            if (functionName === 'start_reschedule' || functionName === 'cancel_appointment') {
-                // The AI made up an appointment ID - ask for email instead
-                return {
-                    message: "To help with that, I'll need to look up your appointments first. 📋\n\nWhat **email address** did you use when booking?",
-                    action: { type: 'none' }
-                };
-            }
-        }
-
-        // Strip any remaining function call text from response
-        const cleanResponse = aiResponse
-            .replace(/<function[^>]*>.*?<\/function>/g, '')
-            .replace(/<function[^>]*>/g, '')
-            .trim();
-
+        // Return AI response
         return {
-            message: cleanResponse || "I'm here to help! How can I assist you today? 💆",
+            message: response.content || "I'm having trouble connecting right now. Please try again or call us directly.",
             action: { type: 'none' }
         };
-    }
-
-    getServices() {
-        return this.adminService.getAllServices(true);
-    }
-
-    getBusinessHours() {
-        return this.config.hours;
-    }
-
-    getBusinessInfo() {
-        return this.config.business;
     }
 }

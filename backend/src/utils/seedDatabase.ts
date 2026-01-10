@@ -59,6 +59,55 @@ async function seedPostgres() {
         );
         console.log('✅ Staff linked to services');
 
+        // 4. Seed Knowledge Base (FAQs & Settings)
+        const config = require('../config/services.json');
+
+        // FAQs
+        if (config.faqs && Array.isArray(config.faqs)) {
+            let order = 1;
+            for (const faq of config.faqs) {
+                await runQueryAsync(
+                    `INSERT INTO faqs (id, question, answer, keywords, display_order, is_active, created_at, updated_at)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
+                    [
+                        uuidv4(),
+                        faq.question,
+                        faq.answer,
+                        JSON.stringify(faq.keywords || []),
+                        order++,
+                        true,
+                        new Date().toISOString()
+                    ]
+                );
+            }
+            console.log('✅ FAQs seeded');
+        }
+
+        // System Settings
+        const settingsToSeed = [
+            { key: 'industryKnowledge', desc: 'Common problems, benefits, and advice' },
+            { key: 'business', desc: 'Business contact info and details' },
+            { key: 'receptionist', desc: 'Virtual receptionist persona and messages' },
+            { key: 'appointmentSettings', desc: 'Booking rules and constraints' },
+            { key: 'hours', desc: 'Weekly opening hours' }
+        ];
+
+        for (const setting of settingsToSeed) {
+            if (config[setting.key]) {
+                await runQueryAsync(
+                    `INSERT INTO system_settings (key, value, description, updated_at)
+                     VALUES ($1, $2, $3, $4)`,
+                    [
+                        setting.key,
+                        JSON.stringify(config[setting.key]),
+                        setting.desc,
+                        new Date().toISOString()
+                    ]
+                );
+            }
+        }
+        console.log('✅ System settings seeded');
+
         console.log('✅ Database seeding complete!');
     } catch (error) {
         console.error('Error seeding database:', error);

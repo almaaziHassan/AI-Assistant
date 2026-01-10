@@ -59,6 +59,7 @@ export interface Service {
     isActive: boolean;
     displayOrder: number;
     createdAt: string;
+    updatedAt?: string;
 }
 
 // Analytics interfaces
@@ -71,4 +72,24 @@ export interface DashboardStats {
     upcomingCount: number;
     pendingCallbacksCount: number;
     topServices: { serviceId: string; serviceName: string; count: number }[];
+}
+
+// FAQ interfaces
+export interface FAQ {
+    id: string;
+    question: string;
+    answer: string;
+    keywords: string[];
+    displayOrder: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// System Settings interfaces
+export interface SystemSetting {
+    key: string;
+    value: any; // JSON payload
+    description?: string;
+    updatedAt: string;
 }

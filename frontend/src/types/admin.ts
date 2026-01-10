@@ -89,3 +89,20 @@ export interface CallbackRequest {
     calledAt?: string;
     createdAt: string;
 }
+
+export interface FAQ {
+    id: string;
+    question: string;
+    answer: string;
+    keywords: string[];
+    displayOrder: number;
+    isActive: boolean;
+    updatedAt: string;
+}
+
+export interface SystemSetting {
+    key: string;
+    value: any;
+    description?: string;
+    updatedAt: string;
+}

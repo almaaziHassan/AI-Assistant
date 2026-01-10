@@ -422,6 +422,117 @@ export function createAdminRouter(
 
 
 
+  // ============ KNOWLEDGE BASE (FAQs) ============
+
+  // GET /api/admin/faqs - Get all FAQs
+  router.get('/faqs', (req: Request, res: Response) => {
+    try {
+      const activeOnly = req.query.active === 'true';
+      const faqs = adminSvc.getAllFAQs(activeOnly);
+      res.json(faqs);
+    } catch (error) {
+      console.error('Get FAQs error:', error);
+      res.status(500).json({ error: 'Failed to get FAQs' });
+    }
+  });
+
+  // POST /api/admin/faqs - Create FAQ
+  router.post('/faqs', (req: Request, res: Response) => {
+    try {
+      const { question, answer, keywords, displayOrder, isActive } = req.body;
+      if (!question || !answer) {
+        return res.status(400).json({ error: 'Question and answer are required' });
+      }
+
+      const faq = adminSvc.createFAQ({
+        question,
+        answer,
+        keywords: keywords || [],
+        displayOrder,
+        isActive: isActive !== false
+      });
+      res.status(201).json(faq);
+    } catch (error) {
+      console.error('Create FAQ error:', error);
+      res.status(500).json({ error: 'Failed to create FAQ' });
+    }
+  });
+
+  // PUT /api/admin/faqs/:id - Update FAQ
+  router.put('/faqs/:id', (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const faq = adminSvc.updateFAQ(id, req.body);
+      if (!faq) {
+        return res.status(404).json({ error: 'FAQ not found' });
+      }
+      res.json(faq);
+    } catch (error) {
+      console.error('Update FAQ error:', error);
+      res.status(500).json({ error: 'Failed to update FAQ' });
+    }
+  });
+
+  // DELETE /api/admin/faqs/:id - Delete FAQ
+  router.delete('/faqs/:id', (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const success = adminSvc.deleteFAQ(id);
+      if (!success) {
+        return res.status(404).json({ error: 'FAQ not found' });
+      }
+      res.json({ message: 'FAQ deleted successfully' });
+    } catch (error) {
+      console.error('Delete FAQ error:', error);
+      res.status(500).json({ error: 'Failed to delete FAQ' });
+    }
+  });
+
+  // ============ SYSTEM SETTINGS ============
+
+  // GET /api/admin/settings - Get all settings
+  router.get('/settings', (req: Request, res: Response) => {
+    try {
+      const settings = adminSvc.getAllSystemSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error('Get settings error:', error);
+      res.status(500).json({ error: 'Failed to get settings' });
+    }
+  });
+
+  // GET /api/admin/settings/:key - Get setting by key
+  router.get('/settings/:key', (req: Request, res: Response) => {
+    try {
+      const setting = adminSvc.getSystemSetting(req.params.key);
+      if (!setting) {
+        return res.status(404).json({ error: 'Setting not found' });
+      }
+      res.json(setting);
+    } catch (error) {
+      console.error('Get setting error:', error);
+      res.status(500).json({ error: 'Failed to get setting' });
+    }
+  });
+
+  // PUT /api/admin/settings/:key - Update setting
+  router.put('/settings/:key', (req: Request, res: Response) => {
+    try {
+      const { key } = req.params;
+      const { value, description } = req.body;
+
+      if (value === undefined) {
+        return res.status(400).json({ error: 'Value is required' });
+      }
+
+      const setting = adminSvc.setSystemSetting(key, value, description);
+      res.json(setting);
+    } catch (error) {
+      console.error('Update setting error:', error);
+      res.status(500).json({ error: 'Failed to update setting' });
+    }
+  });
+
   return router;
 }
 
