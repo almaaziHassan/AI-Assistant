@@ -592,21 +592,34 @@ function updateCacheImmediately(sql: string, params: SqlValue[], table: string):
 }
 
 // Insert into cache immediately for INSERT queries
+// Insert into cache immediately for INSERT queries
 function insertIntoCacheImmediately(sql: string, params: SqlValue[], table: string): void {
-  // For appointments table
-  if (table === 'appointments' && sql.toLowerCase().includes('insert into appointments')) {
+  // Generic handler for all tables
+  if (sql.toLowerCase().includes(`insert into ${table}`)) {
     const cached = pgCache.get(table) || [];
-    // Parse INSERT INTO appointments (...) VALUES (...)
+
+    // Parse INSERT INTO table (col1, col2...) VALUES (...)
     // The params order matches the column order in the SQL
     const colMatch = sql.match(/\(([^)]+)\)\s*VALUES/i);
     if (colMatch) {
-      const columns = colMatch[1].split(',').map(c => c.trim().toLowerCase());
+      const columns = colMatch[1].split(',').map(c => c.trim().replace(/['"`]/g, '').toLowerCase()); // Clean column names
       const newRow: Record<string, unknown> = {};
+
       columns.forEach((col, idx) => {
-        newRow[col] = params[idx];
+        // Snake_case columns in DB might be coming from snake_case or camelCase params
+        // But for this simple cache, we just map param index to column name
+        if (idx < params.length) {
+          newRow[col] = params[idx];
+        }
       });
+
+      // Also map camelCase aliases if needed? 
+      // database.ts getAll/getOne returns raw DB rows (snake_case generally)
+      // but let's just stick to what the DB has.
+
       cached.push(newRow);
       pgCache.set(table, cached);
+      console.log(`[Cache] Immediate insert into ${table}:`, newRow.id || 'new row');
     }
   }
 }
