@@ -250,13 +250,25 @@ export function createAppointmentRouterPrisma(
             res.status(500).json({ error: 'Failed to get appointments' });
         }
     });
+    // DELETE /api/appointments/:id - Cancel an appointment
     router.delete('/:id', async (req: Request, res: Response) => {
         try {
             const { id } = req.params;
+
+            // Get appointment details first (for email)
+            const appointment = await scheduler.getAppointment(id);
+
             const success = await scheduler.cancelAppointment(id);
 
             if (!success) {
                 return res.status(404).json({ error: 'Appointment not found or cannot be cancelled' });
+            }
+
+            // Send cancellation email
+            if (appointment) {
+                emailSvc.sendCancellationEmail(appointment as any).catch(err => {
+                    console.error('Failed to send cancellation email:', err);
+                });
             }
 
             res.json({ message: 'Appointment cancelled successfully' });
