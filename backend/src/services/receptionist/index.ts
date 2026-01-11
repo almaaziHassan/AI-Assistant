@@ -277,8 +277,14 @@ export class ReceptionistService {
         const reschedulePatterns = ['reschedule', 'reshcdule', 'reschedulle', 'rescheduel',
             'change', 'move', 'different', 'modify', 'update'];
 
-        const wantsToCancel = cancelPatterns.some(p => msg.includes(p));
-        const wantsToReschedule = reschedulePatterns.some(p => msg.includes(p));
+        // Question keywords that indicate the user is asking ABOUT cancellation, not doing it
+        const questionKeywords = ['policy', 'fee', 'cost', 'charge', 'how', 'what', 'rule', '?'];
+
+        const isQuestion = questionKeywords.some(q => msg.includes(q));
+
+        // Only treat as intent if it's NOT a general question
+        const wantsToCancel = cancelPatterns.some(p => msg.includes(p)) && !isQuestion;
+        const wantsToReschedule = reschedulePatterns.some(p => msg.includes(p)) && !isQuestion;
 
         // Check if last message asked "cancel or reschedule?" about a selected appointment
         const wasAskingAction = lastAssistantMsg.includes('you selected') &&

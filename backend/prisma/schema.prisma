@@ -218,6 +218,7 @@ model KnowledgeDoc {
   content   String
   tags      Json?     @default("[]")
   metadata  Json?     @default("{}")
+  embedding Json?     // Vector embeddings [0.12, 0.33, ...]
   isActive  Boolean   @default(true) @map("is_active")
   createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
