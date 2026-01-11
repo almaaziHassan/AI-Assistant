@@ -185,6 +185,51 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
         }
     };
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        const file = e.target.files[0];
+
+        if (!confirm(`Upload "${file.name}" to Knowledge Base?`)) {
+            e.target.value = ''; // Reset input
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Get auth token manually to avoid Content-Type application/json
+            const authHeaders = getAuthHeaders() as Record<string, string>;
+
+            const res = await fetch(`${serverUrl}/api/admin/docs/upload`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': authHeaders['Authorization']
+                },
+                body: formData
+            });
+
+            if (res.ok) {
+                alert('File uploaded and added to Knowledge Base!');
+                fetchData();
+            } else {
+                const text = await res.text();
+                let errorMsg = text;
+                try {
+                    const json = JSON.parse(text);
+                    if (json.error) errorMsg = json.error;
+                } catch { }
+                alert(`Upload failed: ${errorMsg}`);
+            }
+        } catch (error: any) {
+            alert(`Error uploading file: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+            e.target.value = ''; // Reset input
+        }
+    };
+
     // Settings Handlers
     const handleEditSetting = (setting: SystemSetting) => {
         setEditingKey(setting.key);
@@ -345,6 +390,18 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                     >
                         {showDocForm ? 'Cancel' : '+ Add Document'}
                     </button>
+
+                    <div style={{ display: 'inline-block', marginLeft: '10px' }}>
+                        <label className="btn-secondary" style={{ cursor: 'pointer', padding: '8px 16px', backgroundColor: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px' }}>
+                            Upload File (PDF/TXT)
+                            <input
+                                type="file"
+                                onChange={handleFileUpload}
+                                accept=".pdf,.txt"
+                                style={{ display: 'none' }}
+                            />
+                        </label>
+                    </div>
 
                     {showDocForm && (
                         <form className="admin-form" onSubmit={handleSaveDoc}>

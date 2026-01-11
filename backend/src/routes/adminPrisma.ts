@@ -9,6 +9,8 @@ import { Router, Request, Response } from 'express';
 import { adminServicePrisma, AdminServicePrisma } from '../services/adminPrisma';
 import prisma from '../db/prisma';
 import { KnowledgeService } from '../services/knowledge';
+import upload from '../middleware/upload';
+import { parseFile } from '../utils/fileParser';
 
 export function createAdminRouterPrisma(
     adminSvc: AdminServicePrisma = adminServicePrisma
@@ -454,6 +456,41 @@ export function createAdminRouterPrisma(
         } catch (error) {
             console.error('Get docs error:', error);
             res.status(500).json({ error: 'Failed to get docs' });
+        }
+    });
+
+    // POST /api/admin/docs/upload - Upload file and create doc
+    router.post('/docs/upload', upload.single('file'), async (req: Request, res: Response) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ error: 'No file uploaded' });
+            }
+
+            const { originalname, mimetype, buffer } = req.file;
+
+            // Extract text from file
+            let extractedText = '';
+            try {
+                extractedText = await parseFile(buffer, mimetype);
+            } catch (err: any) {
+                return res.status(400).json({ error: `Parsing failed: ${err.message}` });
+            }
+
+            if (!extractedText.trim()) {
+                return res.status(400).json({ error: 'Extracted text is empty' });
+            }
+
+            // Create doc immediately
+            const doc = await KnowledgeService.getInstance().createDoc({
+                title: originalname,
+                content: extractedText,
+                tags: ['uploaded']
+            });
+
+            res.status(201).json(doc);
+        } catch (error) {
+            console.error('Upload doc error:', error);
+            res.status(500).json({ error: 'Failed to upload document' });
         }
     });
 
