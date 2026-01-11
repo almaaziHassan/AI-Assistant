@@ -33,6 +33,7 @@ model User {
   createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   appointments         Appointment[]
+  conversations        Conversation[]
 
   @@index([email], map: "idx_users_email")
   @@index([googleId], map: "idx_users_google_id")
@@ -140,8 +141,11 @@ model Conversation {
   actionType  String?   @map("action_type")
   actionData  Json?     @map("action_data")
   createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId      String?   @map("user_id")
+  user        User?     @relation(fields: [userId], references: [id], onUpdate: NoAction)
 
   @@index([sessionId], map: "idx_conversations_session")
+  @@index([userId], map: "idx_conversations_user")
   @@map("conversations")
 }
 
