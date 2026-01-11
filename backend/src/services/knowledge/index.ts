@@ -219,16 +219,22 @@ export class KnowledgeService {
     // --- CRUD Operations ---
 
     public async createDoc(data: { title: string; content: string; tags: string[] }) {
-        // Generate embedding before saving
-        const textToEmbed = `${data.title}\n\n${data.content}`;
-        const embedding = await this.generateEmbedding(textToEmbed);
+        let embedding: number[] | null = null;
+        try {
+            // Generate embedding before saving
+            const textToEmbed = `${data.title}\n\n${data.content}`;
+            embedding = await this.generateEmbedding(textToEmbed);
+        } catch (err) {
+            console.error('Failed to generate embedding for new doc:', err);
+            // We continue without embedding to avoid blocking the user
+        }
 
         const doc = await prisma.knowledgeDoc.create({
             data: {
                 title: data.title,
                 content: data.content,
                 tags: data.tags,
-                embedding: embedding as any // Save array as JSON equivalent
+                embedding: embedding ? (embedding as any) : undefined
             }
         });
         await this.refreshIndex();
@@ -240,13 +246,18 @@ export class KnowledgeService {
 
         // Re-generate embedding if content changed
         if (data.title || data.content) {
-            // Fetch current doc to merge content if needed (simple approach: just embed what's passed or fetch fresh)
-            const existing = await prisma.knowledgeDoc.findUnique({ where: { id } });
-            if (existing) {
-                const newTitle = data.title ?? existing.title;
-                const newContent = data.content ?? existing.content;
-                const textToEmbed = `${newTitle}\n\n${newContent}`;
-                embedding = await this.generateEmbedding(textToEmbed);
+            try {
+                // Fetch current doc to merge content
+                const existing = await prisma.knowledgeDoc.findUnique({ where: { id } });
+                if (existing) {
+                    const newTitle = data.title ?? existing.title;
+                    const newContent = data.content ?? existing.content;
+                    const textToEmbed = `${newTitle}\n\n${newContent}`;
+                    embedding = await this.generateEmbedding(textToEmbed);
+                }
+            } catch (err) {
+                console.error(`Failed to refresh embedding for doc ${id}:`, err);
+                // Continue update without changing embedding if it failed
             }
         }
 
