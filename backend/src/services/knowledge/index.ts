@@ -57,7 +57,9 @@ export class KnowledgeService {
             // 1. Load Model (Dynamic Import)
             if (!this.extractor) {
                 console.log('Loading embedding model...');
-                const { pipeline } = await import('@xenova/transformers');
+                // Bypass TypeScript transpilation to force native ESM import
+                const dynamicImport = new Function('return import("@xenova/transformers")');
+                const { pipeline } = await dynamicImport();
                 this.extractor = await pipeline('feature-extraction', this.MODEL_NAME);
             }
 
