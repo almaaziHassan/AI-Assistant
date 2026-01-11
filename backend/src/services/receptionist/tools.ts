@@ -77,9 +77,11 @@ DO NOT call this for simple agreement words like "good", "ok", "thanks", "great"
 
 Examples that MUST trigger this:
 - "yes please call me back" → YES
-- "good" (after you offered callback) → YES
-- "sounds good" (after you offered callback) → YES
-- "call me instead" → YES`,
+- "good" (ONLY if you explicitly asked "Should I have someone call you?") → YES
+- "sounds good" (ONLY if you explicitly asked about a callback) → YES
+- "call me instead" → YES
+
+DO NOT call this if the user is just saying "good" to a general statement or a refusal (e.g. "I can't help with that" -> "good").`,
                 parameters: {
                     type: 'object',
                     properties: {
