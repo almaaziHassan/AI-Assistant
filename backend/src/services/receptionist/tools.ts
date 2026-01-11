@@ -69,14 +69,14 @@ Examples that MUST trigger this:
             function: {
                 name: 'offer_callback_form',
                 description: `Show the callback request form. ALWAYS call when:
-- Customer says "yes", "sure", "ok" after you offered a callback
+- Customer says "yes", "sure", "ok", "good", "great", "sounds good" after you offered a callback
 - Customer says "call me back" / "call me" / "callback"
 - Customer agrees to be contacted
 
 Examples that MUST trigger this:
 - "yes please call me back" → YES
-- "sure, I'd like a callback" → YES
-- "yes" (after you offered callback) → YES
+- "good" (after you offered callback) → YES
+- "sounds good" (after you offered callback) → YES
 - "call me instead" → YES`,
                 parameters: {
                     type: 'object',
