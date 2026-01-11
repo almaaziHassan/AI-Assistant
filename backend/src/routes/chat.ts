@@ -40,7 +40,13 @@ router.post('/', optionalUserAuth, async (req: Request, res: Response) => {
       }));
     }
 
-    const response = await receptionist.chat(message, chatHistory);
+    const userContext = user ? {
+      name: user.name,
+      email: user.email,
+      phone: user.phone
+    } : undefined;
+
+    const response = await receptionist.chat(message, chatHistory, userContext);
 
     // Persist conversation if authenticated
     if (user) {

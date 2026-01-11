@@ -34,6 +34,7 @@ export interface UserPayload {
     id: string;
     email: string;
     name: string;
+    phone?: string | null;
     role: UserRole;
     createdAt?: Date | string;
 }
@@ -531,6 +532,7 @@ class UserAuthService {
             id: user.id,
             email: user.email,
             name: user.name,
+            phone: user.phone,
             role: user.role,
             createdAt: user.createdAt
         };

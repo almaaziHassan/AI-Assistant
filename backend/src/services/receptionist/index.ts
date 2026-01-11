@@ -558,7 +558,8 @@ export class ReceptionistService {
      */
     async chat(
         userMessage: string,
-        history: ConversationMessage[]
+        history: ConversationMessage[],
+        userContext?: { name: string; email: string; phone?: string | null }
     ): Promise<ReceptionistResponse> {
         // Find relevant FAQs for this message
         const relevantFAQs = this.findRelevantFAQs(userMessage);
@@ -598,6 +599,19 @@ export class ReceptionistService {
         // ============================================================
         // CONTEXT-AWARE RAG: QUERY REWRITING
         // ============================================================
+
+        // Inject Authenticated User Context
+        if (userContext) {
+            systemPrompt += `\n\n=== AUTHENTICATED USER CONTEXT ===
+Name: ${userContext.name}
+Email: ${userContext.email}
+Phone: ${userContext.phone || 'Not provided'}
+
+CRITICAL INSTRUCTIONS:
+1. You ALREADY KNOW this user's email is "${userContext.email}".
+2. IF they ask to check appointments, cancel, or book: DO NOT ask for their email. execute the tool using "${userContext.email}".
+3. Address them by name ("${userContext.name}") occasionally.`;
+        }
         let searchParam = userMessage;
 
         // Only need to rewrite if there is conversation history to reference
