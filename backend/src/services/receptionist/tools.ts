@@ -51,7 +51,9 @@ Examples that MUST trigger this:
 - "can I contact directly?" → YES
 - "I want to speak to someone" → YES
 - "what's your phone number?" → YES
-- "how can I reach you?" → YES`,
+- "how can I reach you?" → YES
+
+DO NOT call this for simple agreement words like "good", "ok", "thanks", "great" unless they specifically ask for contact info.`,
                 parameters: {
                     type: 'object',
                     properties: {
