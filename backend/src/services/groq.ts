@@ -200,6 +200,25 @@ export class GroqService {
     console.error('All Groq API attempts failed:', lastError);
     throw new Error('AI service is temporarily unavailable. Please try again in a moment.');
   }
+
+  async getChatCompletion(
+    messages: ChatMessage[],
+    options?: { temperature?: number; maxTokens?: number; model?: string }
+  ): Promise<string> {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: options?.model || this.model,
+        messages: messages,
+        temperature: options?.temperature ?? 0.7,
+        max_tokens: options?.maxTokens ?? 1024,
+        stream: false
+      });
+      return response.choices[0]?.message?.content || '';
+    } catch (error) {
+      console.error('Groq completion error:', error);
+      return '';
+    }
+  }
 }
 
 export const groqService = new GroqService();

@@ -1,5 +1,6 @@
 import { PrismaClient, KnowledgeDoc } from '@prisma/client';
 import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers';
+import MiniSearch from 'minisearch';
 
 const prisma = new PrismaClient();
 
@@ -18,12 +19,23 @@ export class KnowledgeService {
 
     // In-memory store
     private cachedDocs: CachedDoc[] = [];
+    private searchIndex: MiniSearch; // Keyword Search Index
 
     // Embedding Model Pipeline
     private extractor: FeatureExtractionPipeline | null = null;
     private readonly MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
 
     private constructor() {
+        // Initialize MiniSearch
+        this.searchIndex = new MiniSearch({
+            fields: ['title', 'content', 'tags'], // fields to index for full-text search
+            storeFields: ['title', 'content', 'tags', 'id'], // fields to return with search results
+            searchOptions: {
+                boost: { title: 2, tags: 1.5 },
+                fuzzy: 0.2, // typo tolerance
+                prefix: true
+            }
+        });
         // Initialize pipeline lazily in initialize()
     }
 
@@ -40,7 +52,7 @@ export class KnowledgeService {
     public async initialize() {
         if (this.isInitialized) return;
 
-        console.log('Initializing Knowledge Service (Vector RAG)...');
+        console.log('Initializing Knowledge Service (Hybrid RAG)...');
         try {
             // 1. Load Model
             if (!this.extractor) {
@@ -49,10 +61,29 @@ export class KnowledgeService {
             }
 
             // 2. Load Docs from DB
-            await this.loadDocs();
+            const docs = await prisma.knowledgeDoc.findMany({
+                where: { isActive: true }
+            });
+            this.cachedDocs = docs.map(doc => ({
+                id: doc.id,
+                title: doc.title,
+                content: doc.content,
+                tags: Array.isArray(doc.tags) ? (doc.tags as string[]) : [],
+                embedding: (doc.embedding as unknown as number[]) || null
+            }));
+
+            // Re-build MiniSearch index
+            this.searchIndex.removeAll();
+            const records = this.cachedDocs.map(doc => ({
+                id: doc.id,
+                title: doc.title,
+                content: doc.content,
+                tags: doc.tags.join(' ')
+            }));
+            this.searchIndex.addAll(records);
 
             this.isInitialized = true;
-            console.log(`Knowledge Base initialized with ${this.cachedDocs.length} documents.`);
+            console.log(`Knowledge Base initialized with ${docs.length} documents.`);
         } catch (error) {
             console.error('Failed to initialize Knowledge Service:', error);
         }
@@ -70,6 +101,16 @@ export class KnowledgeService {
             tags: Array.isArray(doc.tags) ? (doc.tags as string[]) : [],
             embedding: (doc.embedding as unknown as number[]) || null
         }));
+
+        // Re-build MiniSearch index
+        this.searchIndex.removeAll();
+        const records = this.cachedDocs.map(doc => ({
+            id: doc.id,
+            title: doc.title,
+            content: doc.content,
+            tags: doc.tags.join(' ')
+        }));
+        this.searchIndex.addAll(records);
     }
 
     public async refreshIndex() {
@@ -111,7 +152,7 @@ export class KnowledgeService {
     }
 
     /**
-     * Vector Search
+     * HYBRID SEARCH (Keyword + Vector) with Reciprocal Rank Fusion (RRF)
      */
     public async search(query: string, limit = 3): Promise<Array<{ id: string; title: string; content: string; score: number }>> {
         if (!this.isInitialized || !this.extractor) {
@@ -119,27 +160,57 @@ export class KnowledgeService {
         }
 
         try {
+            // 1. Vector Search
             const queryEmbedding = await this.generateEmbedding(query);
-
-            // Calculate scores for all docs
-            const scoredDocs = this.cachedDocs
-                .filter(doc => doc.embedding !== null) // Skip docs without embeddings
+            const vectorResults = this.cachedDocs
+                .filter(doc => doc.embedding !== null)
                 .map(doc => ({
                     id: doc.id,
-                    title: doc.title,
-                    content: doc.content,
                     score: this.cosineSimilarity(queryEmbedding, doc.embedding!)
-                }));
+                }))
+                .filter(r => r.score > 0.15)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 10);
 
-            // Sort by score descending
-            scoredDocs.sort((a, b) => b.score - a.score);
+            // 2. Keyword Search
+            const keywordResults = this.searchIndex.search(query)
+                .map(res => ({ id: res.id, score: res.score }))
+                .slice(0, 10);
 
-            // Filter out low relevance (e.g., < 0.3)
-            const relevantDocs = scoredDocs.filter(d => d.score > 0.25);
+            // 3. RRF Fusion
+            const rrfScores = new Map<string, number>();
+            const k = 60; // RRF constant
 
-            return relevantDocs.slice(0, limit);
+            vectorResults.forEach((res, rank) => {
+                const current = rrfScores.get(res.id) || 0;
+                rrfScores.set(res.id, current + (1 / (k + rank + 1)));
+            });
+
+            keywordResults.forEach((res, rank) => {
+                const current = rrfScores.get(res.id) || 0;
+                rrfScores.set(res.id, current + (1 / (k + rank + 1)));
+            });
+
+            // 4. Sort & Format
+            const finalResults = Array.from(rrfScores.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, limit)
+                .map(([id, score]) => {
+                    const doc = this.cachedDocs.find(d => d.id === id);
+                    if (!doc) return null;
+                    return {
+                        id: doc.id,
+                        title: doc.title,
+                        content: doc.content,
+                        score: score
+                    };
+                })
+                .filter((r): r is NonNullable<typeof r> => r !== null);
+
+            return finalResults;
+
         } catch (error) {
-            console.error('Vector search failed:', error);
+            console.error('Hybrid search failed:', error);
             return [];
         }
     }

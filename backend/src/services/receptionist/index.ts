@@ -595,13 +595,49 @@ export class ReceptionistService {
 
         let systemPrompt = buildSystemPrompt(relevantFAQs, staffList, servicesList, config);
 
-        // Search Knowledge Base (RAG)
-        const relevantDocs = this.knowledgeService.search(userMessage, 2);
+        // ============================================================
+        // CONTEXT-AWARE RAG: QUERY REWRITING
+        // ============================================================
+        let searchParam = userMessage;
+
+        // Only need to rewrite if there is conversation history to reference
+        if (history.length > 0) {
+            try {
+                // Quick LLM call to contextualize the query
+                const rewritePrompt = `
+You are a helpful assistant. Rewrite the user's latest message into a standalone search query based on the conversation history.
+If the message is already standalone, return it as is.
+If the message refers to previous context (e.g. "how much is it?", "what about that?"), make it specific.
+Do NOT answer the question. Only return the rewritten query.
+
+History:
+${history.slice(-3).map(m => `${m.role}: ${m.content}`).join('\n')}
+
+User: ${userMessage}
+Rewritten Query:`;
+
+                const rewritten = await this.groq.getChatCompletion([
+                    { role: 'system', content: 'You are a precise query rewriter.' },
+                    { role: 'user', content: rewritePrompt }
+                ], { temperature: 0.1, maxTokens: 50 });
+
+                if (rewritten && rewritten.trim()) {
+                    searchParam = rewritten.trim();
+                    console.log(`[RAG] Rewrote query: "${userMessage}" -> "${searchParam}"`);
+                }
+            } catch (error) {
+                console.warn('[RAG] Query rewriting failed, using original:', error);
+            }
+        }
+
+        // Search Knowledge Base (Hybrid RAG) using the Contextualized Query
+        const relevantDocs = await this.knowledgeService.search(searchParam, 2);
+
         if (relevantDocs.length > 0) {
             const knowledgeContext = relevantDocs.map(doc =>
                 `[KNOWLEDGE: ${doc.title}]\n${doc.content}`
             ).join('\n\n');
-            systemPrompt += `\n\nRELEVANT KNOWLEDGE BASE INFORMATION:\nUse this information to answer detailed questions if applicable:\n${knowledgeContext}`;
+            systemPrompt += `\n\nRELEVANT KNOWLEDGE BASE INFORMATION (Derived from query: "${searchParam}"):\nUse this information to answer detailed questions if applicable:\n${knowledgeContext}`;
         }
 
         // ============================================================
