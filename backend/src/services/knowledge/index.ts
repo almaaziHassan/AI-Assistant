@@ -1,5 +1,5 @@
 import { PrismaClient, KnowledgeDoc } from '@prisma/client';
-import { pipeline, FeatureExtractionPipeline } from '@xenova/transformers';
+// Dynamic import required for @xenova/transformers in CJS environment
 import MiniSearch from 'minisearch';
 
 const prisma = new PrismaClient();
@@ -22,7 +22,7 @@ export class KnowledgeService {
     private searchIndex: MiniSearch; // Keyword Search Index
 
     // Embedding Model Pipeline
-    private extractor: FeatureExtractionPipeline | null = null;
+    private extractor: any = null; // Type: FeatureExtractionPipeline (Dynamic import)
     private readonly MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
 
     private constructor() {
@@ -54,9 +54,10 @@ export class KnowledgeService {
 
         console.log('Initializing Knowledge Service (Hybrid RAG)...');
         try {
-            // 1. Load Model
+            // 1. Load Model (Dynamic Import)
             if (!this.extractor) {
                 console.log('Loading embedding model...');
+                const { pipeline } = await import('@xenova/transformers');
                 this.extractor = await pipeline('feature-extraction', this.MODEL_NAME);
             }
 
