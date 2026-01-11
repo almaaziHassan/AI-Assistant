@@ -699,41 +699,42 @@ Rewritten Query:`;
                     }
                 } catch (e) {
                     console.warn('[Receptionist] Failed to parse function args JSON:', rawArgs);
-
-                    console.log(`[Receptionist] Detected text-based function call: ${name}`);
-
-                    // Polyfill the toolCalls
-                    response.toolCalls = [{
-                        id: 'hallucinated-call',
-                        type: 'function',
-                        function: {
-                            name: name,
-                            arguments: JSON.stringify(args)
-                        }
-                    }];
-                    // Clear content so we don't show the raw tag to user
-                    response.content = null;
                 }
+
+                console.log(`[Receptionist] Detected text-based function call: ${name}`);
+
+                // Polyfill the toolCalls
+                response.toolCalls = [{
+                    id: 'hallucinated-call',
+                    type: 'function',
+                    function: {
+                        name: name,
+                        arguments: JSON.stringify(args)
+                    }
+                }];
+                // Clear content so we don't show the raw tag to user
+                response.content = null;
+            }
+        }
+
+        // Check if AI wants to call a function
+        if (response.toolCalls && response.toolCalls.length > 0) {
+            const toolCall = response.toolCalls[0];
+            const functionName = toolCall.function.name;
+            const functionArgs = JSON.parse(toolCall.function.arguments);
+
+            // Handle show_booking_form - AI detected booking intent
+            if (functionName === 'show_booking_form') {
+                return {
+                    message: functionArgs.message || "Here's our booking form.",
+                    action: { type: 'book_appointment' }
+                };
             }
 
-            // Check if AI wants to call a function
-            if (response.toolCalls && response.toolCalls.length > 0) {
-                const toolCall = response.toolCalls[0];
-                const functionName = toolCall.function.name;
-                const functionArgs = JSON.parse(toolCall.function.arguments);
-
-                // Handle show_booking_form - AI detected booking intent
-                if (functionName === 'show_booking_form') {
-                    return {
-                        message: functionArgs.message || "Here's our booking form.",
-                        action: { type: 'book_appointment' }
-                    };
-                }
-
-                // Handle provide_contact_info - AI detected user wants direct contact
-                if (functionName === 'provide_contact_info') {
-                    const { business } = this.getFullConfig(); // Use dynamic business info
-                    const contactMessage = `Here's how you can reach us directly:
+            // Handle provide_contact_info - AI detected user wants direct contact
+            if (functionName === 'provide_contact_info') {
+                const { business } = this.getFullConfig(); // Use dynamic business info
+                const contactMessage = `Here's how you can reach us directly:
         
 • **Phone:** ${business.phone}
 • **Email:** ${business.email}
@@ -741,301 +742,301 @@ Rewritten Query:`;
         
 Would you like us to call you back instead? I can set that up for you!`;
 
-                    return {
-                        message: contactMessage,
-                        action: { type: 'offer_callback', data: { reason: functionArgs.reason } }
-                    };
-                }
+                return {
+                    message: contactMessage,
+                    action: { type: 'offer_callback', data: { reason: functionArgs.reason } }
+                };
+            }
 
-                // Handle offer_callback_form - User agreed to get a callback
-                if (functionName === 'offer_callback_form') {
-                    return {
-                        message: functionArgs.message || "I'll get that set up for you!",
-                        action: { type: 'request_callback' }
-                    };
-                }
+            // Handle offer_callback_form - User agreed to get a callback
+            if (functionName === 'offer_callback_form') {
+                return {
+                    message: functionArgs.message || "I'll get that set up for you!",
+                    action: { type: 'request_callback' }
+                };
+            }
 
-                // Handle callback request
-                if (functionName === 'request_callback') {
-                    const result = await executeCallbackRequest(functionArgs);
+            // Handle callback request
+            if (functionName === 'request_callback') {
+                const result = await executeCallbackRequest(functionArgs);
 
-                    if (result.success && result.confirmation) {
-                        const confirmationMessage = `I've submitted your callback request. Our wellness team will reach out to you at ${result.confirmation.customerPhone} ` +
-                            (result.confirmation.preferredTime ? `during the ${result.confirmation.preferredTime}` : 'as soon as possible') +
-                            `. We look forward to speaking with you, ${result.confirmation.customerName}!`;
-
-                        return {
-                            message: confirmationMessage,
-                            action: {
-                                type: 'callback_confirmed',
-                                callbackConfirmation: result.confirmation
-                            }
-                        };
-                    } else {
-                        return {
-                            message: `I apologize, but I couldn't submit the callback request: ${result.error}. Please try again or call us directly.`,
-                            action: { type: 'none' }
-                        };
-                    }
-                }
-
-                // ========== APPOINTMENT MANAGEMENT HANDLERS ==========
-
-                // Handle lookup_appointments - Find customer's appointments by email
-                if (functionName === 'lookup_appointments') {
-                    const result = await lookupAppointments(functionArgs.customerEmail);
-
-                    if (!result.success) {
-                        return {
-                            message: `I couldn't look up your appointments: ${result.error}. Please try again.`,
-                            action: { type: 'none' }
-                        };
-                    }
-
-                    if (!result.appointments || result.appointments.length === 0) {
-                        return {
-                            message: `📋 No upcoming appointments found for **${functionArgs.customerEmail}**\n\nWould you like to **book a new appointment**? 📅`,
-                            action: { type: 'no_appointments_found', data: { email: functionArgs.customerEmail } }
-                        };
-                    }
-
-                    // Format appointments for display
-                    const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-                    const aptList = result.appointments.map((apt, i) => {
-                        // Handle different date formats
-                        let formattedDate = apt.date;
-                        let formattedTime = apt.time;
-
-                        try {
-                            // Format date manually (toLocaleDateString unreliable on servers)
-                            if (apt.date) {
-                                const [year, month, day] = apt.date.split('-').map(Number);
-                                const dateObj = new Date(year, month - 1, day); // month is 0-indexed
-                                if (!isNaN(dateObj.getTime())) {
-                                    const weekday = WEEKDAYS[dateObj.getDay()];
-                                    const monthName = MONTHS[dateObj.getMonth()];
-                                    formattedDate = `${weekday}, ${monthName} ${day}`;
-                                }
-                            }
-
-                            // Format time manually (12-hour with AM/PM)
-                            if (apt.time) {
-                                const [hours, minutes] = apt.time.split(':').map(Number);
-                                if (!isNaN(hours) && !isNaN(minutes)) {
-                                    const ampm = hours >= 12 ? 'PM' : 'AM';
-                                    const displayHours = hours % 12 || 12;
-                                    formattedTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                                }
-                            }
-                        } catch (e) {
-                            console.error(`[format] Error formatting apt ${i + 1}:`, e);
-                        }
-
-                        // Keep display clean for users, IDs are in action.data.appointments
-                        return `**${i + 1}.** 📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
-                    }).join('\n');
-
-                    // Store appointments in session context for later reference
-                    const email = functionArgs.customerEmail.toLowerCase();
-                    this.appointmentContext.set(email, {
-                        appointments: result.appointments.map(apt => ({
-                            id: apt.id,
-                            serviceName: apt.serviceName,
-                            date: apt.date,
-                            time: apt.time
-                        })),
-                        timestamp: Date.now()
-                    });
-                    console.log(`[lookup] Stored ${result.appointments.length} appointments in context for ${email}`);
+                if (result.success && result.confirmation) {
+                    const confirmationMessage = `I've submitted your callback request. Our wellness team will reach out to you at ${result.confirmation.customerPhone} ` +
+                        (result.confirmation.preferredTime ? `during the ${result.confirmation.preferredTime}` : 'as soon as possible') +
+                        `. We look forward to speaking with you, ${result.confirmation.customerName}!`;
 
                     return {
-                        message: `Here are your upcoming appointments:\n\n${aptList}\n\nWhat would you like to do? 💆`,
+                        message: confirmationMessage,
                         action: {
-                            type: 'appointments_found',
-                            data: {
-                                appointments: result.appointments,
-                                email: functionArgs.customerEmail
-                            }
+                            type: 'callback_confirmed',
+                            callbackConfirmation: result.confirmation
                         }
                     };
-                }
-
-                // Handle cancel_appointment - Cancel a specific appointment
-                if (functionName === 'cancel_appointment') {
-                    let appointmentId = functionArgs.appointmentId;
-
-                    // If no valid UUID, try to find appointment from context
-                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                    if (!appointmentId || !uuidRegex.test(appointmentId)) {
-                        console.log(`[cancel] Invalid ID "${appointmentId}", checking context...`);
-
-                        // Try to match from stored appointment context
-                        const matchedApt = this.findAppointmentFromContext(userMessage);
-                        if (matchedApt) {
-                            appointmentId = matchedApt.id;
-                            console.log(`[cancel] Found appointment from context: ${matchedApt.serviceName}`);
-                        }
-                    }
-
-                    const result = await cancelAppointmentHandler(appointmentId, functionArgs.reason);
-
-                    if (!result.success) {
-                        // Check if the user message contains an email - if so, do automatic lookup
-                        const emailMatch = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-                        if (emailMatch) {
-                            const email = emailMatch[0].toLowerCase();
-                            console.log(`[cancel_appointment] Auto-lookup with email from message: ${email}`);
-                            const lookupResult = await lookupAppointments(email);
-
-                            if (lookupResult.success && lookupResult.appointments && lookupResult.appointments.length > 0) {
-                                // Found appointments - show them
-                                const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                                const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-                                const aptList = lookupResult.appointments.map(apt => {
-                                    let formattedDate = apt.date;
-                                    let formattedTime = apt.time;
-                                    try {
-                                        const [year, month, day] = apt.date.split('-').map(Number);
-                                        const dateObj = new Date(year, month - 1, day);
-                                        if (!isNaN(dateObj.getTime())) {
-                                            formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
-                                        }
-                                        const [hours, minutes] = apt.time.split(':').map(Number);
-                                        if (!isNaN(hours) && !isNaN(minutes)) {
-                                            const ampm = hours >= 12 ? 'PM' : 'AM';
-                                            formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                                        }
-                                    } catch { }
-                                    return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
-                                }).join('\n');
-
-                                return {
-                                    message: `Here are your upcoming appointments:\n\n${aptList}\n\nWhich one would you like to **cancel**? ✨`,
-                                    action: {
-                                        type: 'appointments_found',
-                                        data: { appointments: lookupResult.appointments, email }
-                                    }
-                                };
-                            } else {
-                                return {
-                                    message: `📋 No upcoming appointments found for **${email}**\n\nWould you like to **book a new appointment**? 📅`,
-                                    action: { type: 'no_appointments_found', data: { email } }
-                                };
-                            }
-                        }
-
-                        // No email in message - ask for it
-                        return {
-                            message: "To cancel your appointment, I'll need to look it up first. 📋\n\nWhat **email address** did you use when booking?",
-                            action: { type: 'none' }
-                        };
-                    }
-
-                    if (result.cancelledAppointment) {
-                        const apt = result.cancelledAppointment;
-
-                        // Format date safely
-                        let formattedDate = apt.date;
-                        let formattedTime = apt.time;
-
-                        // Manual date formatting (same as lookup)
-                        const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                        const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-                        try {
-                            if (apt.date) {
-                                const [year, month, day] = apt.date.split('-').map(Number);
-                                const dateObj = new Date(year, month - 1, day);
-                                if (!isNaN(dateObj.getTime())) {
-                                    const weekday = WEEKDAYS[dateObj.getDay()];
-                                    const monthName = MONTHS[dateObj.getMonth()];
-                                    formattedDate = `${weekday}, ${monthName} ${day}`;
-                                }
-                            }
-                            if (apt.time) {
-                                const [hours, minutes] = apt.time.split(':').map(Number);
-                                if (!isNaN(hours) && !isNaN(minutes)) {
-                                    const ampm = hours >= 12 ? 'PM' : 'AM';
-                                    const displayHours = hours % 12 || 12;
-                                    formattedTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                                }
-                            }
-                        } catch (e) {
-                            console.error('[cancel] Error formatting date:', e);
-                        }
-
-                        return {
-                            message: `✅ **Appointment Cancelled**\n\n📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}\n\n📧 A confirmation email is on its way!\n\nWould you like to **book a new appointment**? 💆`,
-                            action: {
-                                type: 'appointment_cancelled',
-                                data: { appointment: apt }
-                            }
-                        };
-                    }
-
+                } else {
                     return {
-                        message: '✅ The appointment has been cancelled.',
-                        action: { type: 'appointment_cancelled' }
-                    };
-                }
-
-                // Handle start_reschedule - Initiate reschedule for a specific appointment
-                if (functionName === 'start_reschedule') {
-                    let appointmentId = functionArgs.appointmentId;
-
-                    // Handle UUID or context fallback
-                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                    if (!appointmentId || !uuidRegex.test(appointmentId)) {
-                        // Try to match from stored appointment context
-                        const matchedApt = this.findAppointmentFromContext(userMessage);
-                        if (matchedApt) {
-                            appointmentId = matchedApt.id;
-                        }
-                    }
-
-                    const result = await getAppointmentForReschedule(appointmentId);
-
-                    if (!result.success || !result.appointment) {
-                        // If failed, check for email like in cancel
-                        const emailMatch = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-                        if (emailMatch) {
-                            // ... (Email lookup logic could be duplicated here, but omitting for brevity - cancel is prioritised)
-                            return await this.doAppointmentLookup(emailMatch[0].toLowerCase());
-                        }
-
-                        return {
-                            message: "To reschedule, I first need to find your appointment. 📋\n\nWhat **email address** did you use when booking?",
-                            action: { type: 'none' }
-                        };
-                    }
-
-                    const apt = result.appointment;
-                    return {
-                        message: `Let's reschedule your **${apt.serviceName}** appointment! 📅\n\nI'll open our booking form so you can pick a new date and time.`,
-                        action: {
-                            type: 'reschedule_appointment',
-                            data: {
-                                originalAppointmentId: apt.id,
-                                serviceId: apt.serviceId,
-                                staffId: apt.staffId,
-                                serviceName: apt.serviceName,
-                                staffName: apt.staffName,
-                                customerName: apt.customerName,
-                                customerEmail: apt.customerEmail
-                            }
-                        }
+                        message: `I apologize, but I couldn't submit the callback request: ${result.error}. Please try again or call us directly.`,
+                        action: { type: 'none' }
                     };
                 }
             }
 
-            // Return AI response
-            return {
-                message: response.content || "I'm having trouble connecting right now. Please try again or call us directly.",
-                action: { type: 'none' }
-            };
+            // ========== APPOINTMENT MANAGEMENT HANDLERS ==========
+
+            // Handle lookup_appointments - Find customer's appointments by email
+            if (functionName === 'lookup_appointments') {
+                const result = await lookupAppointments(functionArgs.customerEmail);
+
+                if (!result.success) {
+                    return {
+                        message: `I couldn't look up your appointments: ${result.error}. Please try again.`,
+                        action: { type: 'none' }
+                    };
+                }
+
+                if (!result.appointments || result.appointments.length === 0) {
+                    return {
+                        message: `📋 No upcoming appointments found for **${functionArgs.customerEmail}**\n\nWould you like to **book a new appointment**? 📅`,
+                        action: { type: 'no_appointments_found', data: { email: functionArgs.customerEmail } }
+                    };
+                }
+
+                // Format appointments for display
+                const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+                const aptList = result.appointments.map((apt, i) => {
+                    // Handle different date formats
+                    let formattedDate = apt.date;
+                    let formattedTime = apt.time;
+
+                    try {
+                        // Format date manually (toLocaleDateString unreliable on servers)
+                        if (apt.date) {
+                            const [year, month, day] = apt.date.split('-').map(Number);
+                            const dateObj = new Date(year, month - 1, day); // month is 0-indexed
+                            if (!isNaN(dateObj.getTime())) {
+                                const weekday = WEEKDAYS[dateObj.getDay()];
+                                const monthName = MONTHS[dateObj.getMonth()];
+                                formattedDate = `${weekday}, ${monthName} ${day}`;
+                            }
+                        }
+
+                        // Format time manually (12-hour with AM/PM)
+                        if (apt.time) {
+                            const [hours, minutes] = apt.time.split(':').map(Number);
+                            if (!isNaN(hours) && !isNaN(minutes)) {
+                                const ampm = hours >= 12 ? 'PM' : 'AM';
+                                const displayHours = hours % 12 || 12;
+                                formattedTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`[format] Error formatting apt ${i + 1}:`, e);
+                    }
+
+                    // Keep display clean for users, IDs are in action.data.appointments
+                    return `**${i + 1}.** 📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+                }).join('\n');
+
+                // Store appointments in session context for later reference
+                const email = functionArgs.customerEmail.toLowerCase();
+                this.appointmentContext.set(email, {
+                    appointments: result.appointments.map(apt => ({
+                        id: apt.id,
+                        serviceName: apt.serviceName,
+                        date: apt.date,
+                        time: apt.time
+                    })),
+                    timestamp: Date.now()
+                });
+                console.log(`[lookup] Stored ${result.appointments.length} appointments in context for ${email}`);
+
+                return {
+                    message: `Here are your upcoming appointments:\n\n${aptList}\n\nWhat would you like to do? 💆`,
+                    action: {
+                        type: 'appointments_found',
+                        data: {
+                            appointments: result.appointments,
+                            email: functionArgs.customerEmail
+                        }
+                    }
+                };
+            }
+
+            // Handle cancel_appointment - Cancel a specific appointment
+            if (functionName === 'cancel_appointment') {
+                let appointmentId = functionArgs.appointmentId;
+
+                // If no valid UUID, try to find appointment from context
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!appointmentId || !uuidRegex.test(appointmentId)) {
+                    console.log(`[cancel] Invalid ID "${appointmentId}", checking context...`);
+
+                    // Try to match from stored appointment context
+                    const matchedApt = this.findAppointmentFromContext(userMessage);
+                    if (matchedApt) {
+                        appointmentId = matchedApt.id;
+                        console.log(`[cancel] Found appointment from context: ${matchedApt.serviceName}`);
+                    }
+                }
+
+                const result = await cancelAppointmentHandler(appointmentId, functionArgs.reason);
+
+                if (!result.success) {
+                    // Check if the user message contains an email - if so, do automatic lookup
+                    const emailMatch = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                    if (emailMatch) {
+                        const email = emailMatch[0].toLowerCase();
+                        console.log(`[cancel_appointment] Auto-lookup with email from message: ${email}`);
+                        const lookupResult = await lookupAppointments(email);
+
+                        if (lookupResult.success && lookupResult.appointments && lookupResult.appointments.length > 0) {
+                            // Found appointments - show them
+                            const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                            const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+                            const aptList = lookupResult.appointments.map(apt => {
+                                let formattedDate = apt.date;
+                                let formattedTime = apt.time;
+                                try {
+                                    const [year, month, day] = apt.date.split('-').map(Number);
+                                    const dateObj = new Date(year, month - 1, day);
+                                    if (!isNaN(dateObj.getTime())) {
+                                        formattedDate = `${WEEKDAYS[dateObj.getDay()]}, ${MONTHS[dateObj.getMonth()]} ${day}`;
+                                    }
+                                    const [hours, minutes] = apt.time.split(':').map(Number);
+                                    if (!isNaN(hours) && !isNaN(minutes)) {
+                                        const ampm = hours >= 12 ? 'PM' : 'AM';
+                                        formattedTime = `${hours % 12 || 12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                                    }
+                                } catch { }
+                                return `📅 **${apt.serviceName}** — ${formattedDate} at ${formattedTime}${apt.staffName ? ` with ${apt.staffName}` : ''}`;
+                            }).join('\n');
+
+                            return {
+                                message: `Here are your upcoming appointments:\n\n${aptList}\n\nWhich one would you like to **cancel**? ✨`,
+                                action: {
+                                    type: 'appointments_found',
+                                    data: { appointments: lookupResult.appointments, email }
+                                }
+                            };
+                        } else {
+                            return {
+                                message: `📋 No upcoming appointments found for **${email}**\n\nWould you like to **book a new appointment**? 📅`,
+                                action: { type: 'no_appointments_found', data: { email } }
+                            };
+                        }
+                    }
+
+                    // No email in message - ask for it
+                    return {
+                        message: "To cancel your appointment, I'll need to look it up first. 📋\n\nWhat **email address** did you use when booking?",
+                        action: { type: 'none' }
+                    };
+                }
+
+                if (result.cancelledAppointment) {
+                    const apt = result.cancelledAppointment;
+
+                    // Format date safely
+                    let formattedDate = apt.date;
+                    let formattedTime = apt.time;
+
+                    // Manual date formatting (same as lookup)
+                    const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+                    try {
+                        if (apt.date) {
+                            const [year, month, day] = apt.date.split('-').map(Number);
+                            const dateObj = new Date(year, month - 1, day);
+                            if (!isNaN(dateObj.getTime())) {
+                                const weekday = WEEKDAYS[dateObj.getDay()];
+                                const monthName = MONTHS[dateObj.getMonth()];
+                                formattedDate = `${weekday}, ${monthName} ${day}`;
+                            }
+                        }
+                        if (apt.time) {
+                            const [hours, minutes] = apt.time.split(':').map(Number);
+                            if (!isNaN(hours) && !isNaN(minutes)) {
+                                const ampm = hours >= 12 ? 'PM' : 'AM';
+                                const displayHours = hours % 12 || 12;
+                                formattedTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[cancel] Error formatting date:', e);
+                    }
+
+                    return {
+                        message: `✅ **Appointment Cancelled**\n\n📅 ${apt.serviceName} — ${formattedDate} at ${formattedTime}\n\n📧 A confirmation email is on its way!\n\nWould you like to **book a new appointment**? 💆`,
+                        action: {
+                            type: 'appointment_cancelled',
+                            data: { appointment: apt }
+                        }
+                    };
+                }
+
+                return {
+                    message: '✅ The appointment has been cancelled.',
+                    action: { type: 'appointment_cancelled' }
+                };
+            }
+
+            // Handle start_reschedule - Initiate reschedule for a specific appointment
+            if (functionName === 'start_reschedule') {
+                let appointmentId = functionArgs.appointmentId;
+
+                // Handle UUID or context fallback
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!appointmentId || !uuidRegex.test(appointmentId)) {
+                    // Try to match from stored appointment context
+                    const matchedApt = this.findAppointmentFromContext(userMessage);
+                    if (matchedApt) {
+                        appointmentId = matchedApt.id;
+                    }
+                }
+
+                const result = await getAppointmentForReschedule(appointmentId);
+
+                if (!result.success || !result.appointment) {
+                    // If failed, check for email like in cancel
+                    const emailMatch = userMessage.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                    if (emailMatch) {
+                        // ... (Email lookup logic could be duplicated here, but omitting for brevity - cancel is prioritised)
+                        return await this.doAppointmentLookup(emailMatch[0].toLowerCase());
+                    }
+
+                    return {
+                        message: "To reschedule, I first need to find your appointment. 📋\n\nWhat **email address** did you use when booking?",
+                        action: { type: 'none' }
+                    };
+                }
+
+                const apt = result.appointment;
+                return {
+                    message: `Let's reschedule your **${apt.serviceName}** appointment! 📅\n\nI'll open our booking form so you can pick a new date and time.`,
+                    action: {
+                        type: 'reschedule_appointment',
+                        data: {
+                            originalAppointmentId: apt.id,
+                            serviceId: apt.serviceId,
+                            staffId: apt.staffId,
+                            serviceName: apt.serviceName,
+                            staffName: apt.staffName,
+                            customerName: apt.customerName,
+                            customerEmail: apt.customerEmail
+                        }
+                    }
+                };
+            }
         }
+
+        // Return AI response
+        return {
+            message: response.content || "I'm having trouble connecting right now. Please try again or call us directly.",
+            action: { type: 'none' }
+        };
     }
+}
 }
