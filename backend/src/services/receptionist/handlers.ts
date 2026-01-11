@@ -187,26 +187,21 @@ export async function lookupAppointments(email: string): Promise<{
 
         // Filter to only upcoming appointments (not past, not cancelled)
         const now = new Date();
-        // Get current UTC date for comparison (only compare dates, not times, due to timezone issues)
-        const todayStr = now.toISOString().split('T')[0]; // UTC date YYYY-MM-DD
-        console.log(`[lookupAppointments] Current UTC date: ${todayStr}`);
-
         const upcoming = appointments.filter(apt => {
             if (apt.status === 'cancelled' || apt.status === 'completed' || apt.status === 'no-show') {
-                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: status=${apt.status}`);
                 return false;
             }
 
-            // Compare dates only (not times) - appointment times are in local timezone, not UTC
-            const aptDateStr = apt.appointmentDate; // Already in YYYY-MM-DD
+            // Strict timestamp comparison to filter out past appointments (including today's passed times)
+            // Use the same logic as cancelAppointment/reschedule for consistency
+            const appointmentDateTime = new Date(`${apt.appointmentDate}T${apt.appointmentTime}`);
 
-            // If appointment date is before today, it's in the past
-            if (aptDateStr < todayStr) {
-                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: past date (${aptDateStr} < ${todayStr})`);
+            // Use outer 'now' or create new one? Outer is fine.
+            if (appointmentDateTime < now) {
+                console.log(`[lookupAppointments] Filtered out ${apt.id.substring(0, 8)}: past time (${appointmentDateTime.toISOString()} < ${now.toISOString()})`);
                 return false;
             }
 
-            // Include all appointments from today onwards (don't filter by time due to timezone issues)
             return true;
         });
 
