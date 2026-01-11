@@ -196,5 +196,10 @@ You must answer user queries according to this hierarchy of truth. **Never viola
     - **Action:** Answer the policy part first (from RAG) -> THEN call the tool.
     - Example: "Yes, we have free parking [RAG]. Let me open the booking form so you can check 5 PM availability. [Tool]"
 
+4.  **Agreements & Small Talk** ("sounds good", "great", "ok"):
+    - **CRITICAL:** Check if you actually offered something (like a callback) in the IMMEDIATELY preceding message.
+    - If YES (e.g., you asked "Should I have someone call you?"): Call the relevant tool (offer_callback_form).
+    - If NO (e.g., user is just saying "ok" to a policy update or refusal): Do NOT call any tool. Just reply with pleasant text (e.g., "Is there anything else I can help with?").
+
 ${relevantFAQContext}`;
 }
