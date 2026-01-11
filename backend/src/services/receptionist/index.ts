@@ -670,6 +670,46 @@ Rewritten Query:`;
         // Get AI response with function calling
         const response = await this.groq.chatWithFunctions(messages, tools);
 
+        // ============================================================
+        // FALLBACK: PARSE TEXT-BASED FUNCTION CALLS (HALLUCINATIONS)
+        // ============================================================
+        // Sometimes LLMs output tags like <function=name>args</function> instead of native calls
+        if (!response.toolCalls && response.content) {
+            const funcRegex = /<function=(.*?)>(.*?)<\/function>/s;
+            const match = response.content.match(funcRegex);
+
+            if (match) {
+                const name = match[1].trim();
+                let args = {};
+                try {
+                    // Try to parse args - sometimes it's JSON, sometimes plain text
+                    args = JSON.parse(match[2]);
+                } catch (e) {
+                    // If not JSON, maybe treat whole content as message or try loose parsing
+                    console.warn('[Receptionist] Failed to parse function args JSON, using empty args:', match[2]);
+                    // Fallback for simple message args
+                    if (match[2].includes('message')) {
+                        const msgMatch = match[2].match(/"message"\s*:\s*"(.*?)"/);
+                        if (msgMatch) args = { message: msgMatch[1] };
+                    }
+                }
+
+                console.log(`[Receptionist] Detected text-based function call: ${name}`);
+
+                // Polyfill the toolCalls
+                response.toolCalls = [{
+                    id: 'hallucinated-call',
+                    type: 'function',
+                    function: {
+                        name: name,
+                        arguments: JSON.stringify(args)
+                    }
+                }];
+                // Clear content so we don't show the raw tag to user
+                response.content = null;
+            }
+        }
+
         // Check if AI wants to call a function
         if (response.toolCalls && response.toolCalls.length > 0) {
             const toolCall = response.toolCalls[0];
