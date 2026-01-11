@@ -421,6 +421,84 @@ export class AdminServicePrisma {
             data: { status },
         });
     }
+
+    // ============ KNOWLEDGE BASE (FAQs) ============
+
+    async createFAQ(data: { question: string; answer: string; keywords: string[]; displayOrder?: number; isActive?: boolean }) {
+        const lastOrder = await prisma.fAQ.aggregate({ _max: { displayOrder: true } });
+        const nextOrder = (lastOrder._max.displayOrder ?? 0) + 1;
+
+        return prisma.fAQ.create({
+            data: {
+                question: data.question,
+                answer: data.answer,
+                keywords: data.keywords,
+                displayOrder: data.displayOrder ?? nextOrder,
+                isActive: data.isActive ?? true,
+            },
+        });
+    }
+
+    async getFAQ(id: string) {
+        return prisma.fAQ.findUnique({
+            where: { id },
+        });
+    }
+
+    async getAllFAQs(activeOnly: boolean = false) {
+        return prisma.fAQ.findMany({
+            where: activeOnly ? { isActive: true } : undefined,
+            orderBy: { displayOrder: 'asc' },
+        });
+    }
+
+    async updateFAQ(id: string, data: Partial<{ question: string; answer: string; keywords: string[]; displayOrder?: number; isActive?: boolean }>) {
+        const existing = await this.getFAQ(id);
+        if (!existing) return null;
+
+        return prisma.fAQ.update({
+            where: { id },
+            data,
+        });
+    }
+
+    async deleteFAQ(id: string): Promise<boolean> {
+        const existing = await this.getFAQ(id);
+        if (!existing) return false;
+
+        await prisma.fAQ.delete({ where: { id } });
+        return true;
+    }
+
+    // ============ SYSTEM SETTINGS ============
+
+    async getSystemSetting(key: string) {
+        return prisma.systemSetting.findUnique({
+            where: { key },
+        });
+    }
+
+    async getAllSystemSettings() {
+        return prisma.systemSetting.findMany({
+            orderBy: { key: 'asc' },
+        });
+    }
+
+    async setSystemSetting(key: string, value: any, description?: string) {
+        return prisma.systemSetting.upsert({
+            where: { key },
+            update: {
+                value,
+                ...(description !== undefined && { description }),
+                updatedAt: new Date(),
+            },
+            create: {
+                key,
+                value,
+                description,
+            },
+        });
+    }
 }
 
 // Export singleton instance
