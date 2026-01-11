@@ -1,8 +1,7 @@
-import { PrismaClient, KnowledgeDoc } from '@prisma/client';
+import { KnowledgeDoc } from '@prisma/client';
 // Dynamic import required for @xenova/transformers in CJS environment
 import MiniSearch from 'minisearch';
-
-const prisma = new PrismaClient();
+import prisma from '../../db/prisma';
 
 // Interface for in-memory document with embedding
 interface CachedDoc {
