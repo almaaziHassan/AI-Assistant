@@ -19,7 +19,7 @@ interface ReceptionistConfig {
 }
 
 interface HoursConfig {
-    [day: string]: { open?: string; close?: string };
+    [day: string]: { open?: string; close?: string; start?: string; end?: string; };
 }
 
 /**
@@ -31,15 +31,13 @@ function formatStaffSchedule(schedule?: WeeklySchedule): string {
     const activeDays = days.filter(d => schedule[d]);
     if (activeDays.length === 0) return '';
 
-    // Group adjacent days with same hours? For simplicity, just list them or concise format
-    // "Mon-Fri: 9-5" is hard to calculate robustly in 2 lines.
-    // Let's list abbreviated: "Mon: 9-5, Tue: 9-5..."
-
     return activeDays.map(d => {
         const h = schedule[d]!;
         // Capitalize: monday -> Mon
         const dayName = d.charAt(0).toUpperCase() + d.slice(1, 3);
-        return `${dayName}: ${h.start}-${h.end}`;
+        const start = h.start || '';
+        const end = h.end || '';
+        return `${dayName}: ${start}-${end}`;
     }).join(', ');
 }
 
@@ -83,8 +81,10 @@ export function buildSystemPrompt(
     // Build Hours Text
     const hoursText = Object.entries(hours)
         .map(([day, h]) => {
-            if (!h.open || !h.close) return `- ${day}: Closed`;
-            return `- ${day}: ${h.open} - ${h.close}`;
+            const openTime = h.open || h.start;
+            const closeTime = h.close || h.end;
+            if (!openTime || !closeTime) return `- ${day}: Closed`;
+            return `- ${day}: ${openTime} - ${closeTime}`;
         })
         .join('\n');
 
