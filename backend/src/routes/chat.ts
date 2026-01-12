@@ -91,8 +91,8 @@ router.post('/', optionalUserAuth, async (req: Request, res: Response) => {
 });
 
 // GET /api/chat/greeting - Get the initial greeting
-router.get('/greeting', (req: Request, res: Response) => {
-  const config = receptionist.getConfig();
+router.get('/greeting', async (req: Request, res: Response) => {
+  const config = await receptionist.getConfig();
   const greeting = config.receptionist.greeting
     .replace('{business_name}', config.business.name)
     .replace('{receptionist_name}', config.receptionist.name);

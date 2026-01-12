@@ -46,7 +46,7 @@ export function createSocketHandlers(
      * If authToken is provided and valid, use user ID as session ID
      */
     function handleInit(socket: Socket) {
-        return (data: { sessionId?: string; authToken?: string }) => {
+        return async (data: { sessionId?: string; authToken?: string }) => {
             let effectiveSessionId: string | undefined = data.sessionId;
             let isUserSession = false;
 
@@ -88,7 +88,7 @@ export function createSocketHandlers(
 
             // Send welcome message only for new sessions
             if (isNewSession) {
-                const config = receptionist.getConfig();
+                const config = await receptionist.getConfig();
                 const greeting = config.receptionist.greeting
                     .replace('{business_name}', config.business.name)
                     .replace('{receptionist_name}', config.receptionist.name);
@@ -125,7 +125,7 @@ export function createSocketHandlers(
             // Emit typing indicator
             socket.emit('typing', { isTyping: true });
 
-            const config = receptionist.getConfig();
+            const config = await receptionist.getConfig();
 
             try {
                 // Get AI response

@@ -11,7 +11,7 @@
  */
 
 import prisma from '../db/prisma';
-import type { Staff, Service, Location, Holiday, Appointment, Callback, fAQ as FAQ } from '@prisma/client';
+import type { Staff, Service, Location, Holiday, Appointment, Callback, FAQ } from '@prisma/client';
 
 // Re-export Prisma types with our interface names
 export type { Staff, Service, Location, Holiday, Appointment, Callback, FAQ };

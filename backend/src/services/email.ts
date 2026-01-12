@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { Appointment } from './scheduler';
+import { Appointment } from './adminPrisma';
 import servicesConfig from '../config/services.json';
 
 // Import Brevo SDK
@@ -82,7 +82,15 @@ export class EmailService {
     });
   }
 
-  private formatTime(time: string): string {
+  private formatTime(time: Date | string): string {
+    if (time instanceof Date) {
+      const hours = time.getHours();
+      const minutes = time.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    }
+    // Legacy string format support (HH:mm)
     const [hours, minutes] = time.split(':').map(Number);
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const displayHours = hours % 12 || 12;
