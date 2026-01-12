@@ -9,6 +9,7 @@ import { ServicesManager } from './admin/ServicesManager';
 import { HolidaysManager } from './admin/HolidaysManager';
 import { CallbacksManager } from './admin/CallbacksManager';
 import { KnowledgeBase } from './admin/KnowledgeBase';
+import { BusinessSettings } from './admin/BusinessSettings';
 import Clock from './admin/Clock';
 import { TableSkeleton, StatsSkeleton } from './admin/Skeleton';
 import {
@@ -39,7 +40,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   const { mutate: globalMutate } = useSWRConfig();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays' | 'knowledge'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays' | 'knowledge' | 'settings'>('overview');
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
 
@@ -272,8 +273,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         </div>
       </header>
 
+
+
       <nav className="admin-tabs">
-        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays', 'knowledge'] as const).map(tab => (
+        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays', 'knowledge', 'settings'] as const).map(tab => (
           <button
             key={tab}
             className={`admin-tab ${activeTab === tab ? 'active' : ''}`}
@@ -358,27 +361,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         }
 
         {/* Knowledge Base Tab */}
-        {
-          activeTab === 'knowledge' && (
-            <KnowledgeBase
-              serverUrl={serverUrl}
-              getAuthHeaders={getAuthHeaders}
-            />
-          )
-        }
+        {activeTab === 'knowledge' && (
+          <KnowledgeBase
+            serverUrl={serverUrl}
+            getAuthHeaders={getAuthHeaders}
+          />
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <BusinessSettings
+            serverUrl={serverUrl}
+            getAuthHeaders={getAuthHeaders}
+          />
+        )}
 
         {/* Callbacks Tab */}
-        {
-          activeTab === 'callbacks' && !isTableLoading && (
-            <CallbacksManager
-              callbacks={callbacks}
-              serverUrl={serverUrl}
-              getAuthHeaders={getAuthHeaders}
-              onRefresh={() => mutateCallbacks()}
-              onLogout={handleLogout}
-            />
-          )
-        }
+        {activeTab === 'callbacks' && !isTableLoading && (
+          <CallbacksManager
+            callbacks={callbacks}
+            serverUrl={serverUrl}
+            getAuthHeaders={getAuthHeaders}
+            onRefresh={() => mutateCallbacks()}
+            onLogout={handleLogout}
+          />
+        )}
       </main >
     </div >
   );
