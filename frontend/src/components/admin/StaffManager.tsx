@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import useSWR from 'swr';
 import { Staff, Service, WeeklySchedule } from '../../types/admin';
+import { BusinessHoursModal } from './BusinessHoursModal';
 
 interface StaffManagerProps {
     staff: Staff[];
@@ -29,6 +31,49 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
     }>({ name: '', email: '', role: 'staff', services: [] });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Business Hours State
+    const [showHoursModal, setShowHoursModal] = useState(false);
+
+    // Fetch Global Business Hours
+    const { data: businessHoursSetting, mutate: mutateHours } = useSWR<{ value: WeeklySchedule }>(
+        `${serverUrl}/api/admin/settings/hours`,
+        async (url: string) => {
+            const res = await fetch(url, { headers: getAuthHeaders() });
+            if (!res.ok) {
+                // If 404, return default/null structure rather than throw, but API usually returns 404 if missing. 
+                // We'll let it error or handle 404. adminPrisma returns 404.
+                if (res.status === 404) return { value: null };
+                throw new Error('Failed to fetch hours');
+            }
+            return res.json();
+        }
+    );
+
+    const handleSaveHours = async (hours: WeeklySchedule) => {
+        try {
+            const res = await fetch(`${serverUrl}/api/admin/settings/hours`, {
+                method: 'PUT',
+                headers: {
+                    ...getAuthHeaders() as Record<string, string>,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ value: hours, description: 'General Office Hours' })
+            });
+
+            if (res.status === 401) { onLogout(); return; }
+
+            if (res.ok) {
+                mutateHours();
+                // We also might want to refresh overview stats or config if used there?
+            } else {
+                alert('Failed to update office hours');
+            }
+        } catch (e) {
+            alert('Failed to save office hours');
+            throw e; // Modal catches this
+        }
+    };
+
     const handleAddStaff = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isSubmitting) return;
@@ -42,7 +87,10 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
 
             const res = await fetch(url, {
                 method,
-                headers: getAuthHeaders(),
+                headers: {
+                    ...getAuthHeaders() as Record<string, string>,
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify(staffForm)
             });
             if (res.status === 401) { onLogout(); return; }
@@ -93,20 +141,36 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
 
     return (
         <div className="staff-section">
-            <div className="section-header">
+            <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2>{editingStaffId ? 'Edit Staff Member' : 'Staff Members'}</h2>
-                <button className="btn-primary" onClick={() => {
-                    if (showStaffForm) {
-                        setShowStaffForm(false);
-                        setEditingStaffId(null);
-                        setStaffForm({ name: '', email: '', role: 'staff', services: [] });
-                    } else {
-                        setShowStaffForm(true);
-                    }
-                }}>
-                    {showStaffForm ? 'Cancel' : '+ Add Staff'}
-                </button>
+                <div className="header-actions" style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                        className="btn-secondary"
+                        onClick={() => setShowHoursModal(true)}
+                        style={{ backgroundColor: '#2ecc71', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                        general office hours setting
+                    </button>
+                    <button className="btn-primary" onClick={() => {
+                        if (showStaffForm) {
+                            setShowStaffForm(false);
+                            setEditingStaffId(null);
+                            setStaffForm({ name: '', email: '', role: 'staff', services: [] });
+                        } else {
+                            setShowStaffForm(true);
+                        }
+                    }}>
+                        {showStaffForm ? 'Cancel' : '+ Add Staff'}
+                    </button>
+                </div>
             </div>
+
+            <BusinessHoursModal
+                isOpen={showHoursModal}
+                onClose={() => setShowHoursModal(false)}
+                initialHours={businessHoursSetting?.value || null}
+                onSave={handleSaveHours}
+            />
 
             {showStaffForm && (
                 <form className="admin-form" onSubmit={handleAddStaff}>
@@ -228,7 +292,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
                         </div>
                     </div>
 
-                    <button type="submit" className="btn-primary">{editingStaffId ? 'Update Staff & Schedule' : 'Add Staff'}</button>
+                    <button type="submit" className="btn-primary">{editingStaffId ? 'Update Staff & Schedule' : 'Update Staff'}</button>
                 </form>
             )}
 
