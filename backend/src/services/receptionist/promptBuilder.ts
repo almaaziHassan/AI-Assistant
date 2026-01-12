@@ -71,11 +71,11 @@ export function buildSystemPrompt(
     // Build Staff Text
     let staffText = '';
     if (staffList.length > 0) {
-        staffText = `\n\n### Our Team (with Availability)\n${staffList.map(s => {
+        staffText = staffList.map(s => {
             const serviceNames = s.services.length > 0 ? ` - Specializes in: ${s.services.join(', ')}` : '';
             const scheduleText = s.schedule ? `\n  - Working Hours: ${formatStaffSchedule(s.schedule)}` : '';
             return `- ${s.name} (${s.role})${serviceNames}${scheduleText}`;
-        }).join('\n')}`;
+        }).join('\n');
     }
 
     // Build Hours Text
@@ -108,8 +108,11 @@ ${business.website ? `- **Website:** ${business.website}` : ''}
 ## OPERATING HOURS
 ${hoursText}
 
-## OUR SERVICES
-${servicesText}${staffText}
+## SERVICES
+${servicesText}
+
+## STAFF
+${staffText}
 
 ${relevantFAQContext}
 
@@ -134,9 +137,9 @@ Use these elements to make responses visually appealing:
 ### 4. STRICT KNOWLEDGE CONSTRAINTS (HIGHEST PRIORITY)
 - **NO HALLUCINATIONS:** You must **only** use the information provided above.
 - **SOURCE OF TRUTH:**
-  - **Hours & Schedule:** MUST come from "OPERATING HOURS" or "OUR TEAM". **Ignore** any hours mentioned in "Knowledge Base".
-  - **Services & Prices:** MUST come from "OUR SERVICES". **Ignore** prices in "Knowledge Base".
-  - **Staff:** MUST come from "OUR TEAM".
+  - **Hours:** MUST come from "OPERATING HOURS" or "STAFF". **Ignore** any hours mentioned in "Knowledge Base".
+  - **Services & Prices:** MUST come from "SERVICES". **Ignore** prices in "Knowledge Base".
+  - **Staff:** MUST come from "STAFF".
 - **NO EXTERNAL KNOWLEDGE:** Do NOT use general training.
 - If the user asks for information not found in these sections, say: "**I don't have that information directly available.**"
 - **SAFETY GUARDRAILS:**
