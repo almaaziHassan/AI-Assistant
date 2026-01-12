@@ -72,8 +72,13 @@ export class EmailService {
     console.log(`Email service configured: SMTP ${host}:${port}`);
   }
 
-  private formatDate(dateStr: string): string {
-    const date = new Date(dateStr + 'T00:00:00');
+  private formatDate(dateObj: Date | string): string {
+    let date: Date;
+    if (dateObj instanceof Date) {
+      date = dateObj;
+    } else {
+      date = new Date(dateObj + 'T00:00:00');
+    }
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',

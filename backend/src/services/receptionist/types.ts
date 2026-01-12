@@ -51,7 +51,16 @@ export interface ConversationMessage {
     content: string;
 }
 
-// Re-export shared types from admin
-export { FAQ } from '../adminPrisma';
+// Local FAQ interface for Receptionist (matches legacy usage)
+export interface FAQ {
+    id: string;
+    question: string;
+    answer: string;
+    keywords: string[];
+    displayOrder: number;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+}
 
 
