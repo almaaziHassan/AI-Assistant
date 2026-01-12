@@ -219,6 +219,44 @@ export class GroqService {
       return '';
     }
   }
+
+  /**
+   * Rerank documents by relevance using LLM (LLM-as-a-Judge)
+   */
+  async rankDocuments(query: string, docs: { id: string; content: string }[]): Promise<string[]> {
+    if (docs.length === 0) return [];
+
+    const prompt = `You are a relevance ranking system.
+Query: "${query}"
+
+Documents to Evaluate:
+${docs.map((d, i) => `[${i}] ${d.content.substring(0, 300)}...`).join('\n')}
+
+Task: Identify which documents contain the answer to the query.
+Return the indices of the relevant documents as a JSON array (e.g. {"indices": [0, 2]}).
+If none are relevant, return {"indices": []}.
+Strictly return JSON.`;
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: 'llama-3.1-8b-instant', // Use fast model for ranking
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.0,
+        response_format: { type: 'json_object' }
+      });
+
+      const content = response.choices[0]?.message?.content || '{}';
+      // Parse JSON
+      const result = JSON.parse(content);
+      const list = result.indices || [];
+
+      return list.map((i: number) => docs[i]?.id).filter((id: string) => id !== undefined);
+    } catch (error) {
+      console.error('Reranking failed:', error);
+      // Fallback: return top 3 original
+      return docs.slice(0, 3).map(d => d.id);
+    }
+  }
 }
 
 export const groqService = new GroqService();

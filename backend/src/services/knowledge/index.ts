@@ -2,6 +2,7 @@ import { KnowledgeDoc } from '@prisma/client';
 // Dynamic import required for @xenova/transformers in CJS environment
 import MiniSearch from 'minisearch';
 import prisma from '../../db/prisma';
+import { groqService } from '../groq';
 
 // Interface for in-memory document with embedding
 interface CachedDoc {
@@ -156,7 +157,10 @@ export class KnowledgeService {
     /**
      * HYBRID SEARCH (Keyword + Vector) with Reciprocal Rank Fusion (RRF)
      */
-    public async search(query: string, limit = 3): Promise<Array<{ id: string; title: string; content: string; score: number }>> {
+    /**
+     * HYBRID SEARCH (Keyword + Vector) with Reciprocal Rank Fusion (RRF) and LLM Re-ranking
+     */
+    public async search(query: string, limit = 3, rerank = true): Promise<Array<{ id: string; title: string; content: string; score: number }>> {
         if (!this.isInitialized || !this.extractor) {
             await this.initialize();
         }
@@ -172,12 +176,12 @@ export class KnowledgeService {
                 }))
                 .filter(r => r.score > 0.15)
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 10);
+                .slice(0, 20); // More candidates
 
             // 2. Keyword Search
             const keywordResults = this.searchIndex.search(query)
                 .map(res => ({ id: res.id, score: res.score }))
-                .slice(0, 10);
+                .slice(0, 20); // More candidates
 
             // 3. RRF Fusion
             const rrfScores = new Map<string, number>();
@@ -193,10 +197,10 @@ export class KnowledgeService {
                 rrfScores.set(res.id, current + (1 / (k + rank + 1)));
             });
 
-            // 4. Sort & Format
-            const finalResults = Array.from(rrfScores.entries())
+            // 4. Initial Sort (Top 10 candidates for Reranking)
+            let candidates = Array.from(rrfScores.entries())
                 .sort((a, b) => b[1] - a[1])
-                .slice(0, limit)
+                .slice(0, 10)
                 .map(([id, score]) => {
                     const doc = this.cachedDocs.find(d => d.id === id);
                     if (!doc) return null;
@@ -209,7 +213,17 @@ export class KnowledgeService {
                 })
                 .filter((r): r is NonNullable<typeof r> => r !== null);
 
-            return finalResults;
+            // 5. LLM Re-ranking
+            if (rerank && candidates.length > 0) {
+                const relevantIds = await groqService.rankDocuments(query, candidates);
+                // Filter candidates to keep only relevant ones (preserving original RRF order if ranking didn't return explicit order, 
+                // but typically ranking returns ALL relevant IDs. If ranking returns subset, we use subset).
+                if (relevantIds.length > 0) {
+                    candidates = candidates.filter(c => relevantIds.includes(c.id));
+                }
+            }
+
+            return candidates.slice(0, limit);
 
         } catch (error) {
             console.error('Hybrid search failed:', error);
