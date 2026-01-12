@@ -481,14 +481,14 @@ export function createAdminRouterPrisma(
                 return res.status(400).json({ error: 'Extracted text is empty' });
             }
 
-            // Create doc immediately
-            const doc = await KnowledgeService.getInstance().createDoc({
-                title: originalname,
-                content: extractedText,
-                tags: ['uploaded']
-            });
+            // Create docs with chunking
+            const docs = await KnowledgeService.getInstance().createDocsFromText(
+                originalname,
+                extractedText,
+                ['uploaded']
+            );
 
-            res.status(201).json(doc);
+            res.status(201).json(docs);
         } catch (error) {
             console.error('Upload doc error:', error);
             res.status(500).json({ error: 'Failed to upload document' });

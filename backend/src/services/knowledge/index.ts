@@ -219,6 +219,46 @@ export class KnowledgeService {
 
     // --- CRUD Operations ---
 
+    /**
+     * Create multiple docs from large text by chunking
+     */
+    public async createDocsFromText(title: string, fullText: string, tags: string[] = []) {
+        // Chunking Strategy: Split by paragraphs, keeping chunks < 1000 chars
+        const CHUNK_SIZE = 1000;
+        const paragraphs = fullText.split(/\n\s*\n/);
+
+        const chunks: string[] = [];
+        let currentChunk = '';
+
+        for (const para of paragraphs) {
+            if ((currentChunk.length + para.length) > CHUNK_SIZE && currentChunk.length > 0) {
+                chunks.push(currentChunk.trim());
+                currentChunk = '';
+            }
+            currentChunk += (currentChunk ? '\n\n' : '') + para;
+        }
+        if (currentChunk.trim()) {
+            chunks.push(currentChunk.trim());
+        }
+
+        const createdDocs = [];
+
+        // If only 1 chunk (and not huge), create as normal
+        if (chunks.length <= 1) {
+            return [await this.createDoc({ title, content: fullText, tags })];
+        }
+
+        // Create multiple docs
+        let part = 1;
+        for (const chunk of chunks) {
+            const chunkTitle = `${title} (Part ${part})`;
+            const doc = await this.createDoc({ title: chunkTitle, content: chunk, tags });
+            createdDocs.push(doc);
+            part++;
+        }
+        return createdDocs;
+    }
+
     public async createDoc(data: { title: string; content: string; tags: string[] }) {
         let embedding: number[] | null = null;
         try {
