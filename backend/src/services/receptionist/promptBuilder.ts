@@ -78,13 +78,24 @@ export function buildSystemPrompt(
         }).join('\n');
     }
 
+
     // Build Hours Text
+    const formatTime = (time: string) => {
+        if (!time) return '';
+        const [h, m] = time.split(':');
+        let hour = parseInt(h);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        hour = hour % 12;
+        hour = hour ? hour : 12; // the hour '0' should be '12'
+        return `${hour}:${m} ${ampm}`;
+    };
+
     const hoursText = Object.entries(hours)
         .map(([day, h]) => {
             const openTime = h.open || h.start;
             const closeTime = h.close || h.end;
             if (!openTime || !closeTime) return `- ${day}: Closed`;
-            return `- ${day}: ${openTime} - ${closeTime}`;
+            return `- ${day}: ${formatTime(openTime)} - ${formatTime(closeTime)}`;
         })
         .join('\n');
 

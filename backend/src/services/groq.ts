@@ -89,7 +89,7 @@ export class GroqService {
           const response = await this.client.chat.completions.create({
             model: currentModel,
             messages: messages,
-            temperature: 0.7,
+            temperature: 0.2,
             max_tokens: 1024,
             top_p: 1,
             stream: false
@@ -155,7 +155,7 @@ export class GroqService {
           messages: messages,
           tools: tools,
           tool_choice: 'auto',
-          temperature: 0.7,
+          temperature: 0.2,
           max_tokens: 1024
         });
 
@@ -209,7 +209,7 @@ export class GroqService {
       const response = await this.client.chat.completions.create({
         model: options?.model || this.model,
         messages: messages,
-        temperature: options?.temperature ?? 0.7,
+        temperature: options?.temperature ?? 0.2,
         max_tokens: options?.maxTokens ?? 1024,
         stream: false
       });
