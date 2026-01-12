@@ -1,4 +1,5 @@
-import { FAQ, WeeklySchedule } from '../adminPrisma';
+import { WeeklySchedule } from '../adminPrisma';
+import { FAQ } from './types';
 
 interface BusinessConfig {
     name: string;
