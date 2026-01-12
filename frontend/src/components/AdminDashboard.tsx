@@ -234,7 +234,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     }
   })();
 
-  const dataLoading = isOverviewLoading || isTableLoading;
 
   // --- Render ---
 
@@ -299,77 +298,89 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         {activeTab === 'overview' && stats && !isOverviewLoading && (
           <Overview
             stats={stats}
-            appointmentStats={appointmentStats || undefined}
+            appointmentStats={appointmentStats || null}
             onRefresh={refreshOverviewStats}
           />
         )}
 
         {/* Appointments Tab */}
-        {activeTab === 'appointments' && !isTableLoading && (
-          <Appointments
-            appointments={appointments}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            filter={appointmentFilter}
-            setFilter={setAppointmentFilter}
-            onUpdateStatus={handleUpdateAppointmentStatus}
-          />
-        )}
+        {
+          activeTab === 'appointments' && !isTableLoading && (
+            <Appointments
+              appointments={appointments}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              filter={appointmentFilter}
+              setFilter={setAppointmentFilter}
+              onUpdateStatus={handleUpdateAppointmentStatus}
+            />
+          )
+        }
 
         {/* Staff Tab */}
-        {activeTab === 'staff' && !isTableLoading && (
-          <StaffManager
-            staff={staff}
-            availableServices={publicServices}
-            serverUrl={serverUrl}
-            getAuthHeaders={getAuthHeaders}
-            onRefresh={() => mutateStaff()}
-            onLogout={handleLogout}
-          />
-        )}
+        {
+          activeTab === 'staff' && !isTableLoading && (
+            <StaffManager
+              staff={staff}
+              availableServices={publicServices}
+              serverUrl={serverUrl}
+              getAuthHeaders={getAuthHeaders}
+              onRefresh={() => mutateStaff()}
+              onLogout={handleLogout}
+            />
+          )
+        }
 
         {/* Services Tab */}
-        {activeTab === 'services' && !isTableLoading && (
-          <ServicesManager
-            services={adminServices}
-            serverUrl={serverUrl}
-            getAuthHeaders={getAuthHeaders}
-            onRefresh={() => mutateServices()}
-            onLogout={handleLogout}
-          />
-        )}
+        {
+          activeTab === 'services' && !isTableLoading && (
+            <ServicesManager
+              services={adminServices}
+              serverUrl={serverUrl}
+              getAuthHeaders={getAuthHeaders}
+              onRefresh={() => mutateServices()}
+              onLogout={handleLogout}
+            />
+          )
+        }
 
         {/* Holidays Tab */}
-        {activeTab === 'holidays' && !isTableLoading && (
-          <HolidaysManager
-            holidays={holidays}
-            serverUrl={serverUrl}
-            getAuthHeaders={getAuthHeaders}
-            onRefresh={() => mutateHolidays()}
-            onLogout={handleLogout}
-          />
-        )}
+        {
+          activeTab === 'holidays' && !isTableLoading && (
+            <HolidaysManager
+              holidays={holidays}
+              serverUrl={serverUrl}
+              getAuthHeaders={getAuthHeaders}
+              onRefresh={() => mutateHolidays()}
+              onLogout={handleLogout}
+            />
+          )
+        }
 
         {/* Knowledge Base Tab */}
-        {activeTab === 'knowledge' && (
-          <KnowledgeBase
-            serverUrl={serverUrl}
-            getAuthHeaders={getAuthHeaders}
-          />
-        )}
+        {
+          activeTab === 'knowledge' && (
+            <KnowledgeBase
+              serverUrl={serverUrl}
+              getAuthHeaders={getAuthHeaders}
+            />
+          )
+        }
 
         {/* Callbacks Tab */}
-        {activeTab === 'callbacks' && !isTableLoading && (
-          <CallbacksManager
-            callbacks={callbacks}
-            serverUrl={serverUrl}
-            getAuthHeaders={getAuthHeaders}
-            onRefresh={() => mutateCallbacks()}
-            onLogout={handleLogout}
-          />
-        )}
-      </main>
-    </div>
+        {
+          activeTab === 'callbacks' && !isTableLoading && (
+            <CallbacksManager
+              callbacks={callbacks}
+              serverUrl={serverUrl}
+              getAuthHeaders={getAuthHeaders}
+              onRefresh={() => mutateCallbacks()}
+              onLogout={handleLogout}
+            />
+          )
+        }
+      </main >
+    </div >
   );
 };
 
