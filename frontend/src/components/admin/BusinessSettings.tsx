@@ -92,7 +92,7 @@ export const BusinessSettings: React.FC<BusinessSettingsProps> = ({ serverUrl, g
     };
 
     return (
-        <div className="section-container">
+        <div className="admin-content">
             <div className="section-header">
                 <h2>Business Profile</h2>
                 <p className="subtitle">Core information used by the AI receptionist to identify your business.</p>
@@ -164,7 +164,7 @@ export const BusinessSettings: React.FC<BusinessSettingsProps> = ({ serverUrl, g
                     />
                 </div>
 
-                <div className="form-actions" style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <div className="form-actions">
                     <button type="submit" className="btn-primary" disabled={isSaving}>
                         {isSaving ? 'Saving...' : 'Save Business Profile'}
                     </button>

@@ -265,24 +265,24 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
     };
 
     return (
-        <div className="admin-section">
+        <div className="admin-content">
             <div className="section-header">
                 <h2>Knowledge Base</h2>
-                <div className="tabs">
+                <div className="admin-tabs">
                     <button
-                        className={`tab-btn ${activeTab === 'faqs' ? 'active' : ''}`}
+                        className={`admin-tab ${activeTab === 'faqs' ? 'active' : ''}`}
                         onClick={() => setActiveTab('faqs')}
                     >
                         FAQs
                     </button>
                     <button
-                        className={`tab-btn ${activeTab === 'docs' ? 'active' : ''}`}
+                        className={`admin-tab ${activeTab === 'docs' ? 'active' : ''}`}
                         onClick={() => setActiveTab('docs')}
                     >
                         Documents (RAG)
                     </button>
                     <button
-                        className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+                        className={`admin-tab ${activeTab === 'settings' ? 'active' : ''}`}
                         onClick={() => setActiveTab('settings')}
                     >
                         System Settings
