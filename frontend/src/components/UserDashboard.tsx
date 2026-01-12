@@ -152,15 +152,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({
             />
 
             {/* Quick Action Button to Open Chat */}
-            {!chatOpen && (
-                <button
-                    className="open-chat-fab"
-                    onClick={() => setChatOpen(true)}
-                    aria-label="Open chat"
-                >
-                    💬 Need Help?
-                </button>
-            )}
+
         </div>
     );
 };
