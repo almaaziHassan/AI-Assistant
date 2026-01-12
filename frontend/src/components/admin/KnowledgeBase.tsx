@@ -459,17 +459,116 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
             {!isLoading && activeTab === 'settings' && (
                 <div className="settings-container">
                     {editingKey ? (
-                        <div className="json-editor">
-                            <h3>Editing: {editingKey}</h3>
-                            <textarea
-                                value={settingValue}
-                                onChange={e => setSettingValue(e.target.value)}
-                                rows={15}
-                                style={{ fontFamily: 'monospace', width: '100%' }}
-                            />
-                            <div className="actions" style={{ marginTop: '10px' }}>
-                                <button className="btn-save" onClick={handleSaveSetting}>Save JSON</button>
-                                <button onClick={() => setEditingKey(null)} style={{ marginLeft: '10px' }}>Cancel</button>
+                        <div className="admin-form settings-editor">
+                            <div className="section-header">
+                                <h3>Editing: {editingKey}</h3>
+                                {editingKey !== 'receptionist' && editingKey !== 'appointmentSettings' && (
+                                    <span className="status-badge pending">Advanced JSON Mode</span>
+                                )}
+                            </div>
+
+                            {/* Specialized Form for Receptionist */}
+                            {editingKey === 'receptionist' && (
+                                <div className="specialized-form">
+                                    <div className="form-group">
+                                        <label>Receptionist Name</label>
+                                        <input
+                                            type="text"
+                                            defaultValue={JSON.parse(settingValue).name}
+                                            onChange={e => {
+                                                const current = JSON.parse(settingValue);
+                                                current.name = e.target.value;
+                                                setSettingValue(JSON.stringify(current, null, 2));
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Persona / Tone</label>
+                                        <input
+                                            type="text"
+                                            defaultValue={JSON.parse(settingValue).persona}
+                                            onChange={e => {
+                                                const current = JSON.parse(settingValue);
+                                                current.persona = e.target.value;
+                                                setSettingValue(JSON.stringify(current, null, 2));
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Greeting Message</label>
+                                        <textarea
+                                            rows={3}
+                                            defaultValue={JSON.parse(settingValue).greeting}
+                                            onChange={e => {
+                                                const current = JSON.parse(settingValue);
+                                                current.greeting = e.target.value;
+                                                setSettingValue(JSON.stringify(current, null, 2));
+                                            }}
+                                        />
+                                        <span className="helper-text">You can use {'{business_name}'} and {'{receptionist_name}'} placeholders.</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Specialized Form for Appointment Settings */}
+                            {editingKey === 'appointmentSettings' && (
+                                <div className="specialized-form">
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Slot Duration (min)</label>
+                                            <input
+                                                type="number"
+                                                defaultValue={JSON.parse(settingValue).slotDuration}
+                                                onChange={e => {
+                                                    const current = JSON.parse(settingValue);
+                                                    current.slotDuration = parseInt(e.target.value);
+                                                    setSettingValue(JSON.stringify(current, null, 2));
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Buffer Between Appts (min)</label>
+                                            <input
+                                                type="number"
+                                                defaultValue={JSON.parse(settingValue).bufferBetweenAppointments}
+                                                onChange={e => {
+                                                    const current = JSON.parse(settingValue);
+                                                    current.bufferBetweenAppointments = parseInt(e.target.value);
+                                                    setSettingValue(JSON.stringify(current, null, 2));
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Max Advance Booking (Days)</label>
+                                        <input
+                                            type="number"
+                                            defaultValue={JSON.parse(settingValue).maxAdvanceBookingDays}
+                                            onChange={e => {
+                                                const current = JSON.parse(settingValue);
+                                                current.maxAdvanceBookingDays = parseInt(e.target.value);
+                                                setSettingValue(JSON.stringify(current, null, 2));
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Fallback JSON Editor for other keys */}
+                            {editingKey !== 'receptionist' && editingKey !== 'appointmentSettings' && (
+                                <div className="json-editor">
+                                    <textarea
+                                        value={settingValue}
+                                        onChange={e => setSettingValue(e.target.value)}
+                                        rows={15}
+                                        style={{ fontFamily: 'monospace', width: '100%' }}
+                                    />
+                                </div>
+                            )}
+
+                            <div className="form-actions">
+                                <button className="btn-save" onClick={handleSaveSetting}>Save Changes</button>
+                                <button className="btn-secondary" onClick={() => setEditingKey(null)} style={{ marginLeft: '10px', padding: '10px 20px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer' }}>Cancel</button>
                             </div>
                         </div>
                     ) : (
@@ -477,11 +576,25 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                             {settings.map(setting => (
                                 <div key={setting.key} className="item-card">
                                     <div className="item-header">
-                                        <h3>{setting.key}</h3>
-                                        <button onClick={() => handleEditSetting(setting)}>Edit JSON</button>
+                                        <h3>{setting.key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h3>
+                                        <button className="btn-small" onClick={() => handleEditSetting(setting)}>Edit</button>
                                     </div>
-                                    <p className="description">{setting.description}</p>
-                                    <pre className="preview">{JSON.stringify(setting.value, null, 2).slice(0, 100)}...</pre>
+                                    <p className="description" style={{ color: '#6b7280', fontSize: '14px', marginBottom: '10px' }}>{setting.description}</p>
+                                    {/* Show a simplified preview depending on type */}
+                                    <div className="preview">
+                                        {setting.key === 'receptionist' ? (
+                                            <div>
+                                                <strong>Name:</strong> {setting.value.name}<br />
+                                                <strong>Persona:</strong> {setting.value.persona}
+                                            </div>
+                                        ) : setting.key === 'appointmentSettings' ? (
+                                            <div>
+                                                Max Advance: {setting.value.maxAdvanceBookingDays} days | Slots: {setting.value.slotDuration} min
+                                            </div>
+                                        ) : (
+                                            <pre style={{ margin: 0 }}>{JSON.stringify(setting.value, null, 2).slice(0, 150)}...</pre>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
