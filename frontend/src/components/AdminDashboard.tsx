@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import useSWR, { useSWRConfig } from 'swr';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { AdminLogin } from './admin/Login';
 import { Overview } from './admin/Overview';
@@ -24,16 +25,6 @@ interface AdminDashboardProps {
   serverUrl: string;
 }
 
-// Cache TTL in milliseconds (2 minutes for most data, 30 seconds for dynamic data)
-const CACHE_TTL = {
-  overview: 30 * 1000,      // 30 seconds - dynamic stats
-  appointments: 60 * 1000,  // 1 minute
-  callbacks: 60 * 1000,     // 1 minute
-  staff: 2 * 60 * 1000,     // 2 minutes - rarely changes
-  services: 2 * 60 * 1000,  // 2 minutes - rarely changes
-  holidays: 2 * 60 * 1000   // 2 minutes - rarely changes
-};
-
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
   const {
     isAuthenticated,
@@ -46,149 +37,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     getAuthHeaders
   } = useAdminAuth(serverUrl);
 
+  const { mutate: globalMutate } = useSWRConfig();
+
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays' | 'knowledge'>('overview');
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [appointmentStats, setAppointmentStats] = useState<AppointmentStats | null>(null);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [callbacks, setCallbacks] = useState<CallbackRequest[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
-
-  // Data loading state
-  const [dataLoading, setDataLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [availableServices, setAvailableServices] = useState<Service[]>([]);
   const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
 
-  // Cache timestamps to avoid redundant API calls
-  const cacheTimestamps = useRef<Record<string, number>>({});
-
-  // Check if cache is still valid
-  const isCacheValid = useCallback((tab: string) => {
-    const timestamp = cacheTimestamps.current[tab];
-    if (!timestamp) return false;
-    const ttl = CACHE_TTL[tab as keyof typeof CACHE_TTL] || 60000;
-    return Date.now() - timestamp < ttl;
-  }, []);
-
-  // Mark cache as updated
-  const updateCacheTimestamp = useCallback((tab: string) => {
-    cacheTimestamps.current[tab] = Date.now();
-  }, []);
-
-  // Invalidate cache for a specific tab (call after mutations)
-  const invalidateCache = useCallback((tab: string) => {
-    cacheTimestamps.current[tab] = 0;
-  }, []);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      // Only fetch if cache is invalid
-      if (!isCacheValid(activeTab)) {
-        fetchData();
-      }
-    }
-  }, [activeTab, isAuthenticated]);
-
-  // Auto-refresh overview stats every 30 seconds
-  useEffect(() => {
-    if (!isAuthenticated || activeTab !== 'overview') return;
-
-    const interval = setInterval(() => {
-      refreshOverviewStats();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [isAuthenticated, activeTab]);
-
-  // Refresh only overview stats (without loading state)
-  const refreshOverviewStats = async () => {
-    const headers = getAuthHeaders();
-    try {
-      const [statsRes, aptStatsRes] = await Promise.all([
-        fetch(`${serverUrl}/api/admin/dashboard`, { headers }),
-        fetch(`${serverUrl}/api/appointments/stats`, { headers })
-      ]);
-      if (statsRes.status === 401) { handleLogout(); return; }
-      if (statsRes.ok) setStats(await statsRes.json());
-      if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
-    } catch {
-      // Silently fail on background refresh
-    }
-  };
-
-  const fetchData = async () => {
-    setDataLoading(true);
-    setError(null);
-    const headers = getAuthHeaders();
-
-    try {
-      switch (activeTab) {
-        case 'overview':
-          const [statsRes, aptStatsRes] = await Promise.all([
-            fetch(`${serverUrl}/api/admin/dashboard`, { headers }),
-            fetch(`${serverUrl}/api/appointments/stats`, { headers })
-          ]);
-          if (statsRes.status === 401) { handleLogout(); return; }
-          if (statsRes.ok) setStats(await statsRes.json());
-          if (aptStatsRes.ok) setAppointmentStats(await aptStatsRes.json());
-          updateCacheTimestamp('overview');
-          break;
-        case 'appointments':
-          const dateRange = getDateRange(appointmentFilter);
-          let aptsUrl = `${serverUrl}/api/admin/appointments`;
-          if (dateRange) {
-            aptsUrl += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
-          }
-          const aptsRes = await fetch(aptsUrl, { headers });
-          if (aptsRes.status === 401) { handleLogout(); return; }
-          if (aptsRes.ok) setAppointments(await aptsRes.json());
-          updateCacheTimestamp('appointments');
-          break;
-        case 'staff':
-          const [staffRes, servicesRes] = await Promise.all([
-            fetch(`${serverUrl}/api/admin/staff`, { headers }),
-            fetch(`${serverUrl}/api/services`)
-          ]);
-          if (staffRes.status === 401) { handleLogout(); return; }
-          if (staffRes.ok) setStaff(await staffRes.json());
-          if (servicesRes.ok) setAvailableServices(await servicesRes.json());
-          updateCacheTimestamp('staff');
-          break;
-        case 'services':
-          const svcsRes = await fetch(`${serverUrl}/api/admin/services`, { headers });
-          if (svcsRes.status === 401) { handleLogout(); return; }
-          if (svcsRes.ok) setAvailableServices(await svcsRes.json());
-          updateCacheTimestamp('services');
-          break;
-        case 'holidays':
-          const holidaysRes = await fetch(`${serverUrl}/api/admin/holidays`, { headers });
-          if (holidaysRes.status === 401) { handleLogout(); return; }
-          if (holidaysRes.ok) setHolidays(await holidaysRes.json());
-          updateCacheTimestamp('holidays');
-          break;
-        case 'callbacks':
-          const callbacksRes = await fetch(`${serverUrl}/api/callbacks`, { headers });
-          if (callbacksRes.status === 401) { handleLogout(); return; }
-          if (callbacksRes.ok) setCallbacks(await callbacksRes.json());
-          updateCacheTimestamp('callbacks');
-          break;
-      }
-    } catch (err) {
-      setError('Failed to load data');
-    } finally {
-      setDataLoading(false);
-    }
-  };
-
-  // Refetch appointments when filter changes
-  useEffect(() => {
-    if (activeTab === 'appointments') {
-      fetchData();
-    }
-  }, [appointmentFilter]);
+  // --- Helpers ---
 
   // Helper to get date range based on filter
   const getDateRange = (filter: 'today' | 'week' | 'month' | 'all'): { startDate: string; endDate: string } | null => {
@@ -223,6 +78,118 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     }
   };
 
+  // --- SWR Fetcher ---
+  const fetcher = useCallback(async (url: string) => {
+    const headers = getAuthHeaders();
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      handleLogout();
+      throw new Error('Unauthorized');
+    }
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'Failed to fetch data');
+      throw new Error(errorText || 'Failed to fetch data');
+    }
+    return res.json();
+  }, [getAuthHeaders, handleLogout]);
+
+  // --- SWR Hooks ---
+
+  // Overview Data (Auto-refresh every 30s)
+  const {
+    data: stats,
+    mutate: mutateStats,
+    error: statsError
+  } = useSWR<DashboardStats>(
+    isAuthenticated && activeTab === 'overview' ? `${serverUrl}/api/admin/dashboard` : null,
+    fetcher,
+    { refreshInterval: 30000 }
+  );
+
+  const {
+    data: appointmentStats,
+    mutate: mutateAptStats,
+    error: aptStatsError
+  } = useSWR<AppointmentStats>(
+    isAuthenticated && activeTab === 'overview' ? `${serverUrl}/api/appointments/stats` : null,
+    fetcher,
+    { refreshInterval: 30000 }
+  );
+
+  // Appointments Data
+  const dateRange = getDateRange(appointmentFilter);
+  const appointmentsUrl = isAuthenticated && activeTab === 'appointments'
+    ? `${serverUrl}/api/admin/appointments` + (dateRange ? `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}` : '')
+    : null;
+
+  const {
+    data: appointments = [],
+    mutate: mutateAppointments,
+    error: appointmentsError,
+    isLoading: appointmentsLoading
+  } = useSWR<Appointment[]>(
+    appointmentsUrl,
+    fetcher
+  );
+
+  // Staff Data
+  const {
+    data: staff = [],
+    mutate: mutateStaff,
+    error: staffError,
+    isLoading: staffLoading
+  } = useSWR<Staff[]>(
+    isAuthenticated && activeTab === 'staff' ? `${serverUrl}/api/admin/staff` : null,
+    fetcher
+  );
+
+  // Public Services (for Staff tab forms)
+  const {
+    data: publicServices = []
+  } = useSWR<Service[]>(
+    isAuthenticated && activeTab === 'staff' ? `${serverUrl}/api/services` : null,
+    fetcher
+  );
+
+  // Admin Services Data (for Services Manager)
+  const {
+    data: adminServices = [],
+    mutate: mutateServices,
+    error: servicesError,
+    isLoading: servicesLoading
+  } = useSWR<Service[]>(
+    isAuthenticated && activeTab === 'services' ? `${serverUrl}/api/admin/services` : null,
+    fetcher
+  );
+
+  // Holidays Data
+  const {
+    data: holidays = [],
+    mutate: mutateHolidays,
+    error: holidaysError,
+    isLoading: holidaysLoading
+  } = useSWR<Holiday[]>(
+    isAuthenticated && activeTab === 'holidays' ? `${serverUrl}/api/admin/holidays` : null,
+    fetcher
+  );
+
+  // Callbacks Data (Fetch always if authenticated to show badge counts)
+  const {
+    data: callbacks = [],
+    mutate: mutateCallbacks,
+    error: callbacksError,
+    isLoading: callbacksLoading
+  } = useSWR<CallbackRequest[]>(
+    isAuthenticated ? `${serverUrl}/api/callbacks` : null,
+    fetcher
+  );
+
+  // --- Handlers ---
+
+  const refreshOverviewStats = async () => {
+    await Promise.all([mutateStats(), mutateAptStats()]);
+  };
+
   const handleUpdateAppointmentStatus = async (id: string, status: 'pending' | 'confirmed' | 'completed' | 'no-show' | 'cancelled') => {
     try {
       const tz = new Date().getTimezoneOffset();
@@ -231,14 +198,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         headers: getAuthHeaders(),
         body: JSON.stringify({ status, tz })
       });
+
       if (res.status === 401) { handleLogout(); return; }
+
       if (res.ok) {
-        setAppointments(prev => prev.map(apt =>
-          apt.id === id ? { ...apt, status } : apt
-        ));
-        // Invalidate overview cache since stats changed
-        invalidateCache('overview');
-        refreshOverviewStats();
+        // Revalidate appointments list
+        mutateAppointments();
+        // Also invalidate overview stats if they are cached
+        globalMutate(`${serverUrl}/api/admin/dashboard`);
+        globalMutate(`${serverUrl}/api/appointments/stats`);
       } else {
         const err = await res.json();
         alert(err.error || 'Failed to update appointment status');
@@ -248,7 +216,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     }
   };
 
-  // Show loading while checking auth
+  // Determine error state
+  const error = statsError || aptStatsError || appointmentsError || staffError || servicesError || holidaysError || callbacksError;
+  const errorMsg = error ? (error.message || 'Failed to load data') : null;
+
+  // Determine loading state for Skeletons (true only if no data AND loading)
+  // SWR keeps old data during revalidation, so !data check prevents skeleton flicker on tab switch
+  const isOverviewLoading = activeTab === 'overview' && (!stats || !appointmentStats) && !error;
+  const isTableLoading = (() => {
+    switch (activeTab) {
+      case 'appointments': return appointmentsLoading && appointments.length === 0;
+      case 'staff': return staffLoading && staff.length === 0;
+      case 'services': return servicesLoading && adminServices.length === 0;
+      case 'holidays': return holidaysLoading && holidays.length === 0;
+      case 'callbacks': return callbacksLoading && callbacks.length === 0;
+      default: return false;
+    }
+  })();
+
+  const dataLoading = isOverviewLoading || isTableLoading;
+
+  // --- Render ---
+
   if (authLoading) {
     return (
       <div className="admin-dashboard">
@@ -257,7 +246,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
     );
   }
 
-  // Show login form if not authenticated
   if (!isAuthenticated) {
     return (
       <AdminLogin
@@ -301,23 +289,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
       </nav>
 
       <main className="admin-content">
-        {error && <div className="admin-error">{error}</div>}
+        {errorMsg && <div className="admin-error">{errorMsg}</div>}
 
-        {/* Show skeleton loaders based on active tab */}
-        {dataLoading && activeTab === 'overview' && <StatsSkeleton />}
-        {dataLoading && activeTab !== 'overview' && <TableSkeleton rows={6} cols={5} />}
+        {/* Show skeleton loaders */}
+        {isOverviewLoading && <StatsSkeleton />}
+        {isTableLoading && <TableSkeleton rows={6} cols={5} />}
 
         {/* Overview Tab */}
-        {activeTab === 'overview' && stats && !dataLoading && (
+        {activeTab === 'overview' && stats && !isOverviewLoading && (
           <Overview
             stats={stats}
-            appointmentStats={appointmentStats}
+            appointmentStats={appointmentStats || undefined}
             onRefresh={refreshOverviewStats}
           />
         )}
 
         {/* Appointments Tab */}
-        {activeTab === 'appointments' && !dataLoading && (
+        {activeTab === 'appointments' && !isTableLoading && (
           <Appointments
             appointments={appointments}
             viewMode={viewMode}
@@ -329,35 +317,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         )}
 
         {/* Staff Tab */}
-        {activeTab === 'staff' && !dataLoading && (
+        {activeTab === 'staff' && !isTableLoading && (
           <StaffManager
             staff={staff}
-            availableServices={availableServices}
+            availableServices={publicServices}
             serverUrl={serverUrl}
             getAuthHeaders={getAuthHeaders}
-            onRefresh={fetchData}
+            onRefresh={() => mutateStaff()}
             onLogout={handleLogout}
           />
         )}
 
         {/* Services Tab */}
-        {activeTab === 'services' && !dataLoading && (
+        {activeTab === 'services' && !isTableLoading && (
           <ServicesManager
-            services={availableServices}
+            services={adminServices}
             serverUrl={serverUrl}
             getAuthHeaders={getAuthHeaders}
-            onRefresh={fetchData}
+            onRefresh={() => mutateServices()}
             onLogout={handleLogout}
           />
         )}
 
         {/* Holidays Tab */}
-        {activeTab === 'holidays' && !dataLoading && (
+        {activeTab === 'holidays' && !isTableLoading && (
           <HolidaysManager
             holidays={holidays}
             serverUrl={serverUrl}
             getAuthHeaders={getAuthHeaders}
-            onRefresh={fetchData}
+            onRefresh={() => mutateHolidays()}
             onLogout={handleLogout}
           />
         )}
@@ -371,12 +359,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
         )}
 
         {/* Callbacks Tab */}
-        {activeTab === 'callbacks' && !dataLoading && (
+        {activeTab === 'callbacks' && !isTableLoading && (
           <CallbacksManager
             callbacks={callbacks}
             serverUrl={serverUrl}
             getAuthHeaders={getAuthHeaders}
-            onRefresh={fetchData}
+            onRefresh={() => mutateCallbacks()}
             onLogout={handleLogout}
           />
         )}

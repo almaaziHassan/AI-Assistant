@@ -18,7 +18,8 @@
     "test:integration": "jest --testPathPattern=integration",
     "test:stress": "jest --testPathPattern=stress --testTimeout=60000",
     "test:security": "jest --testPathPattern=security",
-    "test:all": "jest --coverage --testTimeout=60000"
+    "test:all": "jest --coverage --testTimeout=60000",
+    "test:email": "tsx scripts/test-email.ts"
   },
   "dependencies": {
     "@getbrevo/brevo": "^3.0.1",

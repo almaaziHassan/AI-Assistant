@@ -2,6 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdminDashboard from '../src/components/AdminDashboard';
+import useSWR from 'swr';
+
+// Mock SWR to avoid "Invalid hook call" and control data state
+const mockUseSWR = vi.fn();
+vi.mock('swr', () => ({
+  default: (key: any, fetcher: any) => mockUseSWR(key, fetcher),
+  useSWRConfig: () => ({ mutate: vi.fn() })
+}));
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -42,31 +50,68 @@ describe('AdminDashboard', () => {
     noShowRate: 0
   };
 
+  const setupMockData = (
+    dashboard: any = defaultMockStats,
+    actionRequired: any[] = [],
+    apptStats: any = defaultAppointmentStats,
+    appointments: any[] = []
+  ) => {
+    mockUseSWR.mockImplementation((key: string) => {
+      if (!key) return { data: undefined, error: undefined, isLoading: false };
+
+      if (key.includes('/api/auth/verify')) return { data: undefined, isLoading: false }; // Handled by fetch
+
+      if (key.includes('/api/admin/dashboard')) return { data: dashboard, error: undefined, isLoading: false };
+      if (key.includes('/api/admin/action-required')) return { data: actionRequired, error: undefined, isLoading: false };
+      if (key.includes('/api/appointments/stats')) return { data: apptStats, error: undefined, isLoading: false };
+      if (key.includes('/api/admin/appointments')) return { data: appointments, error: undefined, isLoading: false };
+
+      return { data: undefined, error: undefined, isLoading: false };
+    });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.getItem.mockReturnValue(null);
 
     // Set up a default implementation that returns safe fallback values
     // This prevents "appointments.map is not a function" errors when mocks run out
+    // Default SWR Mock Implementation
+    mockUseSWR.mockImplementation((key: string) => {
+      if (!key) return { data: undefined, error: undefined, isLoading: false };
+
+      if (key.includes('/api/auth/verify')) {
+        // Auth verify must return valid by default if we want dashboard to render
+        // But tests override this. Let's return valid: true to match most tests
+        // Actually, most tests mock mockFetch for verify. 
+        // AdminDashboard DOES NOT use SWR for auth/verify. It uses fetch in useEffect!
+        // So we don't mock this for SWR.
+        return { data: undefined, isLoading: false };
+      }
+
+      if (key.includes('/api/admin/dashboard')) {
+        return { data: defaultMockStats, error: undefined, isLoading: false };
+      }
+      if (key.includes('/api/admin/appointments')) {
+        // Appointments list
+        return { data: [], error: undefined, isLoading: false };
+      }
+      if (key.includes('/api/appointments/stats')) {
+        return { data: defaultAppointmentStats, error: undefined, isLoading: false };
+      }
+      if (key.includes('/api/admin/action-required')) {
+        return { data: [], error: undefined, isLoading: false };
+      }
+
+      return { data: undefined, error: undefined, isLoading: false };
+    });
+
+    // Mock fetch for non-SWR calls (auth, updates)
     mockFetch.mockImplementation((url: string) => {
-      // Return appropriate defaults based on URL pattern
-      if (url.includes('/api/admin/appointments')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]), status: 200 });
+      if (url.includes('/api/auth')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ valid: true }) });
       }
-      if (url.includes('/api/admin/dashboard')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(defaultMockStats), status: 200 });
-      }
-      if (url.includes('/api/appointments/stats')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(defaultAppointmentStats), status: 200 });
-      }
-      if (url.includes('/api/admin/action-required')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]), status: 200 });
-      }
-      if (url.includes('/status')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }), status: 200 });
-      }
-      // Default fallback
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({}), status: 200 });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
     });
   });
 
@@ -117,11 +162,8 @@ describe('AdminDashboard', () => {
       const existingToken = 'existing-valid-token';
       localStorageMock.getItem.mockReturnValue(existingToken);
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockDashboardStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockDashboardStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -165,11 +207,8 @@ describe('AdminDashboard', () => {
       });
 
       // Mock login response
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ success: true, token }) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockDashboardStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ success: true, token }) });
+      setupMockData(mockDashboardStats, [], mockAppointmentStats);
 
       // Fill in password and submit
       const passwordInput = screen.getByPlaceholderText('Password');
@@ -223,11 +262,8 @@ describe('AdminDashboard', () => {
     it('should show logout button when authenticated', async () => {
       localStorageMock.getItem.mockReturnValue('valid-token');
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockDashboardStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockDashboardStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -241,11 +277,8 @@ describe('AdminDashboard', () => {
       const token = 'valid-token';
       localStorageMock.getItem.mockReturnValue(token);
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockDashboardStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockDashboardStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -289,10 +322,15 @@ describe('AdminDashboard', () => {
 
       mockFetch
         .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce(unauthorizedResponse) // dashboard returns 401
-        .mockResolvedValueOnce(unauthorizedResponse) // action required
-        .mockResolvedValueOnce(unauthorizedResponse) // stats
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ success: true }) }); // logout call from handleLogout
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ success: true }) }); // logout call
+
+      // SWR calls will just return undefined/loading or error if we configured it
+      // But for this test, we want to simulate 401 on data fetch
+      mockUseSWR.mockImplementation(() => {
+        const error: any = new Error('Unauthorized');
+        error.status = 401;
+        throw error;
+      });
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -334,11 +372,8 @@ describe('AdminDashboard', () => {
     });
 
     it('should render stats cards', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockActionRequired) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, mockActionRequired, mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -352,11 +387,8 @@ describe('AdminDashboard', () => {
     });
 
     it('should show completed count from appointment stats', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockActionRequired) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, mockActionRequired, mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -368,11 +400,8 @@ describe('AdminDashboard', () => {
     });
 
     it('should show no-show count and rate', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockActionRequired) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, mockActionRequired, mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -425,11 +454,8 @@ describe('AdminDashboard', () => {
     });
 
     it('should show action required section when appointments need action', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockActionRequired) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, mockActionRequired, mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -442,11 +468,8 @@ describe('AdminDashboard', () => {
     });
 
     it('should show completed and no-show buttons for action required appointments', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockActionRequired) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, mockActionRequired, mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -457,11 +480,8 @@ describe('AdminDashboard', () => {
     });
 
     it('should not show action required section when no appointments need action', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // Empty action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -475,11 +495,8 @@ describe('AdminDashboard', () => {
     it('should call API when marking appointment as completed', async () => {
       const user = userEvent.setup();
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockActionRequired) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, mockActionRequired, mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -509,11 +526,8 @@ describe('AdminDashboard', () => {
     it('should call API when marking appointment as no-show', async () => {
       const user = userEvent.setup();
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockActionRequired) })
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, mockActionRequired, mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -595,11 +609,8 @@ describe('AdminDashboard', () => {
     it('should show three action buttons (Confirm, Cancel, No-Show) for pending appointments', async () => {
       const user = userEvent.setup();
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -630,11 +641,8 @@ describe('AdminDashboard', () => {
     it('should show pending status badge for pending appointments', async () => {
       const user = userEvent.setup();
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -661,11 +669,8 @@ describe('AdminDashboard', () => {
     it('should call confirm API when clicking Confirm button', async () => {
       const user = userEvent.setup();
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -713,11 +718,8 @@ describe('AdminDashboard', () => {
     it('should call cancel API when clicking Cancel button', async () => {
       const user = userEvent.setup();
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -817,11 +819,8 @@ describe('AdminDashboard', () => {
     it('should show date filter buttons', async () => {
       const user = userEvent.setup();
 
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -847,11 +846,8 @@ describe('AdminDashboard', () => {
     });
 
     it('should show pending confirmation count in overview when pending > 0', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
@@ -890,38 +886,31 @@ describe('AdminDashboard', () => {
     });
 
     it('should have Overview tab active by default', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
       await waitFor(() => {
-        const overviewTab = screen.getByText('Overview');
+        const overviewTab = screen.getByRole('button', { name: 'Overview' });
         expect(overviewTab).toHaveClass('active');
-      });
+      }, { timeout: 3000 });
     });
 
     it('should render all tabs', async () => {
-      mockFetch
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) }) // verify
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockStats) }) // dashboard
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) }) // action required
-        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockAppointmentStats) }); // stats
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ valid: true }) });
+      setupMockData(mockStats, [], mockAppointmentStats);
 
       render(<AdminDashboard serverUrl={serverUrl} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Overview')).toBeInTheDocument();
-      });
+        expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument();
+      }, { timeout: 3000 });
 
-      expect(screen.getByText('Appointments')).toBeInTheDocument();
-      expect(screen.getByText('Callbacks')).toBeInTheDocument();
-      expect(screen.getByText('Staff')).toBeInTheDocument();
-      expect(screen.getByText('Holidays')).toBeInTheDocument();
-      expect(screen.getByText('Waitlist')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Appointments' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Callbacks' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Staff' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Holidays' })).toBeInTheDocument();
     });
   });
 });

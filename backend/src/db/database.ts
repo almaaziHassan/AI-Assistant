@@ -278,7 +278,32 @@ async function createPostgresTables(): Promise<void> {
     `);
 
     await client.query(`CREATE INDEX IF NOT EXISTS idx_callbacks_status ON callbacks(status)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_callbacks_status ON callbacks(status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_callbacks_phone ON callbacks(customer_phone)`);
+
+    // FAQs table (NEW)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS faqs (
+        id TEXT PRIMARY KEY,
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        keywords JSONB DEFAULT '[]',
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // System Settings table (NEW)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value JSONB,
+        description TEXT,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     // Migration: Add services column to staff table if it doesn't exist
     try {
@@ -465,6 +490,30 @@ function createSqliteTables(): void {
   `);
 
   sqliteDb.run(`CREATE INDEX IF NOT EXISTS idx_callbacks_status ON callbacks(status)`);
+
+  sqliteDb.run(`CREATE INDEX IF NOT EXISTS idx_callbacks_status ON callbacks(status)`);
+
+  sqliteDb.run(`
+    CREATE TABLE IF NOT EXISTS faqs (
+      id TEXT PRIMARY KEY,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      keywords TEXT,
+      display_order INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  sqliteDb.run(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      description TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   saveSqliteDatabase();
 }

@@ -19,12 +19,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 
 import chatRoutes from './routes/chat';
-import { createAppointmentRouter } from './routes/appointments';
 import { createAppointmentRouterPrisma } from './routes/appointmentsPrisma';
-import { createServicesRouter } from './routes/services';
-import { createAdminRouter } from './routes/admin';
 import { createAdminRouterPrisma } from './routes/adminPrisma';
-import { createCallbacksRouter } from './routes/callbacks';
 import { createCallbacksRouterPrisma } from './routes/callbacksPrisma';
 import { createServicesRouterPrisma } from './routes/servicesPrisma';
 import authRoutes from './routes/auth';
@@ -33,10 +29,8 @@ import usersRoutes from './routes/users';
 
 // Service imports
 import { ReceptionistService } from './services/receptionist';
-import { SchedulerService } from './services/scheduler';
 import { schedulerServicePrisma } from './services/schedulerPrisma';
 import { emailService } from './services/email';
-import { adminService } from './services/admin';
 import { adminServicePrisma } from './services/adminPrisma';
 
 // Core imports
@@ -60,7 +54,6 @@ const PORT = process.env.PORT || 3000;
 // Initialize core services once
 // These instances are shared across all routes and handlers
 const receptionist = new ReceptionistService();
-const scheduler = new SchedulerService();
 
 console.log('✅ Services initialized with Dependency Injection');
 

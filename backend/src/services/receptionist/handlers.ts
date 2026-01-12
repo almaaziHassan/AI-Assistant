@@ -1,4 +1,4 @@
-import { runQuery } from '../../db/database';
+import prisma from '../../db/prisma';
 import { v4 as uuidv4 } from 'uuid';
 import { BookingConfirmation, CallbackConfirmation } from './types';
 import { schedulerServicePrisma } from '../schedulerPrisma';
@@ -82,21 +82,18 @@ export async function executeCallbackRequest(args: {
         await sleep(1500);
 
         const id = uuidv4();
-        const now = new Date().toISOString();
 
-        runQuery(
-            `INSERT INTO callbacks (id, customer_name, customer_phone, customer_email, preferred_time, concerns, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`,
-            [
+        await prisma.callback.create({
+            data: {
                 id,
-                args.customerName.trim(),
-                args.customerPhone.trim(),
-                args.customerEmail?.trim() || null,
-                args.preferredTime || null,
-                args.concerns?.trim() || null,
-                now
-            ]
-        );
+                customerName: args.customerName.trim(),
+                customerPhone: args.customerPhone.trim(),
+                customerEmail: args.customerEmail?.trim() || null,
+                preferredTime: args.preferredTime || null,
+                concerns: args.concerns?.trim() || null,
+                status: 'pending'
+            }
+        });
 
         return {
             success: true,

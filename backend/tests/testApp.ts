@@ -5,10 +5,10 @@
 
 import express from 'express';
 import cors from 'cors';
-import appointmentsRouter from '../src/routes/appointments';
-import servicesRouter from '../src/routes/services';
-import callbacksRouter from '../src/routes/callbacks';
-import adminRouter from '../src/routes/admin';
+import appointmentsRouter from '../src/routes/appointmentsPrisma';
+import servicesRouter from '../src/routes/servicesPrisma';
+import callbacksRouter from '../src/routes/callbacksPrisma';
+import adminRouter from '../src/routes/adminPrisma';
 import chatRouter from '../src/routes/chat';
 import authRoutes from '../src/routes/auth';
 

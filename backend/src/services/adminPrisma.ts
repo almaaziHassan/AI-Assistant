@@ -11,10 +11,10 @@
  */
 
 import prisma from '../db/prisma';
-import type { Staff, Service, Location, Holiday, Appointment, Callback } from '@prisma/client';
+import type { Staff, Service, Location, Holiday, Appointment, Callback, fAQ as FAQ } from '@prisma/client';
 
 // Re-export Prisma types with our interface names
-export type { Staff, Service, Location, Holiday, Appointment, Callback };
+export type { Staff, Service, Location, Holiday, Appointment, Callback, FAQ };
 
 // Custom types for schedule (stored as JSON)
 export interface DailySchedule {
@@ -283,83 +283,59 @@ export class AdminServicePrisma {
 
     async getDashboardStats(): Promise<DashboardStats> {
         const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Midnight today local/server
         const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
         const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-        // Run all counts in parallel for performance
-        const [
-            todayAppointments,
-            weekAppointments,
-            monthAppointments,
-            cancelledCount,
-            upcomingCount,
-            pendingCallbacksCount,
-            noShowCount,
-            topServicesRaw,
-        ] = await Promise.all([
-            // Today's appointments (confirmed only)
-            prisma.appointment.count({
-                where: {
-                    appointmentDate: today,
-                    status: 'confirmed',
-                },
-            }),
+        // Use business time logic for strict "upcoming" check
+        // Assuming server time ~ business time for simplicity, or just use current timestamp
+        // The original analytics.ts used a complex time check. 
+        // We'll simplisticly check date >= today. To be precise with time requires Time comparison.
+        // Postgres: appointment_date > today OR (appointment_date = today AND appointment_time > now_time)
+        // Note: appointment_time is Time type.
 
-            // Week appointments (confirmed only)
-            prisma.appointment.count({
-                where: {
-                    appointmentDate: { gte: weekAgo, lte: today },
-                    status: 'confirmed',
-                },
-            }),
+        const nowTimeStr = now.toTimeString().slice(0, 5); // HH:MM
 
-            // Month appointments (confirmed only)
-            prisma.appointment.count({
-                where: {
-                    appointmentDate: { gte: monthAgo, lte: today },
-                    status: 'confirmed',
-                },
-            }),
+        // 1. Consolidated Appointments Query
+        // Using raw SQL for efficient conditional aggregation vs 6 separate queries
+        const statsQuery = prisma.$queryRaw`
+            SELECT
+                SUM(CASE WHEN appointment_date = ${today} AND status = 'confirmed' THEN 1 ELSE 0 END)::int as today_count,
+                SUM(CASE WHEN appointment_date >= ${weekAgo} AND appointment_date <= ${today} AND status = 'confirmed' THEN 1 ELSE 0 END)::int as week_count,
+                SUM(CASE WHEN appointment_date >= ${monthAgo} AND appointment_date <= ${today} AND status = 'confirmed' THEN 1 ELSE 0 END)::int as month_count,
+                SUM(CASE WHEN appointment_date >= ${monthAgo} AND status = 'cancelled' THEN 1 ELSE 0 END)::int as cancelled_count,
+                SUM(CASE WHEN appointment_date >= ${monthAgo} AND status = 'no-show' THEN 1 ELSE 0 END)::int as noshow_count,
+                SUM(CASE 
+                    WHEN status IN ('pending', 'confirmed') AND (
+                        appointment_date > ${today} 
+                        OR (appointment_date = ${today} AND appointment_time > ${nowTimeStr}::time)
+                    ) THEN 1 ELSE 0 END
+                )::int as upcoming_count
+            FROM appointments
+        `;
 
-            // Cancelled count (this month)
-            prisma.appointment.count({
-                where: {
-                    appointmentDate: { gte: monthAgo },
-                    status: 'cancelled',
-                },
-            }),
+        // 2. Pending Callbacks (Single simple query)
+        const callbacksQuery = prisma.callback.count({
+            where: { status: 'pending' }
+        });
 
-            // Upcoming appointments
-            prisma.appointment.count({
-                where: {
-                    status: { in: ['pending', 'confirmed'] },
-                    appointmentDate: { gte: today },
-                },
-            }),
+        // 3. Top Services (Group by)
+        const topServicesQuery = prisma.appointment.groupBy({
+            by: ['serviceId', 'serviceName'],
+            where: { appointmentDate: { gte: monthAgo } },
+            _count: { id: true },
+            orderBy: { _count: { id: 'desc' } },
+            take: 5,
+        });
 
-            // Pending callbacks
-            prisma.callback.count({
-                where: { status: 'pending' },
-            }),
-
-            // No-shows this month
-            prisma.appointment.count({
-                where: {
-                    appointmentDate: { gte: monthAgo },
-                    status: 'no-show',
-                },
-            }),
-
-            // Top services (grouped)
-            prisma.appointment.groupBy({
-                by: ['serviceId', 'serviceName'],
-                where: { appointmentDate: { gte: monthAgo } },
-                _count: { id: true },
-                orderBy: { _count: { id: 'desc' } },
-                take: 5,
-            }),
+        // Execute all 3 in parallel
+        const [statsRows, pendingCallbacksCount, topServicesRaw] = await Promise.all([
+            statsQuery,
+            callbacksQuery,
+            topServicesQuery
         ]);
+
+        const stats = (statsRows as any[])[0] || {};
 
         const topServices = topServicesRaw.map(row => ({
             serviceId: row.serviceId,
@@ -368,14 +344,14 @@ export class AdminServicePrisma {
         }));
 
         return {
-            todayAppointments,
-            weekAppointments,
-            monthAppointments,
-            totalRevenue: monthAppointments * 100, // Placeholder
-            cancelledCount,
-            upcomingCount,
+            todayAppointments: stats.today_count || 0,
+            weekAppointments: stats.week_count || 0,
+            monthAppointments: stats.month_count || 0,
+            totalRevenue: (stats.month_count || 0) * 100, // Placeholder calculation
+            cancelledCount: stats.cancelled_count || 0,
+            upcomingCount: stats.upcoming_count || 0,
+            noShowCount: stats.noshow_count || 0,
             pendingCallbacksCount,
-            noShowCount,
             topServices,
         };
     }

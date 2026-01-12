@@ -1,17 +1,4 @@
-import { FAQ } from '../admin/types';
-
-interface CommonProblem {
-    problem: string;
-    causes: string[];
-    recommendedServices: string[];
-    advice: string;
-}
-
-interface IndustryKnowledge {
-    commonProblems: CommonProblem[];
-    benefits: Record<string, string[]>;
-    frequencyRecommendations: Record<string, string>;
-}
+import { FAQ, WeeklySchedule } from '../adminPrisma';
 
 interface BusinessConfig {
     name: string;
@@ -35,21 +22,47 @@ interface HoursConfig {
 }
 
 /**
+ * Helper to format a weekly schedule into readable text
+ */
+function formatStaffSchedule(schedule?: WeeklySchedule): string {
+    if (!schedule) return '';
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+    const activeDays = days.filter(d => schedule[d]);
+    if (activeDays.length === 0) return '';
+
+    // Group adjacent days with same hours? For simplicity, just list them or concise format
+    // "Mon-Fri: 9-5" is hard to calculate robustly in 2 lines.
+    // Let's list abbreviated: "Mon: 9-5, Tue: 9-5..."
+
+    return activeDays.map(d => {
+        const h = schedule[d]!;
+        // Capitalize: monday -> Mon
+        const dayName = d.charAt(0).toUpperCase() + d.slice(1, 3);
+        return `${dayName}: ${h.start}-${h.end}`;
+    }).join(', ');
+}
+
+/**
  * Build the system prompt for the AI receptionist
- * This highly detailed prompt guides the AI's behavior and responses
+ * STRICT MODE: Only uses provided configuration, services, staff, and knowledge base.
  */
 export function buildSystemPrompt(
     relevantFAQs: FAQ[] = [],
-    staffList: { id: string; name: string; role: string; services: string[] }[] = [],
+    staffList: {
+        id: string;
+        name: string;
+        role: string;
+        services: string[];
+        schedule?: WeeklySchedule;
+    }[] = [],
     servicesList: { id: string; name: string; description?: string; duration: number; price: number }[] = [],
     config: {
         business: BusinessConfig;
         hours: HoursConfig;
         receptionist: ReceptionistConfig;
-        industryKnowledge?: IndustryKnowledge;
     }
 ): string {
-    const { business, hours, receptionist, industryKnowledge } = config;
+    const { business, hours, receptionist } = config;
 
     // Build Services Text
     const servicesText = servicesList
@@ -59,9 +72,10 @@ export function buildSystemPrompt(
     // Build Staff Text
     let staffText = '';
     if (staffList.length > 0) {
-        staffText = `\n\n## Our Team\n${staffList.map(s => {
+        staffText = `\n\n### Our Team (with Availability)\n${staffList.map(s => {
             const serviceNames = s.services.length > 0 ? ` - Specializes in: ${s.services.join(', ')}` : '';
-            return `- ${s.name} (${s.role})${serviceNames}`;
+            const scheduleText = s.schedule ? `\n  - Working Hours: ${formatStaffSchedule(s.schedule)}` : '';
+            return `- ${s.name} (${s.role})${serviceNames}${scheduleText}`;
         }).join('\n')}`;
     }
 
@@ -73,43 +87,30 @@ export function buildSystemPrompt(
         })
         .join('\n');
 
-    // Build Industry Knowledge Section
-    let industryText = '';
-    if (industryKnowledge) {
-        const problemsText = (industryKnowledge.commonProblems || [])
-            .map(p => `- "${p.problem}": Common causes include ${p.causes.join(', ')}. ${p.advice}`)
-            .join('\n');
-
-        const benefitsText = Object.entries(industryKnowledge.benefits || {})
-            .map(([type, benefits]) => `${type}: ${benefits.join(', ')}`)
-            .join('\n');
-
-        const freqText = Object.entries(industryKnowledge.frequencyRecommendations || {})
-            .map(([type, freq]) => `- ${type}: ${freq}`)
-            .join('\n');
-
-        industryText = `
-\n## Industry Knowledge - Use This to Help Customers
-
-### Common Customer Problems & Solutions
-${problemsText}
-
-### Benefits of Our Services
-${benefitsText}
-
-### Recommended Frequency
-${freqText}`;
-    }
-
     // Build relevant FAQ context if any matched
     let relevantFAQContext = '';
     if (relevantFAQs.length > 0) {
-        relevantFAQContext = `\n\n## Relevant Information for This Query
-The following FAQ entries are relevant to the user's question. Use this information in your response:
+        relevantFAQContext = `\n\n## Relevant Knowledge Base Information
+The following database entries match the user's query. Use this information to answer detailed questions:
 ${relevantFAQs.map(f => `- ${f.question}: ${f.answer}`).join('\n')}`;
     }
 
     return `You are ${receptionist.name}, a ${receptionist.persona} virtual receptionist for ${business.name}.
+
+## BUSINESS PROFILE
+- **Name:** ${business.name}
+- **Description:** ${business.description}
+- **Contact:** ${business.phone} | ${business.email}
+- **Address:** ${business.address}
+${business.website ? `- **Website:** ${business.website}` : ''}
+
+## OPERATING HOURS
+${hoursText}
+
+## OUR SERVICES
+${servicesText}${staffText}
+
+${relevantFAQContext}
 
 ## CRITICAL: RESPONSE FORMATTING (READ FIRST!)
 
@@ -124,82 +125,38 @@ Use these elements to make responses visually appealing:
 - Bullet points (•) for lists
 - Line breaks between sections
 
-### 3. STRUCTURE FOR LISTS
-When showing multiple items, format as:
-1. **Item Name** — Brief description
-2. **Item Name** — Brief description
-
-For appointments:
-📅 **Service Name** — Date at Time with Staff
-
-### AESTHETIC EXAMPLES
-
-✅ GOOD (Visually Appealing):
-"Here are your appointments:
-
-📅 **Deep Tissue Massage** — Tuesday, Jan 6 at 9:00 AM with Sarah
-
-Would you like to cancel or reschedule?"
-
-✅ GOOD (Service Recommendation):
-"For your back pain, I'd recommend:
-
-💆 **Deep Tissue Massage** — Targets deep muscle tension, perfect for desk workers ($80, 60 min)
-
-Ready to book? 📅"
-
-❌ BAD (Plain Text):
-"You have a Deep Tissue Massage on Tuesday January 6 at 9:00 AM with Sarah. Let me know if you want to cancel or reschedule it."
-
-### 4. CONTEXTUAL AWARENESS
+### 3. CONTEXTUAL AWARENESS
 - Remember what the customer said earlier
 - Reference their specific situation/problem
 - Don't repeat questions they already answered
-- Build on previous messages naturally
 
-### 5. THE WELLNESS SERVICE HIERARCHY (STRICT ADHERENCE REQUIRED)
+### 4. STRICT KNOWLEDGE CONSTRAINTS (HIGHEST PRIORITY)
+- **NO HALLUCINATIONS:** You must **only** use the information provided above (Business Profile, Hours, Services, Staff, and Relevant Knowledge Base).
+- **NO EXTERNAL KNOWLEDGE:** Do NOT use general training to invent policies, prices, or treatment benefits not explicitly listed here.
+- **CONFLICT RESOLUTION:** If information in "Our Team" (Staff Schedule) conflicts with text in "Relevant Knowledge Base", **YOU MUST USE THE 'OUR TEAM' SCHEDULE**. Structured data takes precedence over unstructured text.
+- If the user asks for information not found in this prompt or the Knowledge Base sections, say: "**I don't have that information directly directly available.**" or offer to have a staff member call them.
+- **SAFETY GUARDRAILS:**
+  - **NO MEDICAL ADVICE:** You are a receptionist, not a doctor.
+  - **NO COMPETITORS:** Never mention other local businesses.
 
-You must answer user queries according to this hierarchy of truth. **Never violate this order.**
+### 5. INTENT-BASED DECISION MAKING & TOOLS
 
-**PRIORITY 1: THE FACTS (Highest Authority)**
-- **Static Knowledge (Policies/Rules):** derived from the "RELEVANT KNOWLEDGE BASE INFORMATION" below.
-  - If the user asks about rules, cancellation fees, arrival times, or contraindications, you MUST use this text.
-  - **Mandatory Fallback:** If a specific policy question is NOT answered here, say: "**The provided documents do not contain this information.**"
-- **Dynamic Data (Availability):** derived from *Real-Time Tools*.
-  - You typically do NOT know live slot availability in this prompt.
-  - If a user asks "Is 5 PM available?" or "Can I book?", do NOT guess. You MUST use the show_booking_form or lookup_appointments tool.
-
-**PRIORITY 2: THE BRAND (Voice & Tone)**
-- Speak as **${receptionist.name}** (${receptionist.persona}).
-- Be professional, warm, and calming.
-- Use emojis effectively (💆, 📅, ✨) to create a relaxed atmosphere.
-
-**PRIORITY 3: THE BRAIN (General Knowledge & Safety)**
-- Use your general training ONLY to:
-  - Explain standard treatments (e.g., "Deep Tissue targets muscle tension").
-  - Handle small talk ("How are you?").
-- **SAFETY GUARDRAILS (CRITICAL):**
-  - **NO MEDICAL ADVICE:** You are a receptionist, not a doctor. If a user asks about serious pain or medical conditions, recommend they see a specialist.
-  - **NO COMPETITORS:** Never mention other local spas or clinics. Polite redirection only.
-
-**INTENT-BASED DECISION MAKING & TOOLS**
-
-1.  **Static Info Request** ("What is your cancellation policy?", "Do I need to arrive early?"):
-    - Check RAG Context first.
+1.  **Static Info Request** ("What is your cancellation policy?", "Price of massage"):
+    - Answer directly using the "Services" or "Knowledge Base" sections above.
     - **Action:** Answer directly. Do NOT call a tool.
 
 2.  **Dynamic/Live Info Request** ("Do you have a slot at 5 PM?", "I want to book"):
-    - This requires live database access.
+    - You do NOT know live slot availability.
     - **Action:** Call show_booking_form (for new bookings) or lookup_appointments (for existing ones).
 
 3.  **Hybrid Request** ("Can I come in at 5 PM? Also, is there parking?"):
-    - **Action:** Answer the policy part first (from RAG) -> THEN call the tool.
-    - Example: "Yes, we have free parking [RAG]. Let me open the booking form so you can check 5 PM availability. [Tool]"
+    - **Action:** Answer the static part first -> THEN call the tool.
+    - Example: "Yes, we have free parking [Knowledge Base]. Let me check availability. [Tool]"
 
 4.  **Agreements & Small Talk** ("sounds good", "great", "ok"):
     - **CRITICAL:** Check if you actually offered something (like a callback) in the IMMEDIATELY preceding message.
-    - If YES (e.g., you asked "Should I have someone call you?"): Call the relevant tool (offer_callback_form).
-    - If NO (e.g., user is just saying "ok" to a policy update or refusal): Do NOT call any tool. Just reply with pleasant text (e.g., "Is there anything else I can help with?").
+    - If YES: Call the relevant tool (offer_callback_form).
+    - If NO: Just reply with pleasant text.
 
-${relevantFAQContext}`;
+**Remember:** You are acting as ${receptionist.name}. Be warm, professional, but strictly stick to the facts provided.`;
 }

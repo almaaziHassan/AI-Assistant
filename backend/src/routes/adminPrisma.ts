@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import { adminServicePrisma, AdminServicePrisma } from '../services/adminPrisma';
 import prisma from '../db/prisma';
 import { KnowledgeService } from '../services/knowledge';
+import { emailService } from '../services/email';
 import upload from '../middleware/upload';
 import { parseFile } from '../utils/fileParser';
 
@@ -646,6 +647,34 @@ export function createAdminRouterPrisma(
         } catch (error) {
             console.error('Update setting error:', error);
             res.status(500).json({ error: 'Failed to update setting' });
+        }
+    });
+
+    // ============ EMAIL TOOLS ============
+
+    // POST /api/admin/email/test - Send test email
+    router.post('/email/test', async (req: Request, res: Response) => {
+        try {
+            const { to } = req.body;
+            if (!to) {
+                return res.status(400).json({ error: 'Target email address (to) is required' });
+            }
+
+            const success = await emailService.sendEmail({
+                to,
+                subject: 'Test Email from Admin Dashboard',
+                html: '<h1>Test Email</h1><p>This verifies your email configuration is working.</p>',
+                text: 'Test Email. This verifies your email configuration is working.'
+            });
+
+            if (success) {
+                res.json({ message: 'Test email sent successfully' });
+            } else {
+                res.status(500).json({ error: 'Failed to send email. Check server logs.' });
+            }
+        } catch (error) {
+            console.error('Test email error:', error);
+            res.status(500).json({ error: 'Failed to send test email' });
         }
     });
 

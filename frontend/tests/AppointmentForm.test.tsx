@@ -39,7 +39,7 @@ describe('AppointmentForm', () => {
           json: () => Promise.resolve(mockServices)
         });
       }
-      if (url.includes('/api/admin/staff')) {
+      if (url.includes('/api/services/staff')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve(mockStaff)
@@ -96,7 +96,7 @@ describe('AppointmentForm', () => {
   });
 
   it('should show loading state initially', () => {
-    render(
+    const { container } = render(
       <AppointmentForm
         serverUrl={serverUrl}
         onSubmit={mockOnSubmit}
@@ -104,7 +104,8 @@ describe('AppointmentForm', () => {
       />
     );
 
-    expect(screen.getByText('Loading services...')).toBeInTheDocument();
+    // Should show skeletons instead of text
+    expect(container.querySelectorAll('.skeleton-service')).toHaveLength(3);
   });
 
   it('should display services after loading', async () => {

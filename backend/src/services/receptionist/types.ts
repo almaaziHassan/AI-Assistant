@@ -52,6 +52,6 @@ export interface ConversationMessage {
 }
 
 // Re-export shared types from admin
-export { FAQ } from '../admin/types';
+export { FAQ } from '../adminPrisma';
 
 

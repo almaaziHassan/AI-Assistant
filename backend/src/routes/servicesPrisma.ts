@@ -8,11 +8,9 @@ import { Router, Request, Response } from 'express';
 import { ReceptionistService } from '../services/receptionist';
 import { adminServicePrisma, AdminServicePrisma } from '../services/adminPrisma';
 
-// Helper to set no-cache headers
-const noCache = (res: Response) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
+// Helper to set short-lived cache headers
+const shortCache = (res: Response, seconds: number = 60) => {
+    res.set('Cache-Control', `public, max-age=${seconds}, stale-while-revalidate=${seconds * 2}`);
 };
 
 export function createServicesRouterPrisma(
@@ -24,7 +22,7 @@ export function createServicesRouterPrisma(
     // GET /api/services - Get all services (from database)
     router.get('/', async (req: Request, res: Response) => {
         try {
-            noCache(res);
+            shortCache(res);
             const services = await adminSvc.getAllServices(true);
             res.json(services);
         } catch (error) {
@@ -36,7 +34,7 @@ export function createServicesRouterPrisma(
     // GET /api/services/staff - Get active staff members (public endpoint for booking)
     router.get('/staff', async (req: Request, res: Response) => {
         try {
-            noCache(res);
+            shortCache(res);
             console.log('[services/staff] Fetching active staff');
             const staff = await adminSvc.getAllStaff(true);
             console.log(`[services/staff] Returning ${staff.length} staff members`);
@@ -48,10 +46,10 @@ export function createServicesRouterPrisma(
     });
 
     // GET /api/services/business/info - Get business information
-    router.get('/business/info', (req: Request, res: Response) => {
+    router.get('/business/info', async (req: Request, res: Response) => {
         try {
-            noCache(res);
-            const info = receptionist.getBusinessInfo();
+            shortCache(res);
+            const info = await receptionist.getBusinessInfo();
             res.json(info);
         } catch (error) {
             console.error('Get business info error:', error);
@@ -60,10 +58,10 @@ export function createServicesRouterPrisma(
     });
 
     // GET /api/services/business/hours - Get business hours
-    router.get('/business/hours', (req: Request, res: Response) => {
+    router.get('/business/hours', async (req: Request, res: Response) => {
         try {
-            noCache(res);
-            const hours = receptionist.getBusinessHours();
+            shortCache(res);
+            const hours = await receptionist.getBusinessHours();
             res.json(hours);
         } catch (error) {
             console.error('Get hours error:', error);
@@ -74,7 +72,7 @@ export function createServicesRouterPrisma(
     // GET /api/services/staff/:serviceId - Get staff members for a specific service
     router.get('/staff/:serviceId', async (req: Request, res: Response) => {
         try {
-            noCache(res);
+            shortCache(res);
             const { serviceId } = req.params;
             console.log(`[services/staff/:serviceId] Fetching staff for service: ${serviceId}`);
 
@@ -100,6 +98,7 @@ export function createServicesRouterPrisma(
     // GET /api/services/:id - Get a specific service
     router.get('/:id', async (req: Request, res: Response) => {
         try {
+            shortCache(res);
             const { id } = req.params;
             const service = await adminSvc.getService(id);
 

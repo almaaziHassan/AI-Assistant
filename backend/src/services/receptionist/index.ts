@@ -8,7 +8,7 @@
 
 import { GroqService, ChatMessage } from '../groq';
 import servicesConfig from '../../config/services.json';
-import { adminService, AdminService } from '../admin';
+import { adminServicePrisma, AdminServicePrisma, Service, Staff, WeeklySchedule } from '../adminPrisma';
 import { KnowledgeService } from '../knowledge';
 import { getTools } from './tools';
 import { buildSystemPrompt } from './promptBuilder';
@@ -45,12 +45,12 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 export class ReceptionistService {
     private groq: GroqService;
     private defaultConfig: typeof servicesConfig;
-    private adminService: AdminService;
+    private adminService: AdminServicePrisma;
     private knowledgeService: KnowledgeService;
 
     // In-memory cache for frequently accessed data
-    private servicesCache: CacheEntry<ReturnType<AdminService['getAllServices']>> | null = null;
-    private staffCache: CacheEntry<ReturnType<AdminService['getAllStaff']>> | null = null;
+    private servicesCache: CacheEntry<Service[]> | null = null;
+    private staffCache: CacheEntry<Staff[]> | null = null;
     private faqsCache: CacheEntry<FAQ[]> | null = null;
     private configCache: CacheEntry<any> | null = null;
 
@@ -67,7 +67,7 @@ export class ReceptionistService {
     constructor(
         groq: GroqService = new GroqService(),
         config = servicesConfig,
-        adminSvc: AdminService = adminService
+        adminSvc: AdminServicePrisma = adminServicePrisma
     ) {
         this.groq = groq;
         this.defaultConfig = config;
@@ -83,12 +83,12 @@ export class ReceptionistService {
     /**
      * Get cached services or fetch from DB if cache expired
      */
-    private getCachedServices() {
+    private async getCachedServices(): Promise<Service[]> {
         const now = Date.now();
         if (this.servicesCache && (now - this.servicesCache.timestamp) < CACHE_TTL_MS) {
             return this.servicesCache.data;
         }
-        const services = this.adminService.getAllServices(true);
+        const services = await this.adminService.getAllServices(true);
         this.servicesCache = { data: services, timestamp: now };
         return services;
     }
@@ -96,12 +96,12 @@ export class ReceptionistService {
     /**
      * Get cached staff or fetch from DB if cache expired
      */
-    private getCachedStaff() {
+    private async getCachedStaff(): Promise<Staff[]> {
         const now = Date.now();
         if (this.staffCache && (now - this.staffCache.timestamp) < CACHE_TTL_MS) {
             return this.staffCache.data;
         }
-        const staff = this.adminService.getAllStaff(true);
+        const staff = await this.adminService.getAllStaff(true);
         this.staffCache = { data: staff, timestamp: now };
         return staff;
     }
@@ -109,22 +109,33 @@ export class ReceptionistService {
     /**
      * Get cached FAQs or fetch from DB if cache expired
      */
-    private getCachedFAQs(): FAQ[] {
+    private async getCachedFAQs(): Promise<FAQ[]> {
         const now = Date.now();
         if (this.faqsCache && (now - this.faqsCache.timestamp) < CACHE_TTL_MS) {
             return this.faqsCache.data;
         }
 
         // Fetch from DB
-        const dbFaqs = this.adminService.getAllFAQs(true);
-        this.faqsCache = { data: dbFaqs, timestamp: now };
-        return dbFaqs;
+        const dbFaqs = await this.adminService.getAllFAQs(true);
+        const mappedFaqs: FAQ[] = dbFaqs.map(f => ({
+            id: f.id,
+            question: f.question,
+            answer: f.answer,
+            keywords: (Array.isArray(f.keywords) ? f.keywords : []) as string[],
+            displayOrder: f.displayOrder ?? 0,
+            isActive: f.isActive ?? true,
+            createdAt: f.createdAt?.toISOString() || new Date().toISOString(),
+            updatedAt: f.updatedAt?.toISOString() || new Date().toISOString()
+        }));
+
+        this.faqsCache = { data: mappedFaqs, timestamp: now };
+        return mappedFaqs;
     }
 
     /**
      * Get full configuration (business, hours, etc.) from DB or fallback
      */
-    private getFullConfig() {
+    private async getFullConfig() {
         const now = Date.now();
         if (this.configCache && (now - this.configCache.timestamp) < CACHE_TTL_MS) {
             return this.configCache.data;
@@ -132,10 +143,19 @@ export class ReceptionistService {
 
         // Fetch settings from DB
         try {
-            const industryKnowledgeSetting = this.adminService.getSystemSetting('industryKnowledge');
-            const businessSetting = this.adminService.getSystemSetting('business');
-            const receptionistSetting = this.adminService.getSystemSetting('receptionist');
-            const hoursSetting = this.adminService.getSystemSetting('hours');
+            const [
+                industryKnowledgeSetting,
+                businessSetting,
+                receptionistSetting,
+                hoursSetting,
+                faqs
+            ] = await Promise.all([
+                this.adminService.getSystemSetting('industryKnowledge'),
+                this.adminService.getSystemSetting('business'),
+                this.adminService.getSystemSetting('receptionist'),
+                this.adminService.getSystemSetting('hours'),
+                this.getCachedFAQs()
+            ]);
 
             // Merge with default config (DB takes precedence if exists)
             const config = {
@@ -143,16 +163,17 @@ export class ReceptionistService {
                 business: businessSetting?.value || this.defaultConfig.business,
                 receptionist: receptionistSetting?.value || this.defaultConfig.receptionist,
                 hours: hoursSetting?.value || this.defaultConfig.hours,
-                faqs: this.getCachedFAQs() // Include FAQs in config return for consistency
+                faqs: faqs // Include FAQs in config return for consistency
             };
 
             this.configCache = { data: config, timestamp: now };
             return config;
         } catch (error) {
             console.error('Error fetching config from DB, using defaults:', error);
+            const faqs = await this.getCachedFAQs().catch(() => []);
             return {
                 ...this.defaultConfig,
-                faqs: this.getCachedFAQs().length > 0 ? this.getCachedFAQs() : this.defaultConfig.faqs
+                faqs: faqs.length > 0 ? faqs : (this.defaultConfig.faqs || [])
             };
         }
     }
@@ -170,34 +191,36 @@ export class ReceptionistService {
     /**
      * Public method to get current config
      */
-    getConfig() {
-        return this.getFullConfig();
+    async getConfig() {
+        return await this.getFullConfig();
     }
 
     /**
      * Get business info (legacy/route support)
      */
-    getBusinessInfo() {
-        return this.getFullConfig().business;
+    async getBusinessInfo() {
+        const config = await this.getFullConfig();
+        return config.business;
     }
 
     /**
      * Get business hours (legacy/route support)
      */
-    getBusinessHours() {
-        return this.getFullConfig().hours;
+    async getBusinessHours() {
+        const config = await this.getFullConfig();
+        return config.hours;
     }
 
     /**
      * Find relevant FAQs based on user message keywords
      */
-    private findRelevantFAQs(message: string): FAQ[] {
+    private async findRelevantFAQs(message: string): Promise<FAQ[]> {
         const lowerMessage = message.toLowerCase();
-        const config = this.getFullConfig();
+        const config = await this.getFullConfig();
         const faqs = (config as { faqs?: FAQ[] }).faqs || [];
 
         return faqs.filter(faq =>
-            faq.keywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()))
+            faq.keywords.some((keyword: any) => lowerMessage.includes(String(keyword).toLowerCase()))
         );
     }
 
@@ -562,23 +585,24 @@ export class ReceptionistService {
         userContext?: { name: string; email: string; phone?: string | null }
     ): Promise<ReceptionistResponse> {
         // Find relevant FAQs for this message
-        const relevantFAQs = this.findRelevantFAQs(userMessage);
+        const relevantFAQs = await this.findRelevantFAQs(userMessage);
 
         // Get services from cache (avoids DB call on every message)
-        const dbServices = this.getCachedServices();
+        const dbServices = await this.getCachedServices();
         const servicesList = dbServices.map(s => ({
             id: s.id,
             name: s.name,
-            description: s.description,
+            description: s.description || '',
             duration: s.duration,
-            price: s.price
+            price: Number(s.price)
         }));
 
         // Get staff from cache (avoids DB call on every message)
-        const dbStaff = this.getCachedStaff();
+        const dbStaff = await this.getCachedStaff();
         const staffList = dbStaff.map(s => {
             // Map service IDs to names for AI context
-            const serviceNames = (s.services || []).map(sid => {
+            const serviceIds = (s.services as unknown as string[]) || [];
+            const serviceNames = serviceIds.map(sid => {
                 const service = dbServices.find(dS => dS.id === sid);
                 return service ? service.name : null;
             }).filter((n): n is string => n !== null);
@@ -586,13 +610,14 @@ export class ReceptionistService {
             return {
                 id: s.id,
                 name: s.name,
-                role: s.role,
-                services: serviceNames // Send Names instead of IDs
+                role: s.role || 'Staff',
+                services: serviceNames, // Send Names instead of IDs
+                schedule: s.schedule as unknown as WeeklySchedule
             };
         });
 
         // Get config to pass to prompt builder
-        const config = this.getFullConfig();
+        const config = await this.getFullConfig();
 
         let systemPrompt = buildSystemPrompt(relevantFAQs, staffList, servicesList, config);
 
@@ -747,7 +772,7 @@ Rewritten Query:`;
 
             // Handle provide_contact_info - AI detected user wants direct contact
             if (functionName === 'provide_contact_info') {
-                const { business } = this.getFullConfig(); // Use dynamic business info
+                const { business } = await this.getFullConfig(); // Use dynamic business info
                 const contactMessage = `Here's how you can reach us directly:
         
 • **Phone:** ${business.phone}
