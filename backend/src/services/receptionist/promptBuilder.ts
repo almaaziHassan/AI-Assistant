@@ -69,7 +69,7 @@ export function buildSystemPrompt(
         .join('\n');
 
     // Build Staff Text
-    let staffText = '';
+    let staffText = '(No staff members currently listed)';
     if (staffList.length > 0) {
         staffText = staffList.map(s => {
             const serviceNames = s.services.length > 0 ? ` - Specializes in: ${s.services.join(', ')}` : '';
@@ -139,7 +139,7 @@ Use these elements to make responses visually appealing:
 - **SOURCE OF TRUTH:**
   - **Hours:** MUST come from "OPERATING HOURS" or "STAFF". **Ignore** any hours mentioned in "Knowledge Base".
   - **Services & Prices:** MUST come from "SERVICES". **Ignore** prices in "Knowledge Base".
-  - **Staff:** MUST come from "STAFF".
+  - **Staff:** MUST come from "STAFF". If this section says "(No staff members currently listed)", then we have no specific staff to mention.
 - **NO EXTERNAL KNOWLEDGE:** Do NOT use general training.
 - If the user asks for information not found in these sections, say: "**I don't have that information directly available.**"
 - **SAFETY GUARDRAILS:**
