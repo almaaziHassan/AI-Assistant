@@ -272,7 +272,7 @@ export class RetentionService {
     // --- Helpers ---
 
     private generateAppointmentCSV(data: any[]): string {
-        const header = 'ID,Date,Time,Customer,Email,Phone,Service,Staff,Status,Created At\n';
+        const header = 'Record ID,Date,Time,Customer,Email,Phone,Service,Staff,Status,Created At\n';
         const rows = data.map(row => {
             const date = typeof row.appointmentDate === 'string' ? row.appointmentDate : row.appointmentDate.toISOString().split('T')[0];
             const time = typeof row.appointmentTime === 'string' ? row.appointmentTime : row.appointmentTime.toISOString().split('T')[1]?.substring(0, 5) || '00:00';
@@ -295,7 +295,7 @@ export class RetentionService {
     }
 
     private generateCallbackCSV(data: any[]): string {
-        const header = 'ID,Customer,Phone,Email,Status,Concerns,Notes,Created At\n';
+        const header = 'Record ID,Customer,Phone,Email,Status,Concerns,Notes,Created At\n';
         const rows = data.map(row => {
             const escape = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
             return [

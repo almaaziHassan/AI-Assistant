@@ -1,3 +1,55 @@
+import { jest } from '@jest/globals';
+
+// Mock Prisma with in-memory store
+const mockStore = new Map();
+
+const mockCallbackDelegate = {
+  create: jest.fn(async ({ data }: any) => {
+    const id = Math.random().toString(36).substring(7);
+    const callback = {
+      id,
+      ...data,
+      createdAt: new Date(),
+      status: data.status || 'pending',
+      notes: data.notes || null,
+      calledAt: null
+    };
+    mockStore.set(id, callback);
+    return callback;
+  }),
+  findMany: jest.fn(async ({ where }: any = {}) => {
+    let callbacks = Array.from(mockStore.values());
+    if (where?.status) {
+      callbacks = callbacks.filter(c => c.status === where.status);
+    }
+    return callbacks;
+  }),
+  findUnique: jest.fn(async ({ where }: any) => {
+    const callback = mockStore.get(where.id);
+    return callback || null;
+  }),
+  update: jest.fn(async ({ where, data }: any) => {
+    const callback = mockStore.get(where.id);
+    if (!callback) throw { code: 'P2025' }; // Prisma not found error
+    const updated = { ...callback, ...data };
+    mockStore.set(where.id, updated);
+    return updated;
+  }),
+  delete: jest.fn(async ({ where }: any) => {
+    const callback = mockStore.get(where.id);
+    if (!callback) throw { code: 'P2025' };
+    mockStore.delete(where.id);
+    return callback;
+  })
+};
+
+jest.mock('../../src/db/prisma', () => ({
+  __esModule: true,
+  default: {
+    callback: mockCallbackDelegate,
+  },
+}));
+
 import request from 'supertest';
 import { createTestApp } from '../testApp';
 
@@ -201,7 +253,7 @@ describe('Callback API Integration', () => {
         .expect(200);
 
       expect(response.body).toHaveProperty('success', true);
-      expect(response.body).toHaveProperty('status', 'contacted');
+      expect(response.body.callback).toHaveProperty('status', 'contacted');
     });
 
     it('should update callback notes', async () => {
@@ -278,7 +330,7 @@ describe('Callback API Integration', () => {
           .send({ status })
           .expect(200);
 
-        expect(response.body.status).toBe(status);
+        expect(response.body.callback.status).toBe(status);
       }
     });
   });
