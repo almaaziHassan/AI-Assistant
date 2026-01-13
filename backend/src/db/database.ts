@@ -109,6 +109,13 @@ async function initSqlite(): Promise<void> {
   }
 
   const SQL = await initSqlJs();
+
+  // If testing with in-memory DB, don't load from file
+  if (process.env.DATABASE_URL?.includes('memory')) {
+    sqliteDb = new SQL.Database();
+    return;
+  }
+
   if (fs.existsSync(dbPath)) {
     const buffer = fs.readFileSync(dbPath);
     sqliteDb = new SQL.Database(buffer);

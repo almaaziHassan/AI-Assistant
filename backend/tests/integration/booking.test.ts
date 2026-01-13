@@ -182,6 +182,7 @@ describe('Booking API Integration', () => {
             customerEmail: 'integration@test.com',
             customerPhone: '+14155559999',
             serviceId: 'consultation',
+            staffId: 'staff-1',
             date: dateStr,
             time: availableSlots[0].time
           })

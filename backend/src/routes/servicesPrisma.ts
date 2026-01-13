@@ -38,7 +38,18 @@ export function createServicesRouterPrisma(
             console.log('[services/staff] Fetching active staff');
             const staff = await adminSvc.getAllStaff(true);
             console.log(`[services/staff] Returning ${staff.length} staff members`);
-            res.json(staff);
+
+            // Sanitize sensitive info for public endpoint
+            const sanitizedStaff = staff.map(s => ({
+                id: s.id,
+                name: s.name,
+                role: s.role,
+                services: s.services,
+                color: s.color,
+                isActive: s.isActive
+            }));
+
+            res.json(sanitizedStaff);
         } catch (error) {
             console.error('Get staff error:', error);
             res.status(500).json({ error: 'Failed to get staff' });

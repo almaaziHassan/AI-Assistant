@@ -13,6 +13,9 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET) {
     throw new Error('FATAL: JWT_SECRET environment variable is required in production.');
   }
+  if (process.env.JWT_SECRET.length < 32) {
+    throw new Error('FATAL: JWT_SECRET is too short. Must be 32+ chars for security.');
+  }
   if (ADMIN_PASSWORD === 'admin123') {
     throw new Error('FATAL: You must change the ADMIN_PASSWORD in production.');
   }
@@ -60,8 +63,6 @@ export function adminAuthMiddleware(req: Request, res: Response, next: NextFunct
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.substring(7);
-  } else if (req.query.token && typeof req.query.token === 'string') {
-    token = req.query.token;
   }
 
   if (!token) {

@@ -147,6 +147,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ==================== Global Error Handler ====================
+// Prevent stack trace leakage to clients
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled Error:', err);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
 // ==================== Socket.IO ====================
 
 // Create socket handlers with injected receptionist service

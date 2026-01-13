@@ -187,21 +187,8 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                                         const now = new Date();
                                         const isFuture = aptDateTime > now;
 
-                                        // Future appointments: Only Cancel is available (for pending or confirmed)
-                                        if (isFuture && (apt.status === 'pending' || apt.status === 'confirmed')) {
-                                            return (
-                                                <button
-                                                    className="btn-small danger"
-                                                    onClick={() => onUpdateStatus(apt.id, 'cancelled')}
-                                                >
-                                                    Cancel
-                                                </button>
-                                            );
-                                        }
-
-                                        // Past appointments: Only show actions if status is 'pending'
-                                        // Once confirmed, cancelled, or no-show - no more actions needed
-                                        if (!isFuture && apt.status === 'pending') {
+                                        // Pending appointments: Always show Confirm, Cancel, No-Show for triage
+                                        if (apt.status === 'pending') {
                                             return (
                                                 <>
                                                     <button
@@ -220,9 +207,21 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                                                         className="btn-small warning"
                                                         onClick={() => onUpdateStatus(apt.id, 'no-show')}
                                                     >
-                                                        No Show
+                                                        No-Show
                                                     </button>
                                                 </>
+                                            );
+                                        }
+
+                                        // Confirmed appointments (future): Only Cancel is available
+                                        if (isFuture && apt.status === 'confirmed') {
+                                            return (
+                                                <button
+                                                    className="btn-small danger"
+                                                    onClick={() => onUpdateStatus(apt.id, 'cancelled')}
+                                                >
+                                                    Cancel
+                                                </button>
                                             );
                                         }
 
