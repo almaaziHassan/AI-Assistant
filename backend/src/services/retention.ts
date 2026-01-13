@@ -160,6 +160,21 @@ export class RetentionService {
         workbook.creator = 'AI Receptionist System';
         workbook.created = new Date();
 
+        // 4a. Check for Configured Backup Directory
+        const backupDir = process.env.BACKUP_DIR;
+        if (backupDir) {
+            try {
+                if (!fs.existsSync(backupDir)) {
+                    fs.mkdirSync(backupDir, { recursive: true });
+                }
+                const backupPath = path.join(backupDir, fileName);
+                // We will write to this path later or copy the file
+                console.log(`Retention: Automatic backup configured to: ${backupPath}`);
+            } catch (error) {
+                console.error('Retention: Failed to verify backup directory:', error);
+            }
+        }
+
         // Sheet 1: Appointments
         if (expiredAppointments.length > 0) {
             const sheet = workbook.addWorksheet('Appointments');
@@ -223,6 +238,17 @@ export class RetentionService {
         }
 
         await workbook.xlsx.writeFile(archivePath);
+
+        // Copy to Backup Dir if configured
+        if (process.env.BACKUP_DIR) {
+            try {
+                const backupPath = path.join(process.env.BACKUP_DIR, fileName);
+                fs.copyFileSync(archivePath, backupPath);
+                console.log(`Retention: Successfully copied archive to ${backupPath}`);
+            } catch (e) {
+                console.error('Retention: Failed to copy to backup directory', e);
+            }
+        }
 
         // 5. Update State
         const pendingState: RetentionState = {
