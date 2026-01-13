@@ -147,9 +147,8 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
                     <button
                         className="btn-secondary"
                         onClick={() => setShowHoursModal(true)}
-                        style={{ backgroundColor: '#2ecc71', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
                     >
-                        general office hours setting
+                        General Office Hours
                     </button>
                     <button className="btn-primary" onClick={() => {
                         if (showStaffForm) {

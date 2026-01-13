@@ -67,15 +67,15 @@ export const BusinessHoursModal: React.FC<BusinessHoursModalProps> = ({ isOpen, 
 
     return (
         <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-content">
                 <h2>General Office Hours</h2>
-                <div className="hours-grid" style={{ display: 'flex', flexDirection: 'column', gap: '10px', margin: '20px 0' }}>
+                <div className="hours-grid">
                     {DAYS.map(day => {
                         const daySchedule = schedule[day];
                         const isOpen = !!daySchedule;
                         return (
-                            <div key={day} className="hour-row" style={{ display: 'grid', gridTemplateColumns: '120px 1fr', alignItems: 'center' }}>
-                                <label className="day-label" style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div key={day} className="hour-row">
+                                <label className="day-label">
                                     <input
                                         type="checkbox"
                                         checked={isOpen}
@@ -84,14 +84,14 @@ export const BusinessHoursModal: React.FC<BusinessHoursModalProps> = ({ isOpen, 
                                     {day.charAt(0).toUpperCase() + day.slice(1)}
                                 </label>
                                 {isOpen ? (
-                                    <div className="time-inputs" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                    <div className="time-inputs">
                                         <input
                                             type="time"
                                             className="admin-input"
                                             value={daySchedule!.start}
                                             onChange={(e) => handleDayChange(day, 'start', e.target.value)}
                                         />
-                                        <span>to</span>
+                                        <span className="time-separator">to</span>
                                         <input
                                             type="time"
                                             className="admin-input"
@@ -100,13 +100,13 @@ export const BusinessHoursModal: React.FC<BusinessHoursModalProps> = ({ isOpen, 
                                         />
                                     </div>
                                 ) : (
-                                    <span style={{ color: '#888', fontStyle: 'italic' }}>Closed</span>
+                                    <span className="closed-text">Closed</span>
                                 )}
                             </div>
                         );
                     })}
                 </div>
-                <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <div className="modal-actions">
                     <button className="btn-cancel" onClick={onClose} disabled={saving}>Cancel</button>
                     <button className="btn-save" onClick={handleSave} disabled={saving}>
                         {saving ? 'Saving...' : 'Save Hours'}
