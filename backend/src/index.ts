@@ -32,6 +32,7 @@ import { ReceptionistService } from './services/receptionist';
 import { schedulerServicePrisma } from './services/schedulerPrisma';
 import { emailService } from './services/email';
 import { adminServicePrisma } from './services/adminPrisma';
+import { retentionService } from './services/retention';
 
 // Core imports
 import { initDatabase } from './db/database';
@@ -160,6 +161,22 @@ async function startServer() {
   try {
     // Initialize database
     await initDatabase();
+
+    // Start Daily Cleanup Job (runs every 24 hours)
+    // 86400000 ms = 24 hours
+    setInterval(() => {
+      console.log('Running daily retention check & compile...');
+      retentionService.checkAndCompile()
+        .then((res: unknown) => console.log('Daily retention check result:', res))
+        .catch((err: unknown) => console.error('Daily retention check failed:', err));
+    }, 86400000);
+
+    // Run once on startup after 1 minute
+    setTimeout(() => {
+      retentionService.checkAndCompile()
+        .then((res: unknown) => console.log('Startup retention check result:', res))
+        .catch((err: unknown) => console.error('Startup retention check failed:', err));
+    }, 60000);
 
     httpServer.listen(PORT, () => {
       console.log(`AI Receptionist server running on port ${PORT}`);

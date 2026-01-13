@@ -12,6 +12,7 @@ import { KnowledgeService } from '../services/knowledge';
 import { emailService } from '../services/email';
 import upload from '../middleware/upload';
 import { parseFile } from '../utils/fileParser';
+import { retentionService } from '../services/retention';
 
 export function createAdminRouterPrisma(
     adminSvc: AdminServicePrisma = adminServicePrisma
@@ -675,6 +676,62 @@ export function createAdminRouterPrisma(
         } catch (error) {
             console.error('Test email error:', error);
             res.status(500).json({ error: 'Failed to send test email' });
+        }
+    });
+
+    // ============ DATA RETENTION & MAINTENANCE ============
+
+    // GET /api/admin/maintenance/status - Get current retention status
+    router.get('/maintenance/status', async (req: Request, res: Response) => {
+        try {
+            const status = await retentionService.getStatus();
+            res.json(status);
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to get retention status.' });
+        }
+    });
+
+    // POST /api/admin/maintenance/check - Force Check & Compile
+    router.post('/maintenance/check', async (req: Request, res: Response) => {
+        try {
+            const status = await retentionService.checkAndCompile();
+            res.json(status);
+        } catch (error) {
+            console.error('Check failed:', error);
+            res.status(500).json({ error: 'Failed to check retention.' });
+        }
+    });
+
+    // GET /api/admin/maintenance/export - Download CSV
+    router.get('/maintenance/export', async (req: Request, res: Response) => {
+        try {
+            const { type } = req.query;
+            if (type !== 'appointments' && type !== 'callbacks') {
+                res.status(400).json({ error: 'Invalid export type.' });
+                return;
+            }
+
+            const filePath = await retentionService.getExportFilePath(type);
+            if (!filePath) {
+                res.status(404).json({ error: 'Export file not found or not ready.' });
+                return;
+            }
+
+            res.download(filePath);
+        } catch (error) {
+            console.error('Download failed:', error);
+            res.status(500).json({ error: 'Download failed.' });
+        }
+    });
+
+    // POST /api/admin/maintenance/prune - Confirm Deletion
+    router.post('/maintenance/prune', async (req: Request, res: Response) => {
+        try {
+            const result = await retentionService.confirmAndPrune();
+            res.json(result);
+        } catch (error) {
+            console.error('Prune failed:', error);
+            res.status(500).json({ error: (error as Error).message });
         }
     });
 

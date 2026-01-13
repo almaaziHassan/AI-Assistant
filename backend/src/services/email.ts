@@ -333,8 +333,14 @@ ${business.phone} | ${business.email}
    * Send a generic email
    * Used for verification emails, password reset, etc.
    */
-  async sendEmail(options: { to: string; subject: string; html: string; text?: string }): Promise<boolean> {
-    const { to, subject, html, text } = options;
+  async sendEmail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+    attachments?: Array<{ filename: string; content: string | Buffer }>
+  }): Promise<boolean> {
+    const { to, subject, html, text, attachments } = options;
     const fromEmail = process.env.BREVO_FROM_EMAIL || process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com';
     const fromName = process.env.BREVO_FROM_NAME || this.config.business.name;
 
@@ -345,6 +351,9 @@ ${business.phone} | ${business.email}
       console.log(`Subject: ${subject}`);
       console.log('---');
       console.log(text || 'HTML email - see html content');
+      if (attachments?.length) {
+        console.log(`Includes ${attachments.length} attachment(s)`);
+      }
       console.log('====================================\n');
       return true;
     }
@@ -358,6 +367,15 @@ ${business.phone} | ${business.email}
         if (text) sendSmtpEmail.textContent = text;
         sendSmtpEmail.sender = { name: fromName, email: fromEmail };
         sendSmtpEmail.to = [{ email: to }];
+
+        if (attachments && attachments.length > 0) {
+          sendSmtpEmail.attachment = attachments.map(att => ({
+            name: att.filename,
+            content: Buffer.isBuffer(att.content)
+              ? att.content.toString('base64')
+              : Buffer.from(att.content).toString('base64')
+          }));
+        }
 
         await this.brevoApi.sendTransacEmail(sendSmtpEmail);
         console.log(`Email sent via Brevo API to ${to}`);
@@ -376,7 +394,11 @@ ${business.phone} | ${business.email}
           to,
           subject,
           text: text || '',
-          html
+          html,
+          attachments: attachments?.map(att => ({
+            filename: att.filename,
+            content: att.content
+          }))
         });
 
         console.log(`Email sent via SMTP to ${to}`);
