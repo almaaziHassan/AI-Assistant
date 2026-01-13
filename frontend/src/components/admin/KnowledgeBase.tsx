@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FAQ, SystemSetting } from '../../types/admin';
+import { BusinessHoursModal } from './BusinessHoursModal';
 
 interface KnowledgeBaseProps {
     serverUrl: string;
@@ -39,6 +40,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
     // Settings Editor State
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [settingValue, setSettingValue] = useState<string>(''); // JSON string
+    const [showHoursModal, setShowHoursModal] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -458,7 +460,40 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
 
             {!isLoading && activeTab === 'settings' && (
                 <div className="settings-container">
-                    {editingKey ? (
+                    {/* Business Hours Modal Integration */}
+                    {showHoursModal && (
+                        <BusinessHoursModal
+                            isOpen={showHoursModal}
+                            onClose={() => {
+                                setShowHoursModal(false);
+                                setEditingKey(null);
+                            }}
+                            initialHours={settings.find(s => s.key === 'hours')?.value || null}
+                            onSave={async (newHours) => {
+                                try {
+                                    const res = await fetch(`${serverUrl}/api/admin/settings/hours`, {
+                                        method: 'PUT',
+                                        headers: {
+                                            ...getAuthHeaders() as Record<string, string>,
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({ value: newHours, description: 'General Office Hours' })
+                                    });
+                                    if (res.ok) {
+                                        fetchData();
+                                        setShowHoursModal(false);
+                                        setEditingKey(null);
+                                    } else {
+                                        alert('Failed to save hours');
+                                    }
+                                } catch {
+                                    alert('Error saving hours');
+                                }
+                            }}
+                        />
+                    )}
+
+                    {editingKey && editingKey !== 'hours' ? (
                         <div className="admin-form settings-editor">
                             <div className="section-header">
                                 <h3>Editing: {editingKey}</h3>
@@ -577,7 +612,16 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                                 <div key={setting.key} className="item-card">
                                     <div className="item-header">
                                         <h3>{setting.key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h3>
-                                        <button className="btn-small" onClick={() => handleEditSetting(setting)}>Edit</button>
+                                        <button className="btn-small" onClick={() => {
+                                            if (setting.key === 'hours') {
+                                                setEditingKey('hours'); // Mark as editing to hide list
+                                                setShowHoursModal(true);
+                                            } else {
+                                                handleEditSetting(setting);
+                                            }
+                                        }}>
+                                            Edit {setting.key === 'hours' || setting.key === 'receptionist' || setting.key === 'appointmentSettings' ? '' : 'JSON'}
+                                        </button>
                                     </div>
                                     <p className="description" style={{ color: '#6b7280', fontSize: '14px', marginBottom: '10px' }}>{setting.description}</p>
                                     {/* Show a simplified preview depending on type */}
@@ -590,6 +634,10 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                                         ) : setting.key === 'appointmentSettings' ? (
                                             <div>
                                                 Max Advance: {setting.value.maxAdvanceBookingDays} days | Slots: {setting.value.slotDuration} min
+                                            </div>
+                                        ) : setting.key === 'hours' ? (
+                                            <div>
+                                                Click "Edit" to manage Open/Close hours visually.
                                             </div>
                                         ) : (
                                             <pre style={{ margin: 0 }}>{JSON.stringify(setting.value, null, 2).slice(0, 150)}...</pre>
