@@ -188,19 +188,16 @@ export const DataRetention: React.FC<DataRetentionProps> = ({ serverUrl, getAuth
                         <div className="action-steps" style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
                             <div className="step">
                                 <span style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Step 1: Download</span>
-                                <button className="btn-secondary" style={{ background: 'white' }} onClick={() => {
-                                    const headers = getAuthHeaders() as Record<string, string>;
-                                    if (retentionStatus.filePaths.appointments) {
-                                        window.open(`${serverUrl}/api/admin/maintenance/export?type=appointments&token=${headers['Authorization']?.split(' ')[1]}`, '_blank');
-                                    }
-                                    if (retentionStatus.filePaths.callbacks) {
-                                        setTimeout(() => {
-                                            window.open(`${serverUrl}/api/admin/maintenance/export?type=callbacks&token=${headers['Authorization']?.split(' ')[1]}`, '_blank');
-                                        }, 1000);
-                                    }
-                                }}>
-                                    ⬇️ Download CSV Archives
-                                </button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {retentionStatus.archivePath && (
+                                        <button className="btn-secondary" style={{ background: 'white', textAlign: 'left' }} onClick={() => {
+                                            const headers = getAuthHeaders() as Record<string, string>;
+                                            window.open(`${serverUrl}/api/admin/maintenance/export?token=${headers['Authorization']?.split(' ')[1]}`, '_blank');
+                                        }}>
+                                            ⬇️ Download Excel Archive
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="step">

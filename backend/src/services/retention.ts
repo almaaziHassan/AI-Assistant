@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import ExcelJS from 'exceljs';
 import prisma from '../db/prisma';
 import { adminServicePrisma } from './adminPrisma';
 
@@ -10,10 +11,7 @@ interface RetentionState {
         appointments: number;
         callbacks: number;
     };
-    filePaths: {
-        appointments: string | null;
-        callbacks: string | null;
-    };
+    archivePath: string | null; // Changed to single archive path
     config: {
         retentionAptDays: number;
         retentionCbDays: number;
@@ -47,41 +45,46 @@ export class RetentionService {
                     val = JSON.parse(val);
                 }
 
+                // Check for legacy state format and reset if found
+                if ((val as any).filePaths) {
+                    console.warn('Retention: Detected legacy state format. Resetting to IDLE.');
+                    return this.getDefaultState();
+                }
+
                 const state = val as unknown as RetentionState;
 
-                // CRITICAL: Verify files exist. If ephemeral storage wiped them, reset to IDLE.
-                if (state.status === 'pending_approval') {
-                    const aptMissing = state.filePaths.appointments && !fs.existsSync(this.resolvePath(state.filePaths.appointments));
-                    const cbMissing = state.filePaths.callbacks && !fs.existsSync(this.resolvePath(state.filePaths.callbacks));
-
-                    if (aptMissing || cbMissing) {
-                        console.warn('Retention: Pending files missing from disk (Ephemeral FS reset?). Resetting to IDLE.');
-
-                        const resetState: RetentionState = {
-                            status: 'idle',
-                            compiledAt: null,
-                            stats: { appointments: 0, callbacks: 0 },
-                            filePaths: { appointments: null, callbacks: null },
-                            config: state.config
-                        };
-
-                        // Self-heal DB
+                // CRITICAL: Verify file exists. If ephemeral storage wiped it, reset to IDLE.
+                if (state.status === 'pending_approval' && state.archivePath) {
+                    const fullPath = this.resolvePath(state.archivePath);
+                    if (!fs.existsSync(fullPath)) {
+                        console.warn('Retention: Pending archive missing from disk (Ephemeral FS reset?). Resetting to IDLE.');
+                        const resetState = this.getDefaultState();
+                        resetState.config = state.config; // Preserve config
                         await this.saveStatus(resetState);
                         return resetState;
                     }
                 }
 
                 return state;
-            } catch (e) { console.error('Error parsing retention state', e); }
+            } catch (e) {
+                console.error('Error parsing retention state', e);
+                return this.getDefaultState();
+            }
         }
 
-        // Default State
+        return this.getDefaultState();
+    }
+
+    private getDefaultState(): RetentionState {
         return {
             status: 'idle',
             compiledAt: null,
             stats: { appointments: 0, callbacks: 0 },
-            filePaths: { appointments: null, callbacks: null },
-            config: { retentionAptDays: 0, retentionCbDays: 0 }
+            archivePath: null,
+            config: {
+                retentionAptDays: this.DEFAULT_RETENTION_APPOINTMENTS_DAYS,
+                retentionCbDays: this.DEFAULT_RETENTION_CALLBACKS_DAYS
+            }
         };
     }
 
@@ -96,11 +99,7 @@ export class RetentionService {
 
     /**
      * Daily Job: Checks for expired data.
-     * If found, compiles CSVs to disk and sets status = 'pending_approval'
-     */
-    /**
-     * Daily Job: Checks for expired data.
-     * If found, compiles CSVs to disk and sets status = 'pending_approval'
+     * If found, compiles Excel archive to disk and sets status = 'pending_approval'
      */
     async checkAndCompile(force: boolean = false): Promise<RetentionState> {
         console.log(`Running Retention Check & Compile... (Force: ${force})`);
@@ -116,13 +115,10 @@ export class RetentionService {
             ? parseInt(String(retentionCbSetting.value))
             : this.DEFAULT_RETENTION_CALLBACKS_DAYS;
 
-        const aptCutoff = new Date();
-        aptCutoff.setDate(aptCutoff.getDate() - retentionAptDays);
-        const cbCutoff = new Date();
-        cbCutoff.setDate(cbCutoff.getDate() - retentionCbDays);
+        const aptCutoff = this.getDateDaysAgo(retentionAptDays);
+        const cbCutoff = this.getDateDaysAgo(retentionCbDays);
 
         // 2. Clear previous temp files if status is idle (clean slate)
-        // If status is pending_approval, WE DO NOT OVERWRITE unless forced.
         const currentState = await this.getStatus();
         if (currentState.status === 'pending_approval' && !force) {
             console.log('Retention Check Skipped: Cleanup already pending approval.');
@@ -145,43 +141,90 @@ export class RetentionService {
         const totalRecords = expiredAppointments.length + expiredCallbacks.length;
         if (totalRecords === 0) {
             console.log('Retention Check: No expired records found.');
-            const newState: RetentionState = {
-                status: 'idle',
-                compiledAt: new Date().toISOString(),
-                stats: { appointments: 0, callbacks: 0 },
-                filePaths: { appointments: null, callbacks: null },
-                config: { retentionAptDays, retentionCbDays }
-            };
+            const newState = this.getDefaultState();
+            newState.compiledAt = new Date().toISOString();
+            newState.config = { retentionAptDays, retentionCbDays };
             await this.saveStatus(newState);
             return newState;
         }
 
-        console.log(`Retention Check: Found ${totalRecords} expired records. Compiling...`);
+        console.log(`Retention Check: Found ${totalRecords} expired records. Compiling Excel Archive...`);
 
-        // 4. Compile CSVs
+        // 4. Compile Excel Archive
         const dateStr = new Date().toISOString().split('T')[0];
-        let aptFilePath: string | null = null;
-        let cbFilePath: string | null = null;
-        let aptRelativePath: string | null = null;
-        let cbRelativePath: string | null = null;
+        const fileName = `archive_${dateStr}.xlsx`;
+        const archivePath = path.join(this.EXPORT_DIR, fileName);
+        const relativePath = path.join('data', 'exports', fileName);
 
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'AI Receptionist System';
+        workbook.created = new Date();
+
+        // Sheet 1: Appointments
         if (expiredAppointments.length > 0) {
-            const csv = this.generateAppointmentCSV(expiredAppointments);
-            const fileName = `appointments_archive_${dateStr}.csv`;
-            aptFilePath = path.join(this.EXPORT_DIR, fileName);
-            aptRelativePath = path.join('data', 'exports', fileName);
-            fs.writeFileSync(aptFilePath, csv);
+            const sheet = workbook.addWorksheet('Appointments');
+            sheet.columns = [
+                { header: 'Record ID', key: 'id', width: 36 },
+                { header: 'Date', key: 'date', width: 15 },
+                { header: 'Time', key: 'time', width: 10 },
+                { header: 'Customer', key: 'customerName', width: 25 },
+                { header: 'Email', key: 'customerEmail', width: 30 },
+                { header: 'Phone', key: 'customerPhone', width: 20 },
+                { header: 'Service', key: 'serviceName', width: 20 },
+                { header: 'Staff', key: 'staffName', width: 20 },
+                { header: 'Status', key: 'status', width: 15 },
+                { header: 'Created At', key: 'createdAt', width: 25 }
+            ];
+
+            expiredAppointments.forEach(apt => {
+                const date = typeof apt.appointmentDate === 'string' ? apt.appointmentDate : apt.appointmentDate.toISOString().split('T')[0];
+                const time = typeof apt.appointmentTime === 'string' ? apt.appointmentTime : apt.appointmentTime.toISOString().split('T')[1]?.substring(0, 5) || '00:00';
+                sheet.addRow({
+                    id: apt.id,
+                    date,
+                    time,
+                    customerName: apt.customerName,
+                    customerEmail: apt.customerEmail,
+                    customerPhone: apt.customerPhone,
+                    serviceName: apt.serviceName,
+                    staffName: apt.staffName,
+                    status: apt.status,
+                    createdAt: apt.createdAt instanceof Date ? apt.createdAt.toISOString() : apt.createdAt
+                });
+            });
         }
 
+        // Sheet 2: Callbacks
         if (expiredCallbacks.length > 0) {
-            const csv = this.generateCallbackCSV(expiredCallbacks);
-            const fileName = `callbacks_archive_${dateStr}.csv`;
-            cbFilePath = path.join(this.EXPORT_DIR, fileName);
-            cbRelativePath = path.join('data', 'exports', fileName);
-            fs.writeFileSync(cbFilePath, csv);
+            const sheet = workbook.addWorksheet('Callbacks');
+            sheet.columns = [
+                { header: 'Record ID', key: 'id', width: 36 },
+                { header: 'Customer', key: 'customerName', width: 25 },
+                { header: 'Phone', key: 'customerPhone', width: 20 },
+                { header: 'Email', key: 'customerEmail', width: 30 },
+                { header: 'Status', key: 'status', width: 15 },
+                { header: 'Concerns', key: 'concerns', width: 40 },
+                { header: 'Notes', key: 'notes', width: 40 },
+                { header: 'Created At', key: 'createdAt', width: 25 }
+            ];
+
+            expiredCallbacks.forEach(cb => {
+                sheet.addRow({
+                    id: cb.id,
+                    customerName: cb.customerName,
+                    customerPhone: cb.customerPhone,
+                    customerEmail: cb.customerEmail,
+                    status: cb.status,
+                    concerns: cb.concerns,
+                    notes: cb.notes,
+                    createdAt: cb.createdAt instanceof Date ? cb.createdAt.toISOString() : cb.createdAt
+                });
+            });
         }
 
-        // 5. Update State (Store RELATIVE paths for better portability)
+        await workbook.xlsx.writeFile(archivePath);
+
+        // 5. Update State
         const pendingState: RetentionState = {
             status: 'pending_approval',
             compiledAt: new Date().toISOString(),
@@ -189,10 +232,7 @@ export class RetentionService {
                 appointments: expiredAppointments.length,
                 callbacks: expiredCallbacks.length
             },
-            filePaths: {
-                appointments: aptRelativePath, // Store relative
-                callbacks: cbRelativePath      // Store relative
-            },
+            archivePath: relativePath,
             config: { retentionAptDays, retentionCbDays }
         };
 
@@ -204,17 +244,10 @@ export class RetentionService {
     /**
      * Get file path for download
      */
-    /**
-     * Get file path for download
-     */
-    async getExportFilePath(type: 'appointments' | 'callbacks'): Promise<string | null> {
+    async getExportFilePath(): Promise<string | null> {
         const state = await this.getStatus();
-        if (state.status !== 'pending_approval') return null;
-
-        const storedPath = type === 'appointments' ? state.filePaths.appointments : state.filePaths.callbacks;
-        if (!storedPath) return null;
-
-        return this.resolvePath(storedPath);
+        if (state.status !== 'pending_approval' || !state.archivePath) return null;
+        return this.resolvePath(state.archivePath);
     }
 
     /**
@@ -227,43 +260,42 @@ export class RetentionService {
         }
 
         // Re-Verify Cutoffs from State Config to ensure consistency
-        const aptCutoff = new Date();
-        aptCutoff.setDate(aptCutoff.getDate() - state.config.retentionAptDays);
-        const cbCutoff = new Date();
-        cbCutoff.setDate(cbCutoff.getDate() - state.config.retentionCbDays);
+        const aptCutoff = this.getDateDaysAgo(state.config.retentionAptDays);
+        const cbCutoff = this.getDateDaysAgo(state.config.retentionCbDays);
 
         // Delete from DB
         let totalDeleted = 0;
 
-        if (state.filePaths.appointments) {
-            // Safety: Only delete if date matches cutoff logic
-            const res = await prisma.appointment.deleteMany({
-                where: { appointmentDate: { lt: aptCutoff } }
-            });
-            totalDeleted += res.count;
-            // Delete file
-            if (fs.existsSync(state.filePaths.appointments)) fs.unlinkSync(state.filePaths.appointments);
-        }
+        // Delete Appointments
+        const aptRes = await prisma.appointment.deleteMany({
+            where: { appointmentDate: { lt: aptCutoff } }
+        });
+        totalDeleted += aptRes.count;
 
-        if (state.filePaths.callbacks) {
-            const res = await prisma.callback.deleteMany({
-                where: {
-                    status: { in: ['completed', 'no_answer', 'contacted'] },
-                    createdAt: { lt: cbCutoff }
+        // Delete Callbacks
+        const cbRes = await prisma.callback.deleteMany({
+            where: {
+                status: { in: ['completed', 'no_answer', 'contacted'] },
+                createdAt: { lt: cbCutoff }
+            }
+        });
+        totalDeleted += cbRes.count;
+
+        // Delete Archive File
+        if (state.archivePath) {
+            const fullPath = this.resolvePath(state.archivePath);
+            if (fs.existsSync(fullPath)) {
+                try {
+                    fs.unlinkSync(fullPath);
+                } catch (e) {
+                    console.error('Failed to delete archive file:', e);
                 }
-            });
-            totalDeleted += res.count;
-            if (fs.existsSync(state.filePaths.callbacks)) fs.unlinkSync(state.filePaths.callbacks);
+            }
         }
 
         // Reset State
-        const newState: RetentionState = {
-            status: 'idle',
-            compiledAt: new Date().toISOString(),
-            stats: { appointments: 0, callbacks: 0 },
-            filePaths: { appointments: null, callbacks: null },
-            config: state.config
-        };
+        const newState = this.getDefaultState();
+        newState.config = state.config; // Keep config
         await this.saveStatus(newState);
 
         return { success: true, deleted: totalDeleted };
@@ -271,45 +303,10 @@ export class RetentionService {
 
     // --- Helpers ---
 
-    private generateAppointmentCSV(data: any[]): string {
-        const header = 'Record ID,Date,Time,Customer,Email,Phone,Service,Staff,Status,Created At\n';
-        const rows = data.map(row => {
-            const date = typeof row.appointmentDate === 'string' ? row.appointmentDate : row.appointmentDate.toISOString().split('T')[0];
-            const time = typeof row.appointmentTime === 'string' ? row.appointmentTime : row.appointmentTime.toISOString().split('T')[1]?.substring(0, 5) || '00:00';
-            const escape = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
-
-            return [
-                escape(row.id),
-                escape(date),
-                escape(time),
-                escape(row.customerName),
-                escape(row.customerEmail),
-                escape(row.customerPhone),
-                escape(row.serviceName),
-                escape(row.staffName),
-                escape(row.status),
-                escape(row.createdAt)
-            ].join(',');
-        });
-        return header + rows.join('\n');
-    }
-
-    private generateCallbackCSV(data: any[]): string {
-        const header = 'Record ID,Customer,Phone,Email,Status,Concerns,Notes,Created At\n';
-        const rows = data.map(row => {
-            const escape = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
-            return [
-                escape(row.id),
-                escape(row.customerName),
-                escape(row.customerPhone),
-                escape(row.customerEmail),
-                escape(row.status),
-                escape(row.concerns),
-                escape(row.notes),
-                escape(row.createdAt)
-            ].join(',');
-        });
-        return header + rows.join('\n');
+    private getDateDaysAgo(days: number): Date {
+        const d = new Date();
+        d.setDate(d.getDate() - days);
+        return d;
     }
 }
 

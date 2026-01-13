@@ -703,16 +703,10 @@ export function createAdminRouterPrisma(
         }
     });
 
-    // GET /api/admin/maintenance/export - Download CSV
+    // GET /api/admin/maintenance/export - Download Archive
     router.get('/maintenance/export', async (req: Request, res: Response) => {
         try {
-            const { type } = req.query;
-            if (type !== 'appointments' && type !== 'callbacks') {
-                res.status(400).json({ error: 'Invalid export type.' });
-                return;
-            }
-
-            const filePath = await retentionService.getExportFilePath(type);
+            const filePath = await retentionService.getExportFilePath();
             if (!filePath) {
                 res.status(404).json({ error: 'Export file not found or not ready.' });
                 return;
