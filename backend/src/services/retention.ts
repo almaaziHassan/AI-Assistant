@@ -41,13 +41,37 @@ export class RetentionService {
         const setting = await adminServicePrisma.getSystemSetting('retention_state');
         if (setting && setting.value) {
             try {
-                // Handle Prisma JSON type which might be returned as object directly
-                const val = setting.value;
+                // Handle Prisma JSON type
+                let val = setting.value;
                 if (typeof val === 'string') {
-                    return JSON.parse(val);
-                } else if (typeof val === 'object') {
-                    return val as unknown as RetentionState;
+                    val = JSON.parse(val);
                 }
+
+                const state = val as unknown as RetentionState;
+
+                // CRITICAL: Verify files exist. If ephemeral storage wiped them, reset to IDLE.
+                if (state.status === 'pending_approval') {
+                    const aptMissing = state.filePaths.appointments && !fs.existsSync(this.resolvePath(state.filePaths.appointments));
+                    const cbMissing = state.filePaths.callbacks && !fs.existsSync(this.resolvePath(state.filePaths.callbacks));
+
+                    if (aptMissing || cbMissing) {
+                        console.warn('Retention: Pending files missing from disk (Ephemeral FS reset?). Resetting to IDLE.');
+
+                        const resetState: RetentionState = {
+                            status: 'idle',
+                            compiledAt: null,
+                            stats: { appointments: 0, callbacks: 0 },
+                            filePaths: { appointments: null, callbacks: null },
+                            config: state.config
+                        };
+
+                        // Self-heal DB
+                        await this.saveStatus(resetState);
+                        return resetState;
+                    }
+                }
+
+                return state;
             } catch (e) { console.error('Error parsing retention state', e); }
         }
 
@@ -57,12 +81,17 @@ export class RetentionService {
             compiledAt: null,
             stats: { appointments: 0, callbacks: 0 },
             filePaths: { appointments: null, callbacks: null },
-            config: { retentionAptDays: 0, retentionCbDays: 0 } // Filled later
+            config: { retentionAptDays: 0, retentionCbDays: 0 }
         };
     }
 
     private async saveStatus(state: RetentionState) {
         await adminServicePrisma.setSystemSetting('retention_state', JSON.stringify(state));
+    }
+
+    private resolvePath(filePath: string): string {
+        if (path.isAbsolute(filePath)) return filePath;
+        return path.join(process.cwd(), filePath);
     }
 
     /**
@@ -185,12 +214,7 @@ export class RetentionService {
         const storedPath = type === 'appointments' ? state.filePaths.appointments : state.filePaths.callbacks;
         if (!storedPath) return null;
 
-        // resolve path
-        if (path.isAbsolute(storedPath)) {
-            return storedPath;
-        } else {
-            return path.join(process.cwd(), storedPath);
-        }
+        return this.resolvePath(storedPath);
     }
 
     /**
