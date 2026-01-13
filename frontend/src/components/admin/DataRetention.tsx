@@ -8,7 +8,7 @@ interface DataRetentionProps {
 export const DataRetention: React.FC<DataRetentionProps> = ({ serverUrl, getAuthHeaders }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [retentionStatus, setRetentionStatus] = useState<any>(null);
-    const [settings, setSettings] = useState<any[]>([]);
+
 
     // Config State
     const [apptDays, setApptDays] = useState<number>(1095);
@@ -31,7 +31,7 @@ export const DataRetention: React.FC<DataRetentionProps> = ({ serverUrl, getAuth
             const settingsRes = await fetch(`${serverUrl}/api/admin/settings`, { headers: getAuthHeaders() });
             if (settingsRes.ok) {
                 const data = await settingsRes.json();
-                setSettings(data);
+
                 const aDays = data.find((s: any) => s.key === 'retention_appointments_days')?.value;
                 const cDays = data.find((s: any) => s.key === 'retention_callbacks_days')?.value;
                 if (aDays) setApptDays(Number(aDays));
