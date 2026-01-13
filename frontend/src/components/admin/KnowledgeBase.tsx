@@ -41,7 +41,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [settingValue, setSettingValue] = useState<string>(''); // JSON string
     const [showHoursModal, setShowHoursModal] = useState(false);
-    const [retentionStatus, setRetentionStatus] = useState<any>(null);
 
     useEffect(() => {
         fetchData();
@@ -56,10 +55,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
             } else if (activeTab === 'settings') {
                 const res = await fetch(`${serverUrl}/api/admin/settings`, { headers: getAuthHeaders() });
                 if (res.ok) setSettings(await res.json());
-
-                // Fetch retention status
-                const statusRes = await fetch(`${serverUrl}/api/admin/maintenance/status`, { headers: getAuthHeaders() });
-                if (statusRes.ok) setRetentionStatus(await statusRes.json());
             } else if (activeTab === 'docs') {
                 const res = await fetch(`${serverUrl}/api/admin/docs`, { headers: getAuthHeaders() });
                 if (res.ok) setDocs(await res.json());
@@ -471,73 +466,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
             {!isLoading && activeTab === 'settings' && (
                 <div className="settings-container">
 
-                    {/* Retention Cleanup Notification */}
-                    {retentionStatus && retentionStatus.status === 'pending_approval' && (
-                        <div className="cleanup-notification" style={{
-                            background: '#fff8e6',
-                            border: '1px solid #fcd34d',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            marginBottom: '20px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '20px' }}>⚠️</span>
-                                <div>
-                                    <h3 style={{ margin: 0, color: '#92400e' }}>Data Retention Cleanup Pending</h3>
-                                    <p style={{ margin: '4px 0', color: '#b45309' }}>
-                                        The system has identified expired data ready for archival.
-                                        ({retentionStatus.stats.appointments} appointments, {retentionStatus.stats.callbacks} callbacks)
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                                <button
-                                    className="btn-primary"
-                                    onClick={async () => {
-                                        // Download Actions
-                                        const headers = getAuthHeaders() as Record<string, string>;
-                                        if (retentionStatus.filePaths.appointments) {
-                                            window.open(`${serverUrl}/api/admin/maintenance/export?type=appointments&token=${headers['Authorization']?.split(' ')[1]}`, '_blank');
-                                        }
-                                        if (retentionStatus.filePaths.callbacks) {
-                                            setTimeout(() => {
-                                                window.open(`${serverUrl}/api/admin/maintenance/export?type=callbacks&token=${headers['Authorization']?.split(' ')[1]}`, '_blank');
-                                            }, 1000);
-                                        }
-                                    }}
-                                >
-                                    ⬇️ Download Archives
-                                </button>
-
-                                <button
-                                    className="btn-danger"
-                                    style={{ backgroundColor: '#dc2626', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
-                                    onClick={async () => {
-                                        if (!confirm('Have you downloaded the archives? This action will PERMANENTLY DELETE the data.')) return;
-                                        try {
-                                            const res = await fetch(`${serverUrl}/api/admin/maintenance/prune`, {
-                                                method: 'POST',
-                                                headers: getAuthHeaders()
-                                            });
-                                            if (res.ok) {
-                                                alert('Cleanup Complete!');
-                                                fetchData();
-                                            } else {
-                                                alert('Cleanup failed.');
-                                            }
-                                        } catch { alert('Error running cleanup'); }
-                                    }}
-                                >
-                                    🗑️ Confirm & Delete
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Business Hours Modal Integration */}
                     {showHoursModal && (
                         <BusinessHoursModal
@@ -580,22 +508,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                                 )}
                             </div>
 
-                            {/* Specialized Form for Retention */}
-                            {editingKey.startsWith('retention_') && (
-                                <div className="specialized-form">
-                                    <div className="form-group">
-                                        <label>{editingKey === 'retention_appointments_days' ? 'Days to keep Appointments' : 'Days to keep Callbacks'}</label>
-                                        <input
-                                            type="number"
-                                            value={settingValue} // It's just a number string in DB
-                                            onChange={e => setSettingValue(e.target.value)}
-                                        />
-                                        <span className="helper-text">
-                                            {editingKey === 'retention_appointments_days' ? 'Default: 1095 (3 Years)' : 'Default: 180 (6 Months)'}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
+
 
                             {/* Specialized Form for Receptionist */}
                             {editingKey === 'receptionist' && (
@@ -703,7 +616,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                         </div>
                     ) : (
                         <div className="items-list">
-                            {settings.map(setting => (
+                            {settings.filter(s => !s.key.startsWith('retention_')).map(setting => (
                                 <div key={setting.key} className="item-card">
                                     <div className="item-header">
                                         <h3>{setting.key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</h3>
@@ -715,7 +628,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                                                 handleEditSetting(setting);
                                             }
                                         }}>
-                                            Edit {setting.key === 'hours' || setting.key === 'receptionist' || setting.key === 'appointmentSettings' || setting.key.startsWith('retention_') ? '' : 'JSON'}
+                                            Edit {setting.key === 'hours' || setting.key === 'receptionist' || setting.key === 'appointmentSettings' ? '' : 'JSON'}
                                         </button>
                                     </div>
                                     <p className="description" style={{ color: '#6b7280', fontSize: '14px', marginBottom: '10px' }}>{setting.description}</p>
@@ -732,10 +645,6 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({
                                         ) : setting.key === 'hours' ? (
                                             <div>
                                                 Click "Edit" to manage Open/Close hours visually.
-                                            </div>
-                                        ) : setting.key.startsWith('retention_') ? (
-                                            <div>
-                                                {setting.value} Days
                                             </div>
                                         ) : (
                                             <pre style={{ margin: 0 }}>{JSON.stringify(setting.value, null, 2).slice(0, 150)}...</pre>

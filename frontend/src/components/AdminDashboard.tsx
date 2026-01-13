@@ -10,6 +10,7 @@ import { HolidaysManager } from './admin/HolidaysManager';
 import { CallbacksManager } from './admin/CallbacksManager';
 import { KnowledgeBase } from './admin/KnowledgeBase';
 import { BusinessSettings } from './admin/BusinessSettings';
+import { DataRetention } from './admin/DataRetention';
 import Clock from './admin/Clock';
 import { TableSkeleton, StatsSkeleton } from './admin/Skeleton';
 import {
@@ -40,7 +41,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
   const { mutate: globalMutate } = useSWRConfig();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays' | 'knowledge' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'callbacks' | 'staff' | 'services' | 'holidays' | 'knowledge' | 'settings' | 'retention'>('overview');
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const [appointmentFilter, setAppointmentFilter] = useState<'today' | 'week' | 'month' | 'all'>('month');
 
@@ -276,7 +277,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
 
 
       <nav className="admin-tabs">
-        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays', 'knowledge', 'settings'] as const).map(tab => (
+        {(['overview', 'appointments', 'callbacks', 'staff', 'services', 'holidays', 'knowledge', 'settings', 'retention'] as const).map(tab => (
           <button
             key={tab}
             className={`admin-tab ${activeTab === tab ? 'active' : ''}`}
@@ -384,6 +385,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ serverUrl }) => {
             getAuthHeaders={getAuthHeaders}
             onRefresh={() => mutateCallbacks()}
             onLogout={handleLogout}
+          />
+        )}
+
+        {/* Retention Tab */}
+        {activeTab === 'retention' && (
+          <DataRetention
+            serverUrl={serverUrl}
+            getAuthHeaders={getAuthHeaders}
           />
         )}
       </main >
