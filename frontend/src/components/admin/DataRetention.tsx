@@ -72,11 +72,18 @@ export const DataRetention: React.FC<DataRetentionProps> = ({ serverUrl, getAuth
     };
 
     const handleRunCheck = async () => {
-        if (!confirm('Run immediate check for expired data? This will generate archives if data is found.')) return;
+        const isPending = retentionStatus?.status === 'pending_approval';
+        const confirmMsg = isPending
+            ? 'Archives are already pending. Do you want to REGENERATE them? This will overwrite existing files.'
+            : 'Run immediate check for expired data? This will generate archives if data is found.';
+
+        if (!confirm(confirmMsg)) return;
+
         try {
             const res = await fetch(`${serverUrl}/api/admin/maintenance/check`, {
                 method: 'POST',
-                headers: getAuthHeaders()
+                headers: { ...getAuthHeaders() as Record<string, string>, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force: isPending })
             });
             if (res.ok) {
                 alert('Check initiated. Reloading status...');
@@ -119,13 +126,11 @@ export const DataRetention: React.FC<DataRetentionProps> = ({ serverUrl, getAuth
                         {retentionStatus?.lastRun && ` Last check: ${new Date(retentionStatus.lastRun).toLocaleString()}`}
                     </p>
 
-                    {!isPending && (
-                        <div className="actions">
-                            <button onClick={handleRunCheck} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #ddd', background: '#f9f9f9', cursor: 'pointer' }}>
-                                🔄 Run Manual Check
-                            </button>
-                        </div>
-                    )}
+                    <div className="actions">
+                        <button onClick={handleRunCheck} style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #ddd', background: '#f9f9f9', cursor: 'pointer' }}>
+                            {isPending ? '🔄 Force Re-Check' : '🔄 Run Manual Check'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* 2. Configuration Card */}

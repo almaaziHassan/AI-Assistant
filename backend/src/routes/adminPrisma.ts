@@ -694,7 +694,8 @@ export function createAdminRouterPrisma(
     // POST /api/admin/maintenance/check - Force Check & Compile
     router.post('/maintenance/check', async (req: Request, res: Response) => {
         try {
-            const status = await retentionService.checkAndCompile();
+            const { force } = req.body;
+            const status = await retentionService.checkAndCompile(!!force);
             res.json(status);
         } catch (error) {
             console.error('Check failed:', error);

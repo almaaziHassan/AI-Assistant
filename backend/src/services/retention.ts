@@ -69,8 +69,12 @@ export class RetentionService {
      * Daily Job: Checks for expired data.
      * If found, compiles CSVs to disk and sets status = 'pending_approval'
      */
-    async checkAndCompile(): Promise<RetentionState> {
-        console.log('Running Retention Check & Compile...');
+    /**
+     * Daily Job: Checks for expired data.
+     * If found, compiles CSVs to disk and sets status = 'pending_approval'
+     */
+    async checkAndCompile(force: boolean = false): Promise<RetentionState> {
+        console.log(`Running Retention Check & Compile... (Force: ${force})`);
 
         // 1. Get Config
         const retentionAptSetting = await adminServicePrisma.getSystemSetting('retention_appointments_days');
@@ -89,9 +93,9 @@ export class RetentionService {
         cbCutoff.setDate(cbCutoff.getDate() - retentionCbDays);
 
         // 2. Clear previous temp files if status is idle (clean slate)
-        // If status is pending_approval, WE DO NOT OVERWRITE. We wait for admin to act.
+        // If status is pending_approval, WE DO NOT OVERWRITE unless forced.
         const currentState = await this.getStatus();
-        if (currentState.status === 'pending_approval') {
+        if (currentState.status === 'pending_approval' && !force) {
             console.log('Retention Check Skipped: Cleanup already pending approval.');
             return currentState;
         }
@@ -129,20 +133,26 @@ export class RetentionService {
         const dateStr = new Date().toISOString().split('T')[0];
         let aptFilePath: string | null = null;
         let cbFilePath: string | null = null;
+        let aptRelativePath: string | null = null;
+        let cbRelativePath: string | null = null;
 
         if (expiredAppointments.length > 0) {
             const csv = this.generateAppointmentCSV(expiredAppointments);
-            aptFilePath = path.join(this.EXPORT_DIR, `appointments_archive_${dateStr}.csv`);
+            const fileName = `appointments_archive_${dateStr}.csv`;
+            aptFilePath = path.join(this.EXPORT_DIR, fileName);
+            aptRelativePath = path.join('data', 'exports', fileName);
             fs.writeFileSync(aptFilePath, csv);
         }
 
         if (expiredCallbacks.length > 0) {
             const csv = this.generateCallbackCSV(expiredCallbacks);
-            cbFilePath = path.join(this.EXPORT_DIR, `callbacks_archive_${dateStr}.csv`);
+            const fileName = `callbacks_archive_${dateStr}.csv`;
+            cbFilePath = path.join(this.EXPORT_DIR, fileName);
+            cbRelativePath = path.join('data', 'exports', fileName);
             fs.writeFileSync(cbFilePath, csv);
         }
 
-        // 5. Update State
+        // 5. Update State (Store RELATIVE paths for better portability)
         const pendingState: RetentionState = {
             status: 'pending_approval',
             compiledAt: new Date().toISOString(),
@@ -151,8 +161,8 @@ export class RetentionService {
                 callbacks: expiredCallbacks.length
             },
             filePaths: {
-                appointments: aptFilePath,
-                callbacks: cbFilePath
+                appointments: aptRelativePath, // Store relative
+                callbacks: cbRelativePath      // Store relative
             },
             config: { retentionAptDays, retentionCbDays }
         };
@@ -165,10 +175,22 @@ export class RetentionService {
     /**
      * Get file path for download
      */
+    /**
+     * Get file path for download
+     */
     async getExportFilePath(type: 'appointments' | 'callbacks'): Promise<string | null> {
         const state = await this.getStatus();
         if (state.status !== 'pending_approval') return null;
-        return type === 'appointments' ? state.filePaths.appointments : state.filePaths.callbacks;
+
+        const storedPath = type === 'appointments' ? state.filePaths.appointments : state.filePaths.callbacks;
+        if (!storedPath) return null;
+
+        // resolve path
+        if (path.isAbsolute(storedPath)) {
+            return storedPath;
+        } else {
+            return path.join(process.cwd(), storedPath);
+        }
     }
 
     /**
