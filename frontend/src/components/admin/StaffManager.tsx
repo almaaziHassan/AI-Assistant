@@ -145,7 +145,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
                 <h2>{editingStaffId ? 'Edit Staff Member' : 'Staff Members'}</h2>
                 <div className="header-actions" style={{ display: 'flex', gap: '10px' }}>
                     <button
-                        className="btn-secondary"
+                        className="btn-primary"
                         onClick={() => setShowHoursModal(true)}
                     >
                         General Office Hours
