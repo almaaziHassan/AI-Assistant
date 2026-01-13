@@ -54,13 +54,19 @@ export function destroySession(token: string): void {
 // Middleware to protect admin routes
 export function adminAuthMiddleware(req: Request, res: Response, next: NextFunction) {
   // Get token from Authorization header
+  // Get token from Authorization header OR query parameter
   const authHeader = req.headers.authorization;
+  let token: string | undefined;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Authentication required' });
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else if (req.query.token && typeof req.query.token === 'string') {
+    token = req.query.token;
   }
 
-  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
 
   if (!validateSession(token)) {
     return res.status(401).json({ error: 'Invalid or expired session' });
