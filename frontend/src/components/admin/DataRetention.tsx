@@ -190,12 +190,51 @@ export const DataRetention: React.FC<DataRetentionProps> = ({ serverUrl, getAuth
                                 <span style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px' }}>Step 1: Download</span>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {retentionStatus.archivePath && (
-                                        <button className="btn-secondary" style={{ background: 'white', textAlign: 'left' }} onClick={() => {
-                                            const headers = getAuthHeaders() as Record<string, string>;
-                                            window.open(`${serverUrl}/api/admin/maintenance/export?token=${headers['Authorization']?.split(' ')[1]}`, '_blank');
-                                        }}>
-                                            ⬇️ Download Excel Archive
-                                        </button>
+                                        <>
+                                            <button className="btn-secondary" style={{ background: 'white', textAlign: 'left' }} onClick={() => {
+                                                const headers = getAuthHeaders() as Record<string, string>;
+                                                window.open(`${serverUrl}/api/admin/maintenance/export?token=${headers['Authorization']?.split(' ')[1]}`, '_blank');
+                                            }}>
+                                                ⬇️ Download (Default)
+                                            </button>
+
+                                            <button className="btn-secondary" style={{ background: 'white', textAlign: 'left', marginTop: '4px' }} onClick={async () => {
+                                                try {
+                                                    // @ts-ignore - File System Access API
+                                                    if (!window.showDirectoryPicker) {
+                                                        alert('Your browser does not support picking a folder. Please use the default download button.');
+                                                        return;
+                                                    }
+
+                                                    // 1. Pick Folder
+                                                    // @ts-ignore
+                                                    const dirHandle = await window.showDirectoryPicker();
+
+                                                    // 2. Fetch File
+                                                    const headers = getAuthHeaders() as Record<string, string>;
+                                                    const res = await fetch(`${serverUrl}/api/admin/maintenance/export?token=${headers['Authorization']?.split(' ')[1]}`);
+                                                    if (!res.ok) throw new Error('Download failed');
+                                                    const blob = await res.blob();
+
+                                                    // 3. Save File to Folder
+                                                    const fileName = `archive_${new Date().toISOString().split('T')[0]}.xlsx`;
+                                                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                                                    const writable = await fileHandle.createWritable();
+                                                    await writable.write(blob);
+                                                    await writable.close();
+
+                                                    alert(`✅ Saved ${fileName} to chosen folder!`);
+
+                                                } catch (err: any) {
+                                                    if (err.name !== 'AbortError') {
+                                                        console.error('Save to folder failed:', err);
+                                                        alert('Failed to save to folder. See console for details.');
+                                                    }
+                                                }
+                                            }}>
+                                                📂 Export to Folder...
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             </div>
