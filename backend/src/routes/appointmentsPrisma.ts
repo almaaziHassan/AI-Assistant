@@ -156,7 +156,8 @@ export function createAppointmentRouterPrisma(
                     staffId: apt.staffId,
                     staffName: apt.staffName,
                     appointmentDate: apt.appointmentDate.toISOString().split('T')[0],
-                    appointmentTime: apt.appointmentTime.toISOString().split('T')[1].substring(0, 5),
+                    // Convert UTC storage (e.g. 04:00Z) back to PKT string (09:00) for frontend display
+                    appointmentTime: new Date(new Date(apt.appointmentTime).getTime() + 5 * 60 * 60 * 1000).toISOString().split('T')[1].substring(0, 5),
                     duration: apt.duration,
                     status: apt.status || 'confirmed',
                     notes: apt.notes,
@@ -225,7 +226,8 @@ export function createAppointmentRouterPrisma(
                 staffId: apt.staffId,
                 staffName: apt.staffName,
                 appointmentDate: apt.appointmentDate.toISOString().split('T')[0],
-                appointmentTime: apt.appointmentTime.toISOString().split('T')[1].substring(0, 5),
+                // Convert UTC storage back to PKT string for frontend
+                appointmentTime: new Date(new Date(apt.appointmentTime).getTime() + 5 * 60 * 60 * 1000).toISOString().split('T')[1].substring(0, 5),
                 duration: apt.duration,
                 status: apt.status || 'confirmed',
                 notes: apt.notes,

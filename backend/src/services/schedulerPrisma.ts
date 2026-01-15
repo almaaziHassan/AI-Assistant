@@ -376,7 +376,7 @@ export class SchedulerServicePrisma {
                     staffId: normalizedRequest.staffId,
                     staffName: staffName || null,
                     appointmentDate: new Date(normalizedRequest.date),
-                    appointmentTime: new Date(`1970-01-01T${normalizedRequest.time}:00`),
+                    appointmentTime: this.getPktAsUtc('1970-01-01', normalizedRequest.time),
                     duration: service.duration,
                     status: 'pending',
                     notes: normalizedRequest.notes?.trim() || null,
