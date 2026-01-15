@@ -84,6 +84,10 @@ app.use('/api/services', createServicesRouterPrisma(receptionist, adminServicePr
 // Old route: createAdminRouter(adminService, scheduler)
 app.use('/api/admin', adminAuthMiddleware, createAdminRouterPrisma(adminServicePrisma));
 
+// CRM Routes (Protected by Admin Auth)
+import crmRouter from './routes/crm';
+app.use('/api/admin/crm', adminAuthMiddleware, crmRouter);
+
 // Callback routes - using Prisma ORM
 app.use('/api/callbacks', createCallbacksRouterPrisma());
 

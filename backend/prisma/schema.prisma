@@ -34,12 +34,32 @@ model User {
   updatedAt            DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   appointments         Appointment[]
   conversations        Conversation[]
+  contactProfile       ContactProfile?
 
   @@index([email], map: "idx_users_email")
   @@index([googleId], map: "idx_users_google_id")
   @@index([verificationToken], map: "idx_users_verification_token")
   @@index([resetToken], map: "idx_users_reset_token")
   @@map("users")
+}
+
+model ContactProfile {
+  id          String   @id @default(uuid())
+  email       String   @unique  // The logical key for Guests
+  userId      String?  @unique  @map("user_id") // Direct link if they are a registered User
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  phone       String?
+  tags        Json?    @default("[]") // ["vip", "difficult", "monday-regular"]
+  notes       String?  // Internal admin notes: "Customer likes coffee"
+  isBlocked   Boolean  @default(false) @map("is_blocked")
+  
+  lastSeenAt  DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  @@index([email], map: "idx_contact_profile_email")
+  @@map("contact_profiles")
 }
 
 model Staff {

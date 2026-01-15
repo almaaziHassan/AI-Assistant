@@ -106,8 +106,10 @@ export function useAdminAuth(serverUrl: string): UseAdminAuthReturn {
             } else {
                 setLoginError(data.error || 'Login failed');
             }
-        } catch {
-            setLoginError('Connection error. Please try again.');
+        } catch (err: any) {
+            console.error('Login Error:', err);
+            console.log('Attempted Server URL:', serverUrl);
+            setLoginError(`Connection error: ${err.message} (URL: ${serverUrl})`);
         }
     };
 

@@ -87,13 +87,9 @@ export class SchedulerServicePrisma {
     }
 
     // Check if time slot is in the past
-    private isTimeSlotInPast(date: string, time: string, timezoneOffset?: number): boolean {
+    // Check if time slot is in the past
+    private isTimeSlotInPast(date: string, time: string, _timezoneOffset?: number): boolean {
         const now = new Date();
-        if (timezoneOffset !== undefined) {
-            const clientNow = new Date(now.getTime() - convertMinutesToMs(timezoneOffset));
-            const slotDateTime = new Date(`${date}T${time}:00`);
-            return slotDateTime <= clientNow;
-        }
         const slotDateTime = new Date(`${date}T${time}:00`);
         return slotDateTime <= now;
     }
@@ -265,6 +261,15 @@ export class SchedulerServicePrisma {
             date: request.date.trim(),
             time: request.time.trim(),
         };
+
+        // Check if user is blocked in CRM
+        const blockedProfile = await prisma.contactProfile.findUnique({
+            where: { email: normalizedRequest.customerEmail }
+        });
+
+        if (blockedProfile?.isBlocked) {
+            throw new Error('This account is restricted from making online bookings. Please contact us directly.');
+        }
 
         // Validations
         if (!normalizedRequest.customerName || normalizedRequest.customerName.length < 2) {

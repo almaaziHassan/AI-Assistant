@@ -198,6 +198,16 @@ export class GroqService {
     }
 
     console.error('All Groq API attempts failed:', lastError);
+
+    // Check if error is due to expired API key
+    const errorMessage = lastError && typeof lastError === 'object' && 'error' in lastError
+      ? JSON.stringify((lastError as any).error)
+      : String(lastError);
+
+    if (errorMessage.includes('expired_api_key') || errorMessage.includes('invalid_api_key')) {
+      throw new Error('Our AI service configuration needs a quick update (API Key Expired). Please contact support.');
+    }
+
     throw new Error('AI service is temporarily unavailable. Please try again in a moment.');
   }
 

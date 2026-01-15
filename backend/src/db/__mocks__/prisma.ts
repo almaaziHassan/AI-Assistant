@@ -13,6 +13,7 @@ const store: Record<string, any[]> = {
     conversation: [],
     knowledgeDoc: [],
     faq: [],
+    contactProfile: [],
 };
 
 // Generic CRUD handler
@@ -96,6 +97,7 @@ const mockPrisma = {
     knowledgeDoc: createDelegate('knowledgeDoc'),
     faq: createDelegate('faq'),
     fAQ: createDelegate('fAQ'),
+    contactProfile: createDelegate('contactProfile'),
 };
 
 export default mockPrisma;

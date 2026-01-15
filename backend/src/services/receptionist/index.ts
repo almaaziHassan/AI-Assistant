@@ -707,7 +707,9 @@ Rewritten Query:`;
         const tools = getTools();
 
         // Get AI response with function calling
+        console.log('[Receptionist] Sending request to Groq...');
         const response = await this.groq.chatWithFunctions(messages, tools);
+        console.log('[Receptionist] Received Groq response:', response.content?.substring(0, 50), 'Tools:', response.toolCalls?.length);
 
         // ============================================================
         // FALLBACK: PARSE TEXT-BASED FUNCTION CALLS (HALLUCINATIONS)

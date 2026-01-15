@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "start": "serve -s dist -l $PORT"
   },
   "dependencies": {
     "@types/react-big-calendar": "^1.16.3",
@@ -19,6 +20,7 @@
     "react-big-calendar": "^1.19.4",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
+    "serve": "^14.2.5",
     "socket.io-client": "^4.7.2",
     "swr": "^2.3.8"
   },

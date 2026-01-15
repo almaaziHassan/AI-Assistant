@@ -472,7 +472,8 @@ interface AppProps {
 }
 
 const App: React.FC<AppProps> = ({
-  serverUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'
+  // Force localhost in dev mode if currently running locally, to avoid accidently hitting production
+  serverUrl = import.meta.env.DEV ? 'http://localhost:3000' : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000')
 }) => {
   return (
     <AuthProvider>
