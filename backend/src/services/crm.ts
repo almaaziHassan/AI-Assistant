@@ -189,10 +189,22 @@ export class CRMService {
         });
 
         appointments.forEach(apt => {
+            // Combine date and time for accurate display
+            let eventDate = apt.appointmentDate;
+            if (apt.appointmentTime) {
+                const timeObj = apt.appointmentTime as unknown as Date;
+                const timeStr = timeObj instanceof Date
+                    ? `${timeObj.getUTCHours().toString().padStart(2, '0')}:${timeObj.getUTCMinutes().toString().padStart(2, '0')}`
+                    : String(timeObj).substring(0, 5);
+                // Create combined datetime
+                const dateStr = apt.appointmentDate.toISOString().split('T')[0];
+                eventDate = new Date(`${dateStr}T${timeStr}:00`);
+            }
+
             events.push({
                 id: apt.id,
                 type: 'appointment',
-                date: apt.appointmentDate,
+                date: eventDate,
                 title: `${apt.status === 'completed' ? 'Visited' : 'Booked'}: ${apt.serviceName}`,
                 description: `Status: ${apt.status} - Notes: ${apt.notes || 'None'}`,
                 status: apt.status || 'unknown',

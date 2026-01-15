@@ -46,16 +46,26 @@ export const formatTime = (time: string | unknown): string => {
     let timeStr = String(time);
 
     // Handle ISO date strings like "1970-01-01T09:00:00.000Z"
-    // Extract the time portion after 'T'
+    // These represent appointment times stored in UTC
     if (timeStr.includes('T')) {
-        const timePart = timeStr.split('T')[1];
-        if (timePart) {
-            // Get "09:00" from "09:00:00.000Z"
-            timeStr = timePart.substring(0, 5);
+        // Parse as a full Date to get correct timezone conversion
+        // Replace the 1970-01-01 with today's date to avoid DST issues
+        const today = new Date().toISOString().split('T')[0];
+        const timePart = timeStr.split('T')[1]; // "09:00:00.000Z"
+        const fullIso = `${today}T${timePart}`;
+        const dateObj = new Date(fullIso);
+
+        if (!isNaN(dateObj.getTime())) {
+            // Use the browser's local timezone for display
+            const hours = dateObj.getHours();
+            const minutes = dateObj.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
         }
     }
 
-    // Now parse HH:MM format
+    // Fallback: Parse HH:MM format directly (assumes local time)
     const parts = timeStr.split(':');
     const hours = parseInt(parts[0], 10);
     const minutes = parseInt(parts[1], 10);
