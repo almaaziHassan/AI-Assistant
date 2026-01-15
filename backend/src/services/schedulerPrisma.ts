@@ -87,30 +87,37 @@ export class SchedulerServicePrisma {
     }
 
     // Check if time slot is in the past
-    // Check if time slot is in the past
-    // Logic: compare user's current wall-clock time with the slot time.
-    // 'timezoneOffset' is the client's timezone offset in minutes (UTC - Client).
-    // e.g. UTC+5 is -300. UTC-5 is 300.
-    private isTimeSlotInPast(date: string, time: string, timezoneOffset?: number): boolean {
+    // Robust Logic: Create a "Fake UTC" date that matches the User's Wall Clock Time digits.
+    // Then compare the date/time strings directly.
+    private isTimeSlotInPast(slotDate: string, slotTime: string, timezoneOffset?: number): boolean {
         const now = new Date();
 
-        let normalizedNow = now;
-
-        // If offset provided, adjust 'now' to match user's wall clock time
         if (timezoneOffset !== undefined) {
-            // Example: Server(UTC) = 10:00. User(UTC+5, offset -300) = 15:00.
-            // We want 15:00.
-            // 10:00 (timestamp) - (-300 minutes) = 15:00.
-            // Note: Date.getTimezoneOffset() sign convention is (UTC - Local).
-            // So Local = UTC - Offset.
-            const clientTimestamp = now.getTime() - (timezoneOffset * 60 * 1000);
-            normalizedNow = new Date(clientTimestamp);
+            // 1. Calculate User's Wall Clock Timestamp
+            // offset is (UTC - Local) in minutes
+            // timestamp = UTC_ms - (offset * 60000)
+            // Example: UTC=10:00, Offset=-300 (UTC+5). Ts = 10:00 - (-5h) = 15:00.
+            const userWallClockMs = now.getTime() - (timezoneOffset * 60 * 1000);
+            const userWallClockDate = new Date(userWallClockMs);
+
+            // 2. Extract ISO string: "2026-01-15T15:00:00.000Z"
+            // This string now literally contains the user's local date and time digits
+            const isoString = userWallClockDate.toISOString();
+            const userDateStr = isoString.split('T')[0];
+            const userTimeStr = isoString.split('T')[1].substring(0, 5); // HH:mm
+
+            // 3. String Comparison
+            if (slotDate < userDateStr) return true; // Slot is in the past (yesterday)
+            if (slotDate > userDateStr) return false; // Slot is in the future (tomorrow)
+
+            // Date is same, compare Time String (lexicographical comparison works for HH:mm)
+            return slotTime <= userTimeStr;
         }
 
-        // Slot date/time in user's timezone (e.g. "2026-01-15T14:00:00")
-        const slotDateTime = new Date(`${date}T${time}:00`);
-
-        return slotDateTime <= normalizedNow;
+        // Fallback for when no timezone is provided (Server Time)
+        // Note: new Date("YYYY-MM-DDTHH:mm:00") uses Server Local Time if no 'Z' provided
+        const slotDateTime = new Date(`${slotDate}T${slotTime}:00`);
+        return slotDateTime <= now;
     }
 
     // Validate email format
