@@ -88,10 +88,29 @@ export class SchedulerServicePrisma {
 
     // Check if time slot is in the past
     // Check if time slot is in the past
-    private isTimeSlotInPast(date: string, time: string, _timezoneOffset?: number): boolean {
+    // Logic: compare user's current wall-clock time with the slot time.
+    // 'timezoneOffset' is the client's timezone offset in minutes (UTC - Client).
+    // e.g. UTC+5 is -300. UTC-5 is 300.
+    private isTimeSlotInPast(date: string, time: string, timezoneOffset?: number): boolean {
         const now = new Date();
+
+        let normalizedNow = now;
+
+        // If offset provided, adjust 'now' to match user's wall clock time
+        if (timezoneOffset !== undefined) {
+            // Example: Server(UTC) = 10:00. User(UTC+5, offset -300) = 15:00.
+            // We want 15:00.
+            // 10:00 (timestamp) - (-300 minutes) = 15:00.
+            // Note: Date.getTimezoneOffset() sign convention is (UTC - Local).
+            // So Local = UTC - Offset.
+            const clientTimestamp = now.getTime() - (timezoneOffset * 60 * 1000);
+            normalizedNow = new Date(clientTimestamp);
+        }
+
+        // Slot date/time in user's timezone (e.g. "2026-01-15T14:00:00")
         const slotDateTime = new Date(`${date}T${time}:00`);
-        return slotDateTime <= now;
+
+        return slotDateTime <= normalizedNow;
     }
 
     // Validate email format
