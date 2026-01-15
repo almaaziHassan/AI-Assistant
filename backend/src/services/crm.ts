@@ -250,7 +250,15 @@ export class CRMService {
             });
         });
 
-        return events.sort((a, b) => b.date.getTime() - a.date.getTime());
+        return events.sort((a, b) => {
+            const isAPending = a.type === 'appointment' && a.status === 'pending';
+            const isBPending = b.type === 'appointment' && b.status === 'pending';
+
+            if (isAPending && !isBPending) return -1;
+            if (!isAPending && isBPending) return 1;
+
+            return b.date.getTime() - a.date.getTime();
+        });
     }
 
     /**
