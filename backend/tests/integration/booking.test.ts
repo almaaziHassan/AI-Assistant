@@ -194,6 +194,34 @@ describe('Booking API Integration', () => {
         expect(response.body.status).toBe('pending');
       }
     });
+
+    it('should correctly handle PKT time input (09:00) and return consistent string', async () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 5);
+      const dateStr = tomorrow.toISOString().split('T')[0];
+
+      const slotsResponse = await request(app)
+        .get(`/api/appointments/slots?date=${dateStr}&serviceId=consultation`);
+
+      const slot = slotsResponse.body.slots?.find((s: any) => s.available && s.time === '09:00');
+
+      if (slot) {
+        const response = await request(app)
+          .post('/api/appointments')
+          .send({
+            customerName: 'Timezone User',
+            customerEmail: 'timezone@test.com',
+            customerPhone: '+14155559999',
+            serviceId: 'consultation',
+            staffId: 'staff-1',
+            date: dateStr,
+            time: '09:00'
+          })
+          .expect(201);
+
+        expect(response.body.appointmentTime).toBe('09:00');
+      }
+    });
   });
 
   describe('GET /api/appointments/:id', () => {

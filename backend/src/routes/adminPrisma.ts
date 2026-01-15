@@ -52,31 +52,24 @@ export function createAdminRouterPrisma(
             }
 
             // Transform to snake_case for frontend compatibility
-            // Transform to snake_case for frontend compatibility
-            const transformed = appointments.map(apt => {
-                // Debug check for the specific user report
-                // Log all times to be sure
-                // console.log(`[AdminAPI] Debug: ID=${apt.id} Time=${apt.appointmentTime.toISOString()}`);
-
-                return {
-                    id: apt.id,
-                    customer_name: apt.customerName,
-                    customer_email: apt.customerEmail,
-                    customer_phone: apt.customerPhone,
-                    service_id: apt.serviceId,
-                    service_name: apt.serviceName,
-                    staff_id: apt.staffId,
-                    staff_name: apt.staffName,
-                    appointment_date: apt.appointmentDate,
-                    appointment_time: apt.appointmentTime,
-                    duration: apt.duration,
-                    status: apt.status,
-                    location_id: apt.locationId,
-                    notes: apt.notes,
-                    created_at: apt.createdAt,
-                    updated_at: apt.updatedAt,
-                };
-            });
+            const transformed = appointments.map(apt => ({
+                id: apt.id,
+                customer_name: apt.customerName,
+                customer_email: apt.customerEmail,
+                customer_phone: apt.customerPhone,
+                service_id: apt.serviceId,
+                service_name: apt.serviceName,
+                staff_id: apt.staffId,
+                staff_name: apt.staffName,
+                appointment_date: apt.appointmentDate,
+                appointment_time: apt.appointmentTime,
+                duration: apt.duration,
+                status: apt.status,
+                location_id: apt.locationId,
+                notes: apt.notes,
+                created_at: apt.createdAt,
+                updated_at: apt.updatedAt,
+            }));
 
             res.json(transformed);
         } catch (error) {
