@@ -162,7 +162,13 @@ export const Appointments: React.FC<AppointmentsProps> = ({
                         {appointments.map(apt => (
                             <tr key={apt.id} className={apt.status === 'cancelled' ? 'cancelled' : ''}>
                                 <td>{formatDate(apt.appointment_date)}</td>
-                                <td>{formatTime(apt.appointment_time)}</td>
+                                <td>
+                                    {formatTime(apt.appointment_time)}
+                                    <br />
+                                    <span style={{ fontSize: '0.8em', color: '#666', fontFamily: 'monospace' }}>
+                                        UTC: {String(apt.appointment_time).split('T')[1]?.substring(0, 5) || String(apt.appointment_time)}
+                                    </span>
+                                </td>
                                 <td>
                                     <div>{apt.customer_name}</div>
                                     <div className="sub-text">{apt.customer_email}</div>
