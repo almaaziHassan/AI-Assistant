@@ -17,7 +17,7 @@ router.post('/login', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Password is required' });
     }
 
-    if (!verifyAdminPassword(password)) {
+    if (!verifyAdminPassword(password.trim())) {
       return res.status(401).json({ error: 'Invalid password' });
     }
 
