@@ -18,8 +18,8 @@ const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 interface Appointment {
     id: string;
     serviceName: string;
-    date: string;
-    time: string;
+    appointmentDate: string;
+    appointmentTime: string;
     duration: number;
     status: string;
     staffName?: string;
@@ -58,9 +58,10 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
             const data = await response.json();
             // Sort by date and time (upcoming first)
             const sorted = data.sort((a: Appointment, b: Appointment) =>
-                (a.date + a.time).localeCompare(b.date + b.time)
+                (a.appointmentDate + a.appointmentTime).localeCompare(b.appointmentDate + b.appointmentTime)
             );
             setAppointments(sorted);
+            console.log('[AppointmentsTab] Fetched:', sorted);
         } catch (err) {
             setError('Failed to load appointments');
             console.error(err);
@@ -127,12 +128,20 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
 
     // Use timezone-aware past detection
     const upcomingAppointments = appointments.filter(
-        apt => !isAppointmentInPast(apt.date, apt.time) && apt.status !== 'cancelled' && apt.status !== 'completed'
+        apt => {
+            const isPast = isAppointmentInPast(apt.appointmentDate, apt.appointmentTime);
+            const isUpcoming = !isPast && apt.status !== 'cancelled' && apt.status !== 'completed';
+            // Debug specific appointment if needed
+            if (apt.appointmentTime.startsWith('04')) {
+                console.log(`[FilterDebug] Apt ${apt.appointmentDate} ${apt.appointmentTime}. isPast: ${isPast}, Status: ${apt.status} -> Upcoming: ${isUpcoming}`);
+            }
+            return isUpcoming;
+        }
     );
 
     const pastAppointments = appointments.filter(
-        apt => isAppointmentInPast(apt.date, apt.time) || apt.status === 'cancelled' || apt.status === 'completed'
-    ).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)); // Most recent first
+        apt => isAppointmentInPast(apt.appointmentDate, apt.appointmentTime) || apt.status === 'cancelled' || apt.status === 'completed'
+    ).sort((a, b) => (b.appointmentDate + b.appointmentTime).localeCompare(a.appointmentDate + a.appointmentTime)); // Most recent first
 
     if (loading) {
         return (
@@ -209,11 +218,11 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
                                     <div className="card-details">
                                         <div className="detail-row">
                                             <span className="detail-icon">📆</span>
-                                            <span className="detail-text">{formatDate(apt.date)}</span>
+                                            <span className="detail-text">{formatDate(apt.appointmentDate)}</span>
                                         </div>
                                         <div className="detail-row">
                                             <span className="detail-icon">🕐</span>
-                                            <span className="detail-text">{formatTime(apt.date, apt.time)}</span>
+                                            <span className="detail-text">{formatTime(apt.appointmentDate, apt.appointmentTime)}</span>
                                         </div>
                                         {apt.staffName && (
                                             <div className="detail-row">
@@ -275,11 +284,11 @@ const AppointmentsTab: React.FC<AppointmentsTabProps> = ({ serverUrl = API_URL }
                                     <div className="card-details">
                                         <div className="detail-row">
                                             <span className="detail-icon">📆</span>
-                                            <span className="detail-text">{formatDate(apt.date)}</span>
+                                            <span className="detail-text">{formatDate(apt.appointmentDate)}</span>
                                         </div>
                                         <div className="detail-row">
                                             <span className="detail-icon">🕐</span>
-                                            <span className="detail-text">{formatTime(apt.date, apt.time)}</span>
+                                            <span className="detail-text">{formatTime(apt.appointmentDate, apt.appointmentTime)}</span>
                                         </div>
                                         {apt.staffName && (
                                             <div className="detail-row">
