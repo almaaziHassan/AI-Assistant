@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
 // Environment variables
-const ADMIN_PASSWORD = 'admin123'; // FORCE SIMPLER PASSWORD FOR DEV
+// Environment variables
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-change-in-prod';
 
 // Enforce security in production
