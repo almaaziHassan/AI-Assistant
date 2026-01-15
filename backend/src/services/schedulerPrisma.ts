@@ -69,12 +69,20 @@ export class SchedulerServicePrisma {
         return !isNaN(parsed.getTime());
     }
 
-    // Check if date is in the past
+
+    // Helper: Convert PKT time (UTC+5) to UTC Date object
+    private getPktAsUtc(dateStr: string, timeStr: string): Date {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const [hours, minutes] = timeStr.trim().split(':').map(Number);
+        return new Date(Date.UTC(year, month - 1, day, hours - 5, minutes, 0));
+    }
+
+    // Check if date is in the past (based on Business Time PKT)
     private isDateInPast(date: string): boolean {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const checkDate = new Date(date);
-        return checkDate < today;
+        const now = new Date();
+        const pktNow = new Date(now.getTime() + (5 * 60 * 60 * 1000));
+        const pktDateString = pktNow.toISOString().split('T')[0];
+        return date < pktDateString;
     }
 
     // Check if date is too far in advance
@@ -86,38 +94,14 @@ export class SchedulerServicePrisma {
         return checkDate > maxDate;
     }
 
+
+
     // Check if time slot is in the past
-    // Robust Logic: Create a "Fake UTC" date that matches the User's Wall Clock Time digits.
-    // Then compare the date/time strings directly.
-    private isTimeSlotInPast(slotDate: string, slotTime: string, timezoneOffset?: number): boolean {
+    // Uses absolute time comparison (Slot PKT vs Now UTC)
+    private isTimeSlotInPast(slotDate: string, slotTime: string, _timezoneOffset?: number): boolean {
         const now = new Date();
-
-        if (timezoneOffset !== undefined) {
-            // 1. Calculate User's Wall Clock Timestamp
-            // offset is (UTC - Local) in minutes
-            // timestamp = UTC_ms - (offset * 60000)
-            // Example: UTC=10:00, Offset=-300 (UTC+5). Ts = 10:00 - (-5h) = 15:00.
-            const userWallClockMs = now.getTime() - (timezoneOffset * 60 * 1000);
-            const userWallClockDate = new Date(userWallClockMs);
-
-            // 2. Extract ISO string: "2026-01-15T15:00:00.000Z"
-            // This string now literally contains the user's local date and time digits
-            const isoString = userWallClockDate.toISOString();
-            const userDateStr = isoString.split('T')[0];
-            const userTimeStr = isoString.split('T')[1].substring(0, 5); // HH:mm
-
-            // 3. String Comparison
-            if (slotDate < userDateStr) return true; // Slot is in the past (yesterday)
-            if (slotDate > userDateStr) return false; // Slot is in the future (tomorrow)
-
-            // Date is same, compare Time String (lexicographical comparison works for HH:mm)
-            return slotTime <= userTimeStr;
-        }
-
-        // Fallback for when no timezone is provided (Server Time)
-        // Note: new Date("YYYY-MM-DDTHH:mm:00") uses Server Local Time if no 'Z' provided
-        const slotDateTime = new Date(`${slotDate}T${slotTime}:00`);
-        return slotDateTime <= now;
+        const slotUtc = this.getPktAsUtc(slotDate, slotTime);
+        return slotUtc <= now;
     }
 
     // Validate email format
@@ -476,15 +460,14 @@ export class SchedulerServicePrisma {
 
         // Time validation for certain status changes
         if (status === 'confirmed' || status === 'completed' || status === 'no-show') {
-            const tz = timezoneOffset !== undefined ? timezoneOffset : -300;
             const now = new Date();
-            const clientNow = new Date(now.getTime() - convertMinutesToMs(tz));
-            const appointmentDateTime = new Date(`${existing.appointmentDate}T${existing.appointmentTime}:00`);
+            // Convert Appointment (PKT) to true UTC timestamp
+            const appointmentUtc = this.getPktAsUtc(existing.appointmentDate, existing.appointmentTime);
 
-            if (appointmentDateTime > clientNow) {
+            if (appointmentUtc > now) {
                 return {
                     success: false,
-                    error: `Cannot mark as ${status}. Appointment is in the future.`,
+                    error: `Cannot mark as ${status}. Appointment is in the future (Timezone: PKT).`,
                 };
             }
         }
