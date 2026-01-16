@@ -70,18 +70,16 @@ DO NOT call this for simple agreement words like "good", "ok", "thanks", "great"
             type: 'function',
             function: {
                 name: 'offer_callback_form',
-                description: `Show the callback request form. ALWAYS call when:
-- Customer says "yes", "sure", "ok", "good", "great", "sounds good" after you offered a callback
-- Customer says "call me back" / "call me" / "callback"
-- Customer agrees to be contacted
+                description: `Show the callback request form.
 
-Examples that MUST trigger this:
-- "yes please call me back" → YES
-- "good" (ONLY if you explicitly asked "Should I have someone call you?") → YES
-- "sounds good" (ONLY if you explicitly asked about a callback) → YES
-- "call me instead" → YES
+TRIGGER ONLY IF:
+1. Customer explicitly asks for a callback (e.g., "call me", "have someone call").
+2. OR Customer says "yes/ok/great" AND your IMMEDIATE PREVIOUS message explicitly offered a callback (e.g., "Shall I have someone call you?").
 
-DO NOT call this if the user is just saying "good" to a general statement or a refusal (e.g. "I can't help with that" -> "good").`,
+DO NOT TRIGGER IF:
+- You simply said "I don't have that info".
+- Customer says "ok" to a general statement.
+- Customer hasn't expressed interest in a callback.`,
                 parameters: {
                     type: 'object',
                     properties: {
