@@ -7,6 +7,36 @@ interface MessageListProps {
   isTyping: boolean;
 }
 
+const LoadingIndicator: React.FC = () => {
+  const [text, setText] = React.useState("Thinking...");
+
+  React.useEffect(() => {
+    const texts = [
+      "Thinking...",
+      "Reviewing your request...",
+      "Checking availability...",
+      "Drafting response..."
+    ];
+    let i = 0;
+    const interval = setInterval(() => {
+      i = (i + 1) % texts.length;
+      setText(texts[i]);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="typing-indicator-wrapper">
+      <div className="typing-indicator">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <span className="typing-text">{text}</span>
+    </div>
+  );
+};
+
 const ConfirmationCard: React.FC<{ data: ConfirmationData }> = ({ data }) => (
   <div className="confirmation-card">
     <div className="confirmation-header">
@@ -129,11 +159,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isTyping }) => {
 
       {isTyping && (
         <div className="ai-receptionist-message assistant">
-          <div className="typing-indicator">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
+          <LoadingIndicator />
         </div>
       )}
 

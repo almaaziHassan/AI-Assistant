@@ -298,13 +298,40 @@
 }
 
 /* Typing Indicator */
-.typing-indicator {
+/* Typing Indicator Wrapper */
+.typing-indicator-wrapper {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 12px;
   padding: 12px 16px;
   background: #f3f4f6;
   border-radius: 18px;
   border-bottom-left-radius: 4px;
+}
+
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+}
+
+.typing-text {
+  font-size: 13px;
+  color: #6b7280;
+  font-style: italic;
+  font-weight: 500;
+  animation: fadeText 0.5s ease;
+  min-width: 120px;
+  /* Prevent layout shift */
+}
+
+@keyframes fadeText {
+  from {
+    opacity: 0.4;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .typing-indicator span {
