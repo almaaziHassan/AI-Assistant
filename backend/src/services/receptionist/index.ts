@@ -791,6 +791,34 @@ Would you like us to call you back instead? I can set that up for you!`;
 
             // Handle offer_callback_form - User agreed to get a callback
             if (functionName === 'offer_callback_form') {
+                // GUARDRAIL: Verify that the assistant ACTUALLY offered a callback recently
+                // The history passed to chat() ends with the user message.
+                // We need to check the last ASSISTANT message to ensure context validity.
+                const lastAssistantMsg = [...history].reverse().find(m => m.role === 'assistant');
+
+                // Allow if we found a relevant keyword in the last assistant message
+                const allowedKeywords = ['contact', 'call', 'reach', 'connect', 'phone', 'number', 'speak', 'help'];
+                // Included 'help' broadly, but checking specifically for 'call' related context is safer? 
+                // Let's stick to contact-specific words to be strict against "I don't have that info".
+                const strictKeywords = ['contact', 'call', 'reach', 'connect', 'phone', 'number', 'speak'];
+
+                const hasOfferContext = lastAssistantMsg && strictKeywords.some(kw =>
+                    lastAssistantMsg.content.toLowerCase().includes(kw)
+                );
+
+                // STRICT CHECK: If the last assistant message was a refusal (e.g., "I don't have that info"), 
+                // and didn't include the allowed keywords, we assume the user's "ok" is just acknowledgement.
+                // We block the tool call to prevent hallucination.
+                if (!hasOfferContext && lastAssistantMsg) {
+                    console.log(`[Guardrail] Blocked offer_callback_form. Previous msg "${lastAssistantMsg.content.substring(0, 30)}..." did not contain offer keywords.`);
+
+                    // Respond pleasantly instead of showing form
+                    return {
+                        message: "Is there anything else I can help you with today? ✨",
+                        action: { type: 'none' }
+                    };
+                }
+
                 return {
                     message: functionArgs.message || "I'll get that set up for you!",
                     action: { type: 'request_callback' }
