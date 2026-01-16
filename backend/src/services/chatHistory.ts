@@ -47,12 +47,13 @@ export class ChatHistoryService {
       `SELECT id, session_id as sessionId, role, content, message_type, action_type, action_data, created_at as createdAt
        FROM conversations
        WHERE session_id = ?
-       ORDER BY created_at ASC
+       ORDER BY created_at DESC
        LIMIT ?`,
       [sessionId, limit]
     );
 
-    return rows.map(row => {
+    // Reverse rows to return chronological order (Oldest -> Newest)
+    return rows.reverse().map(row => {
       let actionData: Record<string, unknown> | undefined;
       if (row.action_data) {
         try {
@@ -76,13 +77,13 @@ export class ChatHistoryService {
   }
 
   // Get the last N messages for context (simple format for AI)
-  getRecentHistory(sessionId: string, limit: number = 20): { role: 'user' | 'assistant'; content: string }[] {
+  getRecentHistory(sessionId: string, limit: number = 50): { role: 'user' | 'assistant'; content: string }[] {
     const messages = this.getHistory(sessionId, limit);
     return messages.map(m => ({ role: m.role, content: m.content }));
   }
 
   // Get full history with all message data (for frontend restoration)
-  getFullHistory(sessionId: string, limit: number = 50): ChatMessage[] {
+  getFullHistory(sessionId: string, limit: number = 100): ChatMessage[] {
     return this.getHistory(sessionId, limit);
   }
 
