@@ -3,6 +3,11 @@ import { RATE_LIMIT_WINDOWS, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_MESSAGES } from
 
 // Helper to skip rate limiting for localhost (development/testing)
 const skipLocalhost = (req: { ip?: string }) => {
+    // SECURITY: Only skip in non-production environments
+    if (process.env.NODE_ENV === 'production') return false;
+    // Explicitly skip in test environment/CI
+    if (process.env.NODE_ENV === 'test') return true;
+
     return req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
 };
 

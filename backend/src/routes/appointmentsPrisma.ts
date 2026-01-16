@@ -6,6 +6,7 @@
 
 import { Router, Request, Response } from 'express';
 import { SchedulerServicePrisma, BookingRequest, schedulerServicePrisma } from '../services/schedulerPrisma';
+import { adminAuthMiddleware } from '../middleware/adminAuth';
 import { emailService, EmailService } from '../services/email';
 import { validateBookingRequest } from '../middleware/validation';
 import prisma from '../db/prisma';
@@ -74,7 +75,7 @@ export function createAppointmentRouterPrisma(
     });
 
     // GET /api/appointments/needing-action - Get past appointments that need status update
-    router.get('/needing-action', async (_req: Request, res: Response) => {
+    router.get('/needing-action', adminAuthMiddleware, async (_req: Request, res: Response) => {
         try {
             const appointments = await scheduler.getAppointmentsNeedingAction();
             res.json(appointments);
@@ -85,7 +86,7 @@ export function createAppointmentRouterPrisma(
     });
 
     // GET /api/appointments/stats - Get appointment statistics
-    router.get('/stats', async (_req: Request, res: Response) => {
+    router.get('/stats', adminAuthMiddleware, async (_req: Request, res: Response) => {
         try {
             const stats = await scheduler.getAppointmentStats();
             res.json(stats);
@@ -189,7 +190,7 @@ export function createAppointmentRouterPrisma(
     });
 
     // GET /api/appointments/by-email/:email - Get appointments by email
-    router.get('/by-email/:email', async (req: Request, res: Response) => {
+    router.get('/by-email/:email', adminAuthMiddleware, async (req: Request, res: Response) => {
         try {
             const { email } = req.params;
             const appointments = await scheduler.getAppointmentsByEmail(email);
@@ -290,6 +291,10 @@ export function createAppointmentRouterPrisma(
                 return res.status(400).json({ error: 'Date and time are required' });
             }
 
+            if (!email) {
+                return res.status(400).json({ error: 'Email verification is required to reschedule' });
+            }
+
             const existing = await scheduler.getAppointment(id);
             if (!existing) {
                 return res.status(404).json({ error: 'Appointment not found' });
@@ -354,7 +359,7 @@ export function createAppointmentRouterPrisma(
     });
 
     // PATCH /api/appointments/:id/status - Update appointment status
-    router.patch('/:id/status', async (req: Request, res: Response) => {
+    router.patch('/:id/status', adminAuthMiddleware, async (req: Request, res: Response) => {
         try {
             const { id } = req.params;
             const { status, tz } = req.body;

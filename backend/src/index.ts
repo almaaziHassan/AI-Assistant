@@ -64,6 +64,9 @@ app.set('trust proxy', 1); // Trust Railway proxy for rate limiter
 app.use(cors(getExpressCorsConfig()));
 app.use(express.json());
 
+// Global rate limiting for all API routes (Security Best Practice)
+app.use('/api', apiLimiter);
+
 // ==================== API Routes ====================
 
 // Authentication routes

@@ -30,29 +30,23 @@ if (process.env.NODE_ENV === 'production') {
 
 // Generate a JWT session token
 export function createSession(): string {
+  const secret = process.env.JWT_SECRET || 'dev-secret-key-change-in-prod';
   // Token expires in 24 hours
-  return jwt.sign({ role: 'admin', timestamp: Date.now() }, JWT_SECRET, { expiresIn: '24h' });
+  return jwt.sign({ role: 'admin', timestamp: Date.now() }, secret, { expiresIn: '24h' });
 }
 
 // Verify admin password
+// Verify admin password
 export function verifyAdminPassword(password: string): boolean {
-  const match = password === ADMIN_PASSWORD;
-  if (!match) {
-    console.log(`[AuthDebug] Password Check Failed.`);
-    console.log(`[AuthDebug] Expected Length: ${ADMIN_PASSWORD.length}`);
-    console.log(`[AuthDebug] Received Length: ${password.length}`);
-    if (password.length > 0 && ADMIN_PASSWORD.length > 0) {
-      console.log(`[AuthDebug] Expected First Char: ${ADMIN_PASSWORD.charCodeAt(0)}`);
-      console.log(`[AuthDebug] Received First Char: ${password.charCodeAt(0)}`);
-    }
-  }
-  return match;
+  const adminPassword = (process.env.ADMIN_PASSWORD || 'admin123').trim();
+  return password === adminPassword;
 }
 
 // Validate session token
 export function validateSession(token: string): boolean {
   try {
-    jwt.verify(token, JWT_SECRET);
+    const secret = process.env.JWT_SECRET || 'dev-secret-key-change-in-prod';
+    jwt.verify(token, secret);
     return true;
   } catch (err) {
     return false;
