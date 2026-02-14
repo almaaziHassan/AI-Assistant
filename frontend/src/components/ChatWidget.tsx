@@ -59,6 +59,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
 }) => {
   const { user } = useAuth(); // Get current user for linking bookings
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isAutoVoiceEnabled, setIsAutoVoiceEnabled] = useState(false);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [showCallbackForm, setShowCallbackForm] = useState(false);
   const [prefetchedServices, setPrefetchedServices] = useState<Service[] | null>(null);
@@ -220,11 +221,23 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   // Forms are now shown only when user clicks the button
   // No auto-show - user controls when to open the form
 
+  const toggleAutoVoice = () => {
+    setIsAutoVoiceEnabled(prev => !prev);
+    if (!isAutoVoiceEnabled) {
+      // Small feedback when enabling
+      const msg = new SpeechSynthesisUtterance("Auto voice enabled");
+      window.speechSynthesis.speak(msg);
+    } else {
+      window.speechSynthesis.cancel();
+    }
+  };
+
   const toggleWidget = () => {
     const newIsOpen = !isOpen;
     setIsOpen(newIsOpen);
     if (!newIsOpen && onClose) {
       onClose();
+      window.speechSynthesis.cancel(); // Stop talking when closing
     }
   };
 
@@ -512,6 +525,23 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
             </div>
             <div className="ai-receptionist-header-actions">
               <button
+                className={`ai-receptionist-auto-voice ${isAutoVoiceEnabled ? 'active' : ''}`}
+                onClick={toggleAutoVoice}
+                title={isAutoVoiceEnabled ? "Disable auto-voice" : "Enable auto-voice"}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                  {isAutoVoiceEnabled ? (
+                    <>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                    </>
+                  ) : (
+                    <line x1="23" y1="9" x2="17" y2="15" />
+                  )}
+                </svg>
+              </button>
+              <button
                 className="ai-receptionist-new-chat"
                 onClick={startNewConversation}
                 title="Start new conversation"
@@ -556,7 +586,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               />
             ) : appointmentSelectorData ? (
               <>
-                <MessageList messages={messages} isTyping={isTyping} />
+                <MessageList
+                  messages={messages}
+                  isTyping={isTyping}
+                  isAutoVoiceEnabled={isAutoVoiceEnabled}
+                />
                 <AppointmentSelector
                   appointments={appointmentSelectorData.appointments}
                   onCancel={handleAppointmentCancel}
@@ -566,7 +600,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               </>
             ) : (
               <>
-                <MessageList messages={messages} isTyping={isTyping} />
+                <MessageList
+                  messages={messages}
+                  isTyping={isTyping}
+                  isAutoVoiceEnabled={isAutoVoiceEnabled}
+                />
 
                 {/* Quick Action Buttons */}
                 {(shouldShowBookButton || shouldShowCallbackButton) && (

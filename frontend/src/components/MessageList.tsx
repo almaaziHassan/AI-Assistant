@@ -5,6 +5,7 @@ import { Message, ConfirmationData, CallbackConfirmationData } from '../hooks/us
 interface MessageListProps {
   messages: Message[];
   isTyping: boolean;
+  isAutoVoiceEnabled?: boolean;
 }
 
 const LoadingIndicator: React.FC = () => {
@@ -116,8 +117,10 @@ const CallbackConfirmationCard: React.FC<{ data: CallbackConfirmationData }> = (
   </div>
 );
 
-const MessageList: React.FC<MessageListProps> = ({ messages, isTyping }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, isTyping, isAutoVoiceEnabled = false }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [speakingId, setSpeakingId] = React.useState<string | null>(null);
+  const lastSpokenMessageId = useRef<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -127,6 +130,23 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isTyping }) => {
     scrollToBottom();
   }, [messages, isTyping]);
 
+  // Auto-speak new assistant messages
+  useEffect(() => {
+    if (isAutoVoiceEnabled && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant' && !lastMessage.isStatusMessage && lastMessage.id !== lastSpokenMessageId.current) {
+        speak(lastMessage.content, lastMessage.id);
+        lastSpokenMessageId.current = lastMessage.id;
+      }
+    }
+  }, [messages, isAutoVoiceEnabled]);
+
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
   const formatTime = (timestamp: string) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
@@ -135,24 +155,64 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isTyping }) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const speak = (text: string, id: string) => {
+    if (speakingId === id) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+    setSpeakingId(id);
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
     <div className="ai-receptionist-messages">
       {messages.map((message) => (
         <div
           key={message.id}
-          className={`ai-receptionist-message ${message.role} ${message.isStatusMessage ? 'status-message' : ''}`}
+          className={`ai-receptionist-message-wrapper ${message.role}`}
         >
-          {message.type === 'confirmation' && message.confirmation ? (
-            <ConfirmationCard data={message.confirmation} />
-          ) : message.type === 'callback_confirmation' && message.callbackConfirmation ? (
-            <CallbackConfirmationCard data={message.callbackConfirmation} />
-          ) : (
-            <div className="message-content markdown-content">
-              <ReactMarkdown>{message.content}</ReactMarkdown>
+          <div
+            className={`ai-receptionist-message ${message.role} ${message.isStatusMessage ? 'status-message' : ''}`}
+          >
+            {message.type === 'confirmation' && message.confirmation ? (
+              <ConfirmationCard data={message.confirmation} />
+            ) : message.type === 'callback_confirmation' && message.callbackConfirmation ? (
+              <CallbackConfirmationCard data={message.callbackConfirmation} />
+            ) : (
+              <div className="message-content markdown-content">
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              </div>
+            )}
+            <div className="message-footer">
+              <span className="message-time">
+                {formatTime(message.timestamp)}
+              </span>
+              {message.role === 'assistant' && !message.isStatusMessage && (
+                <button
+                  className={`speak-btn ${speakingId === message.id ? 'speaking' : ''}`}
+                  onClick={() => speak(message.content, message.id)}
+                  title={speakingId === message.id ? 'Stop' : 'Listen'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                    {speakingId === message.id ? (
+                      <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+                    ) : (
+                      <>
+                        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                      </>
+                    )}
+                  </svg>
+                </button>
+              )}
             </div>
-          )}
-          <div className="message-time">
-            {formatTime(message.timestamp)}
           </div>
         </div>
       ))}
@@ -167,5 +227,6 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isTyping }) => {
     </div>
   );
 };
+
 
 export default MessageList;

@@ -92,12 +92,27 @@ async function initPostgres(): Promise<void> {
   });
 
   // Test connection
-  const client = await pgPool.connect();
   try {
-    await client.query('SELECT 1');
-    console.log('PostgreSQL connected successfully');
-  } finally {
-    client.release();
+    const client = await pgPool.connect();
+    try {
+      await client.query('SELECT 1');
+      console.log('✅ PostgreSQL connected successfully');
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error('❌ PostgreSQL Connection Failed:');
+    console.error('Error Message:', err.message);
+
+    if (err.message.includes('Tenant or user not found')) {
+      console.error('\n💡 DEBUG TIP: Your Supabase/Postgres connection string might be incorrect.');
+      console.error('- If using Supabase Connection Pooler (port 6543):');
+      console.error('  1. Ensure your username is "postgres.project-id" (find project-id in Supabase settings).');
+      console.error('  2. Verify your password is correct and escaped if it contains special characters.');
+      console.error('  3. Try using the DIRECT connection (port 5432) instead of the pooler.');
+    }
+
+    throw err; // Re-throw to prevent server from starting with a broken DB
   }
 }
 

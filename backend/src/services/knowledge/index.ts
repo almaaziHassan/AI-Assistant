@@ -25,18 +25,19 @@ export class KnowledgeService {
     private extractor: any = null; // Type: FeatureExtractionPipeline (Dynamic import)
     private readonly MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
 
+    private isModelLoaded = false;
+
     private constructor() {
-        // Initialize MiniSearch
+        // ... previous code ...
         this.searchIndex = new MiniSearch({
-            fields: ['title', 'content', 'tags'], // fields to index for full-text search
-            storeFields: ['title', 'content', 'tags', 'id'], // fields to return with search results
+            fields: ['title', 'content', 'tags'],
+            storeFields: ['title', 'content', 'tags', 'id'],
             searchOptions: {
                 boost: { title: 2, tags: 1.5 },
-                fuzzy: 0.2, // typo tolerance
+                fuzzy: 0.2,
                 prefix: true
             }
         });
-        // Initialize pipeline lazily in initialize()
     }
 
     public static getInstance(): KnowledgeService {
@@ -57,38 +58,58 @@ export class KnowledgeService {
             // 1. Load Model (Dynamic Import)
             if (!this.extractor) {
                 console.log('Loading embedding model...');
-                // Bypass TypeScript transpilation to force native ESM import
-                const dynamicImport = new Function('return import("@xenova/transformers")');
-                const { pipeline } = await dynamicImport();
-                this.extractor = await pipeline('feature-extraction', this.MODEL_NAME);
+                try {
+                    // Bypass TypeScript transpilation to force native ESM import
+                    const dynamicImport = new Function('return import("@xenova/transformers")');
+                    const { pipeline, env } = await dynamicImport();
+
+                    // Configure transformers to be more resilient in constrained environments
+                    env.allowRemoteModels = true;
+                    env.localModelPath = null;
+
+                    this.extractor = await pipeline('feature-extraction', this.MODEL_NAME);
+                    this.isModelLoaded = true;
+                    console.log('✅ Embedding model loaded successfully');
+                } catch (modelError) {
+                    console.error('⚠️ Failed to load embedding model. Vector search will be disabled, falling back to keyword search only.', modelError);
+                    this.isModelLoaded = false;
+                }
             }
 
             // 2. Load Docs from DB
-            const docs = await prisma.knowledgeDoc.findMany({
-                where: { isActive: true }
-            });
-            this.cachedDocs = docs.map(doc => ({
-                id: doc.id,
-                title: doc.title,
-                content: doc.content,
-                tags: Array.isArray(doc.tags) ? (doc.tags as string[]) : [],
-                embedding: (doc.embedding as unknown as number[]) || null
-            }));
+            try {
+                const docs = await prisma.knowledgeDoc.findMany({
+                    where: { isActive: true }
+                });
+                this.cachedDocs = docs.map(doc => ({
+                    id: doc.id,
+                    title: doc.title,
+                    content: doc.content,
+                    tags: Array.isArray(doc.tags) ? (doc.tags as string[]) : [],
+                    embedding: (doc.embedding as unknown as number[]) || null
+                }));
 
-            // Re-build MiniSearch index
-            this.searchIndex.removeAll();
-            const records = this.cachedDocs.map(doc => ({
-                id: doc.id,
-                title: doc.title,
-                content: doc.content,
-                tags: doc.tags.join(' ')
-            }));
-            this.searchIndex.addAll(records);
+                // Re-build MiniSearch index
+                this.searchIndex.removeAll();
+                const records = this.cachedDocs.map(doc => ({
+                    id: doc.id,
+                    title: doc.title,
+                    content: doc.content,
+                    tags: doc.tags.join(' ')
+                }));
+                this.searchIndex.addAll(records);
+
+                console.log(`✅ Knowledge Base initialized with ${docs.length} documents.`);
+            } catch (dbError) {
+                console.error('❌ Failed to load documents from database:', dbError);
+                this.cachedDocs = [];
+            }
 
             this.isInitialized = true;
-            console.log(`Knowledge Base initialized with ${docs.length} documents.`);
         } catch (error) {
-            console.error('Failed to initialize Knowledge Service:', error);
+            console.error('❌ Critical failure in Knowledge Service initialization:', error);
+            // We set isInitialized to true anyway to prevent repeated failing attempts
+            this.isInitialized = true;
         }
     }
 
@@ -166,17 +187,20 @@ export class KnowledgeService {
         }
 
         try {
-            // 1. Vector Search
-            const queryEmbedding = await this.generateEmbedding(query);
-            const vectorResults = this.cachedDocs
-                .filter(doc => doc.embedding !== null)
-                .map(doc => ({
-                    id: doc.id,
-                    score: this.cosineSimilarity(queryEmbedding, doc.embedding!)
-                }))
-                .filter(r => r.score > 0.15)
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 20); // More candidates
+            // 1. Vector Search (Only if model is loaded)
+            let vectorResults: { id: string; score: number }[] = [];
+            if (this.isModelLoaded) {
+                const queryEmbedding = await this.generateEmbedding(query);
+                vectorResults = this.cachedDocs
+                    .filter(doc => doc.embedding !== null)
+                    .map(doc => ({
+                        id: doc.id,
+                        score: this.cosineSimilarity(queryEmbedding, doc.embedding!)
+                    }))
+                    .filter(r => r.score > 0.15)
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, 20); // More candidates
+            }
 
             // 2. Keyword Search
             const keywordResults = this.searchIndex.search(query)

@@ -1444,3 +1444,149 @@
   background: #fecaca;
   transform: translateY(-1px);
 }
+
+/* Voice Feature Styles */
+.voice-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  color: #6b7280;
+}
+
+.voice-btn:hover:not(:disabled) {
+  background: #e5e7eb;
+  color: #374151;
+  transform: scale(1.05);
+}
+
+.voice-btn.recording {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #ef4444;
+  animation: pulseRecording 1.5s infinite;
+}
+
+@keyframes pulseRecording {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.voice-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.speak-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.speak-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #6b7280;
+}
+
+.speak-btn.speaking {
+  color: #6366f1;
+  animation: speakWobble 1s infinite alternate;
+}
+
+@keyframes speakWobble {
+  from {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+
+  to {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+.ai-receptionist-message-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.ai-receptionist-message-wrapper.user {
+  align-items: flex-end;
+}
+
+.ai-receptionist-message-wrapper.assistant {
+  align-items: flex-start;
+}
+
+.message-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  padding: 0 8px;
+  min-height: 24px;
+}
+
+.ai-receptionist-message.user .message-footer {
+  justify-content: flex-end;
+}
+
+.message-time {
+  margin-top: 0 !important;
+}
+
+/* Auto-voice Toggle */
+.ai-receptionist-auto-voice {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  color: white;
+}
+
+.ai-receptionist-auto-voice:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.ai-receptionist-auto-voice.active {
+  background: white;
+  color: #6366f1;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.ai-receptionist-auto-voice svg {
+  width: 18px;
+  height: 18px;
+}
