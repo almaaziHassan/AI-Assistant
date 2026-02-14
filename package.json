@@ -1,8 +1,13 @@
 {
+  "name": "ai-assistant-root",
+  "version": "1.0.0",
+  "private": true,
   "devDependencies": {
     "husky": "^9.1.7"
   },
   "scripts": {
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "build": "npm run build --prefix backend",
+    "start": "npm run start --prefix backend"
   }
 }
